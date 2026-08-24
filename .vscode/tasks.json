@@ -1,0 +1,84 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start website",
+      "detail": "Runs the dev server in the background at http://localhost:4321",
+      "type": "npm",
+      "script": "start",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true,
+        "close": true
+      }
+    },
+    {
+      "label": "Stop website",
+      "detail": "Shuts down the background dev server",
+      "type": "npm",
+      "script": "stop",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true,
+        "close": true
+      }
+    },
+    {
+      "label": "Restart website",
+      "detail": "Stop then start — use after changing astro.config.mjs",
+      "type": "npm",
+      "script": "restart",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true,
+        "close": true
+      }
+    },
+    {
+      "label": "Website status",
+      "detail": "Is it running, on which port, and for how long",
+      "type": "npm",
+      "script": "status",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "Website logs",
+      "detail": "Tail the background server's output",
+      "type": "npm",
+      "script": "logs",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "Build for production",
+      "detail": "Builds to ./dist — exactly what gets uploaded to Hostinger",
+      "type": "npm",
+      "script": "build",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    }
+  ]
+}

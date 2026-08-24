@@ -1,0 +1,687 @@
+---
+import { nav, cta } from '../config/nav';
+
+interface Props {
+  /** True on pages with a full-bleed hero that the header sits on top of. */
+  overlay?: boolean;
+}
+const { overlay = false } = Astro.props;
+const path = Astro.url.pathname;
+
+const isCurrent = (href?: string) =>
+  href ? (href === '/' ? path === '/' : path.startsWith(href)) : false;
+---
+
+<header
+  id="site-header"
+  data-overlay={overlay ? '' : null}
+  class:list={['site-header', overlay ? 'is-transparent' : 'is-solid']}
+>
+  <div class="header-inner">
+    <!-- Brand. Swap the mark for the real logo file when you have it:
+         <img src="/logo.svg" alt="" class="brand-icon" /> -->
+    <a href="/" class="brand" aria-label="Aniwala Studios — home">
+      <svg class="brand-icon" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+        <path d="M20 5L30.5 32H25.2L20 17.4L14.8 32H9.5L20 5Z" fill="currentColor"></path>
+        <path
+          d="M4 27.5C12 23 28 23 36 27.5"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          opacity="0.85"></path>
+        <path d="M32 8l1 2.6 2.6 1-2.6 1L32 15l-1-2.4-2.6-1 2.6-1L32 8Z" fill="currentColor"></path>
+      </svg>
+      <span class="brand-text">
+        <span class="brand-name">ANIWALA</span>
+        <span class="brand-sub">Studios</span>
+      </span>
+    </a>
+
+    <!-- Desktop nav -->
+    <nav class="nav-desktop" aria-label="Main">
+      {
+        nav.map((item) =>
+          item.children ? (
+            <div class="nav-group">
+              <button type="button" class="nav-link nav-trigger" aria-expanded="false">
+                {item.label}
+                <svg class="nav-caret" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                  <path
+                    d="M3 4.5L6 7.5L9 4.5"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </button>
+
+              <div class="nav-panel">
+                <ul class="nav-panel-list">
+                  {item.children.map((child) => (
+                    <li>
+                      <a
+                        href={child.href}
+                        class="nav-panel-link"
+                        aria-current={isCurrent(child.href) ? 'page' : undefined}
+                      >
+                        <span class="nav-panel-label">{child.label}</span>
+                        {child.blurb && <span class="nav-panel-blurb">{child.blurb}</span>}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : (
+            <a
+              href={item.href}
+              class="nav-link"
+              aria-current={isCurrent(item.href) ? 'page' : undefined}
+            >
+              {item.label}
+            </a>
+          )
+        )
+      }
+    </nav>
+
+    <!-- Actions -->
+    <div class="header-end">
+      <button type="button" class="icon-btn" data-search-open aria-label="Search">
+        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <circle cx="9" cy="9" r="6.25" stroke="currentColor" stroke-width="1.6"></circle>
+          <path d="M13.5 13.5L17.5 17.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
+          ></path>
+        </svg>
+      </button>
+
+      <button
+        type="button"
+        id="theme-toggle"
+        class="icon-btn"
+        aria-label="Switch to light theme"
+        aria-pressed="false"
+      >
+        <svg class="icon-moon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path
+            d="M16.5 12.4A7 7 0 0 1 7.6 3.5a7 7 0 1 0 8.9 8.9Z"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linejoin="round"></path>
+        </svg>
+        <svg class="icon-sun" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <circle cx="10" cy="10" r="3.6" stroke="currentColor" stroke-width="1.6"></circle>
+          <path
+            d="M10 1.5v2M10 16.5v2M1.5 10h2M16.5 10h2M4.2 4.2l1.4 1.4M14.4 14.4l1.4 1.4M15.8 4.2l-1.4 1.4M5.6 14.4l-1.4 1.4"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"></path>
+        </svg>
+      </button>
+
+      <a href={cta.href} class="cta-btn">{cta.label}</a>
+
+      <button
+        type="button"
+        id="menu-toggle"
+        class="burger"
+        aria-expanded="false"
+        aria-controls="mobile-menu"
+        aria-label="Open menu"
+      >
+        <span class="burger-bar"></span>
+        <span class="burger-bar"></span>
+        <span class="burger-bar"></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!--
+  Deliberately OUTSIDE <header>. The header applies backdrop-filter while the
+  menu is open, and backdrop-filter makes an element the containing block for
+  its position:fixed descendants. Nested here, the drawer resolved top/bottom
+  against the 81px header instead of the viewport and collapsed to 1px tall:
+  links were present but had no area, so taps fell through to the page behind.
+-->
+<div id="mobile-menu" class="mobile-menu" data-lenis-prevent>
+  <nav class="mobile-nav" aria-label="Mobile">
+    {
+      nav.map((item) =>
+        item.children ? (
+          <details class="mobile-details">
+            <summary class="mobile-summary">
+              {item.label}
+              <svg class="nav-caret" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path
+                  d="M3 4.5L6 7.5L9 4.5"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </summary>
+            <ul class="mobile-sublist">
+              {item.children.map((child) => (
+                <li>
+                  <a href={child.href} class="mobile-sublink">
+                    {child.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : (
+          <a href={item.href} class="mobile-link">
+            {item.label}
+          </a>
+        )
+      )
+    }
+
+    <a href={cta.href} class="cta-btn cta-btn--block">{cta.label}</a>
+  </nav>
+</div>
+
+<style>
+  .site-header {
+    position: fixed;
+    /* Sits below the announcement strip; collapses to 0 when dismissed. */
+    top: var(--announce-h);
+    left: 0;
+    right: 0;
+    z-index: 50;
+    border-bottom: 1px solid transparent;
+    transition:
+      background-color 0.3s ease,
+      backdrop-filter 0.3s ease,
+      border-color 0.3s ease;
+  }
+
+  .site-header.is-transparent {
+    background: transparent;
+  }
+  .site-header.is-solid,
+  .site-header.is-scrolled,
+  .site-header.menu-open {
+    background: color-mix(in srgb, var(--color-ground) 92%, transparent);
+    backdrop-filter: blur(12px);
+    border-bottom-color: var(--color-line);
+  }
+
+  /* While transparent over the hero, the header stays light-on-dark in BOTH
+     themes: the hero scrim is dark regardless of theme, so --color-ink would
+     render the nav near-black and invisible in light mode. Once .is-scrolled
+     adds the solid background, the normal theme tokens take over again. */
+  .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .brand,
+  .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .nav-link,
+  .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .icon-btn {
+    color: #f4f4f2;
+  }
+  .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .brand-sub {
+    color: rgb(255 255 255 / 0.62);
+  }
+  .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .burger-bar {
+    background: #f4f4f2;
+  }
+  .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .nav-link:hover,
+  .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .nav-link[aria-current='page'],
+  .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .icon-btn:hover {
+    color: #e4c24c;
+  }
+
+  .header-inner {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 0 1.25rem;
+    height: var(--header-h);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+  }
+  @media (min-width: 640px) {
+    .header-inner {
+      padding: 0 2rem;
+    }
+  }
+
+  /* --- Brand -------------------------------------------------------- */
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-shrink: 0;
+    text-decoration: none;
+    color: var(--color-ink);
+  }
+  .brand-icon {
+    width: 2.1rem;
+    height: 2.1rem;
+    flex-shrink: 0;
+  }
+  .brand-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1;
+  }
+  .brand-name {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 800;
+    font-stretch: 112%;
+    letter-spacing: 0.02em;
+  }
+  .brand-sub {
+    font-family: var(--font-mono);
+    font-size: 0.55rem;
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+    color: var(--color-ink-muted);
+    margin-top: 0.22rem;
+  }
+
+  /* --- Desktop nav -------------------------------------------------- */
+  .nav-desktop {
+    display: none;
+    align-items: center;
+    gap: 0.15rem;
+  }
+  @media (min-width: 1240px) {
+    .nav-desktop {
+      display: flex;
+    }
+  }
+
+  .nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.55rem 0.85rem;
+    border-radius: 0.375rem;
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--color-ink);
+    white-space: nowrap;
+    text-decoration: none;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    transition: color 0.2s ease;
+  }
+  .nav-link:hover,
+  .nav-link[aria-current='page'] {
+    color: var(--color-accent);
+  }
+
+  .nav-caret {
+    width: 0.7rem;
+    height: 0.7rem;
+    transition: transform 0.2s ease;
+  }
+
+  /* --- Dropdown ----------------------------------------------------- */
+  .nav-group {
+    position: relative;
+  }
+  .nav-panel {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    width: 19rem;
+    padding-top: 0.75rem;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateX(-50%) translateY(0.25rem);
+    transition:
+      opacity 0.2s ease,
+      visibility 0.2s ease,
+      transform 0.2s ease;
+  }
+  .nav-group:hover > .nav-panel,
+  .nav-group.is-open > .nav-panel {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0);
+  }
+  .nav-group:hover .nav-caret,
+  .nav-group.is-open .nav-caret {
+    transform: rotate(180deg);
+  }
+  /* Touch devices must not open on the first tap. */
+  @media (hover: none) {
+    .nav-group:hover > .nav-panel {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .nav-group.is-open > .nav-panel {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+  }
+
+  .nav-panel-list {
+    list-style: none;
+    margin: 0;
+    padding: 0.5rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 0.6rem;
+    box-shadow: 0 20px 50px -12px rgb(0 0 0 / 0.5);
+  }
+  .nav-panel-link {
+    display: block;
+    padding: 0.6rem 0.75rem;
+    border-radius: 0.4rem;
+    text-decoration: none;
+    transition: background-color 0.15s ease;
+  }
+  .nav-panel-link:hover {
+    background: var(--color-surface-2);
+  }
+  .nav-panel-label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-ink);
+  }
+  .nav-panel-blurb {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--color-ink-faint);
+  }
+
+  /* --- Actions ------------------------------------------------------ */
+  .header-end {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+  }
+
+  .icon-btn {
+    width: 2.5rem;
+    height: 2.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 0.4rem;
+    background: none;
+    color: var(--color-ink);
+    cursor: pointer;
+    transition:
+      color 0.2s ease,
+      background-color 0.2s ease;
+  }
+  .icon-btn:hover {
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-ink) 8%, transparent);
+  }
+  .icon-btn svg {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+
+  /* Theme icon visibility lives in global.css — it keys off :root, which
+     Astro's style scoping would rewrite if it were declared here. */
+
+  .cta-btn {
+    display: none;
+    align-items: center;
+    padding: 0.72rem 1.15rem;
+    margin-left: 0.4rem;
+    border-radius: 0.3rem;
+    background: var(--color-cta);
+    color: var(--color-cta-ink);
+    font-family: var(--font-body);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background-color 0.2s ease;
+  }
+  @media (min-width: 900px) {
+    .cta-btn {
+      display: inline-flex;
+    }
+  }
+  .cta-btn:hover {
+    background: var(--color-cta-hover);
+  }
+  .cta-btn--block {
+    display: inline-flex;
+    justify-content: center;
+    margin: 1.75rem 0 0;
+    padding: 0.95rem 1.25rem;
+  }
+
+  /* --- Burger ------------------------------------------------------- */
+  .burger {
+    width: 2.75rem;
+    height: 2.75rem;
+    margin-right: -0.5rem;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+  @media (min-width: 1240px) {
+    .burger {
+      display: none;
+    }
+  }
+  .burger-bar {
+    display: block;
+    width: 1.5rem;
+    height: 1px;
+    background: var(--color-ink);
+    transition:
+      transform 0.3s ease,
+      opacity 0.3s ease;
+  }
+  .burger[aria-expanded='true'] .burger-bar:nth-child(1) {
+    transform: translateY(6px) rotate(45deg);
+  }
+  .burger[aria-expanded='true'] .burger-bar:nth-child(2) {
+    opacity: 0;
+  }
+  .burger[aria-expanded='true'] .burger-bar:nth-child(3) {
+    transform: translateY(-6px) rotate(-45deg);
+  }
+
+  /* --- Mobile drawer ------------------------------------------------ */
+  .mobile-menu {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: calc(var(--announce-h) + var(--header-h));
+    bottom: 0;
+    /* Below the header bar (z-50) so the burger stays tappable. */
+    z-index: 40;
+    background: var(--color-ground);
+    border-top: 1px solid var(--color-line);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity 0.3s ease,
+      visibility 0.3s ease;
+  }
+  .mobile-menu.is-open {
+    opacity: 1;
+    visibility: visible;
+  }
+  @media (min-width: 1240px) {
+    .mobile-menu {
+      display: none;
+    }
+  }
+
+  .mobile-nav {
+    padding: 1.5rem 1.25rem 4rem;
+    display: flex;
+    flex-direction: column;
+  }
+  .mobile-link,
+  .mobile-summary {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--color-ink);
+    text-decoration: none;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--color-line);
+  }
+  .mobile-link {
+    display: block;
+  }
+  .mobile-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    list-style: none;
+  }
+  .mobile-summary::-webkit-details-marker {
+    display: none;
+  }
+  .mobile-details[open] .mobile-summary .nav-caret {
+    transform: rotate(180deg);
+  }
+  .mobile-sublist {
+    list-style: none;
+    margin: 0;
+    padding: 0.5rem 0 0.75rem;
+  }
+  .mobile-sublink {
+    display: block;
+    padding: 0.6rem 0 0.6rem 1rem;
+    font-size: 0.95rem;
+    color: var(--color-ink-muted);
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+  .mobile-sublink:hover {
+    color: var(--color-accent);
+  }
+</style>
+
+<script>
+  import { lockScroll, unlockScroll } from '../lib/motion';
+
+  function initHeader() {
+    const header = document.getElementById('site-header');
+    const toggle = document.getElementById('menu-toggle');
+    const menu = document.getElementById('mobile-menu');
+    const theme = document.getElementById('theme-toggle');
+
+    // --- Theme -------------------------------------------------------
+    // The applied theme was already set by the inline head script, so this
+    // only has to keep the button label in sync and handle clicks.
+    if (theme) {
+      const sync = () => {
+        const light = document.documentElement.dataset.theme === 'light';
+        theme.setAttribute('aria-pressed', String(light));
+        theme.setAttribute('aria-label', light ? 'Switch to dark theme' : 'Switch to light theme');
+      };
+      sync();
+      theme.addEventListener('click', () => {
+        const light = document.documentElement.dataset.theme === 'light';
+        const next = light ? 'dark' : 'light';
+        document.documentElement.dataset.theme = next;
+        try {
+          localStorage.setItem('aniwala-theme', next);
+        } catch {
+          /* private mode — the choice just will not persist */
+        }
+        sync();
+      });
+    }
+
+    if (!header || !toggle || !menu) return;
+
+    // --- Solid background once scrolled off a transparent hero -------
+    const overlay = header.hasAttribute('data-overlay');
+    const onScroll = () => {
+      if (!overlay) return;
+      header.classList.toggle('is-scrolled', window.scrollY > 40);
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+
+    // --- Mobile drawer ------------------------------------------------
+    const setMenu = (open: boolean) => {
+      toggle.setAttribute('aria-expanded', String(open));
+      toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+      menu.classList.toggle('is-open', open);
+      header.classList.toggle('menu-open', open);
+      if (open) lockScroll();
+      else unlockScroll();
+    };
+    toggle.addEventListener('click', () =>
+      setMenu(toggle.getAttribute('aria-expanded') !== 'true')
+    );
+
+    // --- Dropdowns: click and keyboard, alongside CSS hover -----------
+    const groups = [...header.querySelectorAll<HTMLElement>('.nav-group')];
+
+    const closeAll = (except?: HTMLElement) => {
+      groups.forEach((g) => {
+        if (g === except) return;
+        g.classList.remove('is-open');
+        g.querySelector('.nav-trigger')?.setAttribute('aria-expanded', 'false');
+      });
+    };
+
+    groups.forEach((group) => {
+      const trigger = group.querySelector<HTMLButtonElement>('.nav-trigger');
+      if (!trigger) return;
+
+      trigger.addEventListener('click', (e) => {
+        e.preventDefault();
+        const open = !group.classList.contains('is-open');
+        closeAll(group);
+        group.classList.toggle('is-open', open);
+        trigger.setAttribute('aria-expanded', String(open));
+      });
+
+      group.addEventListener('focusout', (e) => {
+        if (!group.contains(e.relatedTarget as Node)) {
+          group.classList.remove('is-open');
+          trigger.setAttribute('aria-expanded', 'false');
+        }
+      });
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      closeAll();
+      if (toggle.getAttribute('aria-expanded') === 'true') setMenu(false);
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!header.contains(e.target as Node)) closeAll();
+    });
+  }
+
+  document.addEventListener('astro:page-load', initHeader);
+  // Drawer must not survive a page transition, or the next page loads frozen.
+  document.addEventListener('astro:before-swap', unlockScroll);
+</script>

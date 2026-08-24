@@ -1,0 +1,197 @@
+---
+interface Props {
+  eyebrow?: string;
+  headline: string;
+  sub?: string;
+  /** Path under /public, e.g. "/video/showreel-loop.mp4". Omit for poster only. */
+  src?: string;
+  /** Still frame shown before the video paints, and the fallback if it can't play. */
+  poster?: string;
+}
+
+const { eyebrow, headline, sub, src, poster } = Astro.props;
+---
+
+<section class="hero">
+  <div class="hero-media">
+    {
+      src ? (
+        <video
+          class="hero-video"
+          autoplay
+          muted
+          loop
+          playsinline
+          preload="metadata"
+          poster={poster}
+          aria-hidden="true"
+          tabindex="-1"
+        >
+          <source src={src} type="video/mp4" />
+        </video>
+      ) : poster ? (
+        <img class="hero-video" src={poster} alt="" aria-hidden="true" />
+      ) : null
+    }
+    <!-- Scrim: without it, white type over a bright frame is unreadable. -->
+    <div class="hero-scrim" aria-hidden="true"></div>
+  </div>
+
+  <div class="hero-content">
+    {eyebrow && <p class="hero-eyebrow" data-reveal>{eyebrow}</p>}
+    <h1 class="hero-headline" data-reveal data-reveal-delay="0.08" set:html={headline} />
+    {
+      sub && (
+        <p class="hero-sub" data-reveal data-reveal-delay="0.16">
+          {sub}
+        </p>
+      )
+    }
+    <slot />
+  </div>
+
+  <a class="hero-scroll" href="#main" data-reveal data-reveal-delay="0.3">
+    <span class="hero-scroll-label">Scroll</span>
+    <span class="hero-scroll-line" aria-hidden="true"></span>
+  </a>
+</section>
+
+<style>
+  .hero {
+    position: relative;
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    isolation: isolate;
+    overflow: hidden;
+  }
+
+  .hero-media {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    /* Shows through before the video paints, and if there is no media at all,
+       so the hero never renders as a flat empty rectangle. */
+    background:
+      radial-gradient(
+        ellipse 80% 60% at 70% 20%,
+        color-mix(in srgb, var(--color-accent) 18%, transparent),
+        transparent 70%
+      ),
+      linear-gradient(160deg, var(--color-surface), var(--color-ground) 60%);
+  }
+
+  .hero-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .hero-scrim {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(to top, rgb(0 0 0 / 0.85) 0%, rgb(0 0 0 / 0.25) 45%, rgb(0 0 0 / 0.55) 100%);
+  }
+
+  .hero-content {
+    padding: 0 1.25rem 4.5rem;
+    max-width: 1600px;
+    margin: 0 auto;
+    width: 100%;
+  }
+  @media (min-width: 640px) {
+    .hero-content {
+      padding: 0 2rem 6rem;
+    }
+  }
+
+  /* The hero always sits on a dark scrim over video, in BOTH themes, so its
+     type is pinned to light-on-dark rather than following the theme tokens.
+     Using --color-ink here would render near-black on the scrim in light mode. */
+  .hero-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #e4c24c;
+    margin: 0 0 1.25rem;
+  }
+
+  .hero-headline {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-stretch: 118%;
+    letter-spacing: -0.03em;
+    line-height: 0.95;
+    font-size: clamp(2.75rem, 8vw, 6.5rem);
+    text-wrap: balance;
+    margin: 0;
+    max-width: 16ch;
+    color: #f4f4f2;
+  }
+
+  .hero-sub {
+    margin: 1.75rem 0 0;
+    max-width: 46ch;
+    font-size: 1.05rem;
+    line-height: 1.6;
+    color: rgb(255 255 255 / 0.72);
+  }
+
+  .hero-scroll {
+    position: absolute;
+    bottom: 2rem;
+    right: 1.25rem;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    text-decoration: none;
+    color: rgb(255 255 255 / 0.6);
+  }
+  @media (min-width: 640px) {
+    .hero-scroll {
+      display: flex;
+      right: 2rem;
+    }
+  }
+  .hero-scroll-label {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    writing-mode: vertical-rl;
+  }
+  .hero-scroll-line {
+    width: 1px;
+    height: 3.5rem;
+    background: linear-gradient(to bottom, rgb(255 255 255 / 0.35), transparent);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-scroll-line::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: #e4c24c;
+    animation: scroll-cue 2s ease-in-out infinite;
+  }
+  @keyframes scroll-cue {
+    0% {
+      transform: translateY(-100%);
+    }
+    60%,
+    100% {
+      transform: translateY(100%);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hero-scroll-line::after {
+      animation: none;
+      opacity: 0.4;
+    }
+  }
+</style>

@@ -1,5 +1,9 @@
 ---
 import { ClientRouter } from 'astro:transitions';
+import Announce from '../components/Announce.astro';
+import { announce } from '../config/nav';
+import Header from '../components/Header.astro';
+import Search from '../components/Search.astro';
 import '../styles/global.css';
 
 interface Props {
@@ -7,12 +11,15 @@ interface Props {
   description?: string;
   /** Path only, e.g. "/work/nexus-origins/" */
   canonical?: string;
+  /** True on pages whose hero runs under a transparent header. */
+  transparentHeader?: boolean;
 }
 
 const {
   title,
   description = 'Aniwala is an animation studio producing 2D, 3D, VFX and game art.',
   canonical = Astro.url.pathname,
+  transparentHeader = false,
 } = Astro.props;
 
 const canonicalURL = new URL(canonical, Astro.site);
@@ -45,10 +52,37 @@ const ogImage = new URL('/og-default.jpg', Astro.site);
     />
 
     <ClientRouter />
+
+    {/*
+      Must be inline and in <head>: it runs before first paint, so a visitor
+      who chose light does not get a flash of the dark theme. A deferred or
+      bundled script would paint dark first, then correct itself.
+    */}
+    <script is:inline define:vars={{ announceId: announce.id }}>
+      (function () {
+        try {
+          if (localStorage.getItem('aniwala-theme') === 'light') {
+            document.documentElement.dataset.theme = 'light';
+          }
+          // Collapse the announcement strip before paint if this exact
+          // announcement was dismissed — otherwise the bar flashes in and
+          // the whole header jumps up as the script catches up.
+          if (localStorage.getItem('aniwala-announce-dismissed') === announceId) {
+            document.documentElement.dataset.announce = 'off';
+          }
+        } catch (e) {
+          /* private mode: fall through to the defaults */
+        }
+      })();
+    </script>
   </head>
 
   <body>
+    <a href="#main" class="skip-link">Skip to content</a>
+    <Announce />
+    <Header overlay={transparentHeader} />
     <slot />
+    <Search />
 
     <script>
       import { initMotion, teardownMotion } from '../lib/motion';
@@ -57,6 +91,19 @@ const ogImage = new URL('/og-default.jpg', Astro.site);
       document.addEventListener('astro:page-load', initMotion);
       // Fires before Astro swaps the document out.
       document.addEventListener('astro:before-swap', teardownMotion);
+
+      // Re-assert the theme after a swap so it cannot flash back to dark.
+      document.addEventListener('astro:after-swap', () => {
+        try {
+          if (localStorage.getItem('aniwala-theme') === 'light') {
+            document.documentElement.dataset.theme = 'light';
+          } else {
+            delete document.documentElement.dataset.theme;
+          }
+        } catch {
+          /* private mode — dark default stands */
+        }
+      });
     </script>
   </body>
 </html>

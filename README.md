@@ -3,13 +3,30 @@
 Animation studio site. Astro (static) + Tailwind + GSAP/Lenis, deployed to
 Hostinger shared hosting over FTP by GitHub Actions.
 
-## Commands
+## Running the site locally
 
-| Command | What it does |
+In VS Code: **Ctrl+Shift+P → Tasks: Run Task**, then pick one.
+
+| Task | npm equivalent | What it does |
+| --- | --- | --- |
+| Start website | `npm start` | Starts the dev server in the background at http://localhost:4321 |
+| Stop website | `npm stop` | Shuts it down |
+| Restart website | `npm run restart` | Stop then start. Needed after editing `astro.config.mjs` |
+| Website status | `npm run status` | Whether it's running, the port, the pid, the uptime |
+| Website logs | `npm run logs` | Tail the background server's output |
+| Build for production | `npm run build` | Builds to `./dist` — exactly what gets uploaded to Hostinger |
+
+Background mode means the server keeps running after you close the terminal —
+so use **Stop website**, not Ctrl+C, to shut it down. Both start and stop are
+safe to run twice: starting an already-running server just reports the existing
+one, and stopping nothing exits cleanly rather than erroring.
+
+`npm run dev` still exists and runs the server in the foreground, tied to that
+terminal. Use it only if you want the logs streaming in front of you.
+
+| Other | What it does |
 | --- | --- |
-| `npm run dev` | Local dev server at http://localhost:4321 |
-| `npm run build` | Builds to `./dist` — exactly what gets uploaded |
-| `npm run preview` | Serves `./dist` locally to check the real build |
+| `npm run preview` | Serves the built `./dist` locally to check the real build |
 
 ## How a change goes live
 

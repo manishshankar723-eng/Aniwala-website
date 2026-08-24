@@ -1,0 +1,160 @@
+---
+import { announce } from '../config/nav';
+---
+
+{
+  announce.enabled && (
+    <div id="announce" class="announce" data-announce-id={announce.id}>
+      <div class="announce-inner">
+        <a href={announce.href} class="announce-link">
+          <svg class="announce-spark" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M8 0l1.6 4.6L14 6.2l-4.4 1.6L8 12.4 6.4 7.8 2 6.2l4.4-1.6L8 0Z" />
+          </svg>
+          <span class="announce-text">{announce.text}</span>
+          <span class="announce-cta">
+            {announce.cta} <span aria-hidden="true">&rarr;</span>
+          </span>
+        </a>
+
+        <button type="button" id="announce-close" class="announce-close" aria-label="Dismiss announcement">
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+<style>
+  .announce {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 60; /* above the header (50), below the search bar (90) */
+    height: var(--announce-h);
+    background: var(--color-cta);
+    color: var(--color-cta-ink);
+    overflow: hidden;
+  }
+  /* Set by the inline head script when this announcement was dismissed. */
+  :global(html[data-announce='off']) .announce {
+    display: none;
+  }
+
+  .announce-inner {
+    max-width: 1600px;
+    height: 100%;
+    margin: 0 auto;
+    padding: 0 0.75rem 0 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  @media (min-width: 640px) {
+    .announce-inner {
+      padding: 0 1.25rem 0 2rem;
+    }
+  }
+
+  .announce-link {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    color: inherit;
+    text-decoration: none;
+    font-size: 0.82rem;
+    line-height: 1.2;
+  }
+
+  .announce-spark {
+    width: 0.85rem;
+    height: 0.85rem;
+    flex-shrink: 0;
+  }
+
+  .announce-text {
+    /* One line only — a wrapping bar shifts the whole page down. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .announce-cta {
+    flex-shrink: 0;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    white-space: nowrap;
+  }
+  .announce-cta span {
+    display: inline-block;
+    transition: transform 0.2s ease;
+  }
+  .announce-link:hover .announce-cta span {
+    transform: translateX(3px);
+  }
+
+  /* Below ~560px the sentence plus the CTA cannot both fit legibly, so the
+     sentence goes and the CTA — the part that is actually clickable
+     intent — stays. */
+  @media (max-width: 560px) {
+    .announce-text {
+      display: none;
+    }
+  }
+
+  .announce-close {
+    flex-shrink: 0;
+    width: 2rem;
+    height: 2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 0.3rem;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0.7;
+    transition:
+      opacity 0.2s ease,
+      background-color 0.2s ease;
+  }
+  .announce-close:hover {
+    opacity: 1;
+    background: rgb(0 0 0 / 0.12);
+  }
+  .announce-close svg {
+    width: 1rem;
+    height: 1rem;
+  }
+  .announce-close:focus-visible {
+    outline: 2px solid var(--color-cta-ink);
+    outline-offset: -2px;
+  }
+</style>
+
+<script>
+  function initAnnounce() {
+    const bar = document.getElementById('announce');
+    const close = document.getElementById('announce-close');
+    if (!bar || !close) return;
+
+    close.addEventListener('click', () => {
+      // Collapse the layout token first so the header slides up with it.
+      document.documentElement.dataset.announce = 'off';
+      try {
+        localStorage.setItem('aniwala-announce-dismissed', bar.dataset.announceId ?? '');
+      } catch {
+        /* private mode — it will simply reappear next visit */
+      }
+    });
+  }
+
+  document.addEventListener('astro:page-load', initAnnounce);
+</script>

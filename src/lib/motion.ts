@@ -34,7 +34,39 @@ export function initMotion() {
   gsap.ticker.lagSmoothing(0);
 
   initReveals();
+  initAnchors();
   ScrollTrigger.refresh();
+}
+
+/**
+ * Route in-page anchor links through Lenis.
+ *
+ * A native `#id` jump moves the scroll position without Lenis knowing, so
+ * Lenis's internal position goes stale and the value it feeds ScrollTrigger
+ * disagrees with the real one. Triggers below the jump then never fire and
+ * their elements stay at opacity 0 forever. Going through lenis.scrollTo
+ * keeps both in sync — and gives the jump a smooth ride for free.
+ */
+function initAnchors() {
+  document.querySelectorAll<HTMLAnchorElement>('a[href^="#"]').forEach((link) => {
+    link.addEventListener('click', (e) => {
+      const hash = link.getAttribute('href');
+      if (!hash || hash === '#') return;
+
+      const target = document.querySelector<HTMLElement>(hash);
+      if (!target) return;
+
+      e.preventDefault();
+
+      if (lenis) lenis.scrollTo(target);
+      else target.scrollIntoView({ block: 'start' });
+
+      // Move keyboard focus too, or the skip link scrolls but strands the
+      // caret in the nav. tabindex lets a non-interactive target receive it.
+      if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+      target.focus({ preventScroll: true });
+    });
+  });
 }
 
 /**
@@ -61,10 +93,35 @@ function initReveals() {
     } else {
       gsap.from(el, {
         ...vars,
-        scrollTrigger: { trigger: el, start: 'top 85%', once: true },
+        scrollTrigger: {
+          trigger: el,
+          // clamp() keeps the start position inside the scrollable range.
+          // Without it, an element near the bottom of the page computes a
+          // start beyond max scroll, is never reachable, and stays at
+          // opacity 0 forever.
+          start: 'clamp(top 85%)',
+          once: true,
+        },
       });
     }
   });
+}
+
+/**
+ * Freeze the page behind an overlay (mobile drawer, lightbox).
+ *
+ * `body { overflow: hidden }` alone is not enough: Lenis scrolls
+ * programmatically and ignores it, so the page keeps moving under the
+ * overlay. Lenis must be told to stop as well.
+ */
+export function lockScroll() {
+  lenis?.stop();
+  document.body.style.overflow = 'hidden';
+}
+
+export function unlockScroll() {
+  lenis?.start();
+  document.body.style.overflow = '';
 }
 
 export function teardownMotion() {

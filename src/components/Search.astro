@@ -1,0 +1,364 @@
+---
+import { searchIndex } from '../config/nav';
+---
+
+<div id="search-overlay" class="search" role="dialog" aria-modal="true" aria-label="Search">
+  <!-- Dims the page under the bar; clicking it closes. -->
+  <div class="search-scrim" data-search-close></div>
+
+  <div class="search-bar">
+    <div class="search-bar-inner">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"></circle>
+        <path d="M16.2 16.2L21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+        ></path>
+      </svg>
+
+      <input
+        type="search"
+        id="search-input"
+        class="search-input"
+        placeholder="Type Your Search..."
+        autocomplete="off"
+        spellcheck="false"
+        aria-controls="search-results"
+      />
+
+      <button type="button" class="search-close" data-search-close aria-label="Close search">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M6 6l12 12M18 6L6 18"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"></path>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Results drop out of the bottom of the bar, only once something is typed. -->
+    <div id="search-drop" class="search-drop" hidden data-lenis-prevent>
+      <div class="search-drop-inner">
+        <ul id="search-results" class="search-results" role="listbox" aria-label="Search results"></ul>
+        <p id="search-empty" class="search-empty" hidden>
+          No matches. Try “animation”, “VFX” or “contact”.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ docs: searchIndex }}>
+  // Inline so the index ships with the markup — it is small and needs no fetch.
+  window.__aniwalaSearchDocs = docs;
+</script>
+
+<script>
+  interface Doc {
+    title: string;
+    href: string;
+    section: string;
+    keywords: string;
+  }
+
+  function initSearch() {
+    const overlay = document.getElementById('search-overlay');
+    const input = document.getElementById('search-input') as HTMLInputElement | null;
+    const list = document.getElementById('search-results');
+    const drop = document.getElementById('search-drop');
+    const empty = document.getElementById('search-empty');
+    if (!overlay || !input || !list || !drop || !empty) return;
+
+    const docs: Doc[] = (window as any).__aniwalaSearchDocs ?? [];
+    let active = -1;
+
+    const open = () => {
+      overlay.classList.add('is-open');
+      document.body.style.overflow = 'hidden';
+      input.value = '';
+      render('');
+      // Focus has to wait until the bar is actually visible.
+      requestAnimationFrame(() => input.focus());
+    };
+
+    const close = () => {
+      overlay.classList.remove('is-open');
+      document.body.style.overflow = '';
+    };
+
+    const score = (doc: Doc, q: string) => {
+      const title = doc.title.toLowerCase();
+      const hay = `${title} ${doc.section.toLowerCase()} ${doc.keywords.toLowerCase()}`;
+      if (!hay.includes(q)) return 0;
+      // Title matches rank above keyword matches, prefix above all.
+      if (title.startsWith(q)) return 3;
+      if (title.includes(q)) return 2;
+      return 1;
+    };
+
+    const render = (raw: string) => {
+      const q = raw.trim().toLowerCase();
+
+      // Empty query shows a bare bar, matching the reference.
+      if (!q) {
+        drop.hidden = true;
+        list.innerHTML = '';
+        empty.hidden = true;
+        active = -1;
+        return;
+      }
+
+      const hits = docs
+        .map((d) => ({ d, s: score(d, q) }))
+        .filter((r) => r.s > 0)
+        .sort((a, b) => b.s - a.s)
+        .map((r) => r.d);
+
+      active = -1;
+      drop.hidden = false;
+      list.innerHTML = hits
+        .map(
+          (d, i) => `
+          <li role="option" aria-selected="false">
+            <a class="search-result" href="${d.href}" data-index="${i}">
+              <span class="search-result-title">${d.title}</span>
+              <span class="search-result-section">${d.section}</span>
+            </a>
+          </li>`
+        )
+        .join('');
+      empty.hidden = hits.length > 0;
+    };
+
+    const setActive = (next: number) => {
+      const items = [...list.querySelectorAll<HTMLAnchorElement>('.search-result')];
+      if (!items.length) return;
+      active = (next + items.length) % items.length;
+      items.forEach((el, i) => {
+        el.classList.toggle('is-active', i === active);
+        el.parentElement?.setAttribute('aria-selected', String(i === active));
+      });
+      items[active].scrollIntoView({ block: 'nearest' });
+    };
+
+    input.addEventListener('input', () => render(input.value));
+
+    input.addEventListener('keydown', (e) => {
+      const items = list.querySelectorAll<HTMLAnchorElement>('.search-result');
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setActive(active + 1);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setActive(active - 1);
+      } else if (e.key === 'Enter') {
+        const target = active >= 0 ? items[active] : items[0];
+        if (target) {
+          e.preventDefault();
+          window.location.href = target.href;
+        }
+      }
+    });
+
+    overlay
+      .querySelectorAll('[data-search-close]')
+      .forEach((el) => el.addEventListener('click', close));
+
+    document.addEventListener('keydown', (e) => {
+      if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        overlay.classList.contains('is-open') ? close() : open();
+      }
+      if (e.key === 'Escape' && overlay.classList.contains('is-open')) close();
+    });
+
+    document
+      .querySelectorAll('[data-search-open]')
+      .forEach((btn) => btn.addEventListener('click', open));
+  }
+
+  document.addEventListener('astro:page-load', initSearch);
+  document.addEventListener('astro:before-swap', () => {
+    document.body.style.overflow = '';
+  });
+</script>
+
+<style>
+  /* Sits above the header (z-50) so the bar covers it, like the reference. */
+  .search {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .search.is-open {
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .search-scrim {
+    position: absolute;
+    inset: 0;
+    background: rgb(0 0 0 / 0.55);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .search.is-open .search-scrim {
+    opacity: 1;
+  }
+
+  /* The bar itself: full-bleed, slides down out of the top edge. */
+  .search-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-line);
+    transform: translateY(-100%);
+    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .search.is-open .search-bar {
+    transform: translateY(0);
+  }
+
+  .search-bar-inner {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 0 1.25rem;
+    height: 5.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+  }
+  @media (min-width: 640px) {
+    .search-bar-inner {
+      padding: 0 2rem;
+      height: 6.25rem;
+      gap: 1.75rem;
+    }
+  }
+
+  .search-icon {
+    width: 1.4rem;
+    height: 1.4rem;
+    flex-shrink: 0;
+    color: var(--color-ink);
+  }
+
+  .search-input {
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: 0;
+    outline: none;
+    font-family: var(--font-body);
+    font-size: 1.05rem;
+    color: var(--color-ink);
+  }
+  @media (min-width: 640px) {
+    .search-input {
+      font-size: 1.25rem;
+    }
+  }
+  .search-input::placeholder {
+    color: var(--color-ink-faint);
+  }
+  /* The native clear affordance duplicates the close button. */
+  .search-input::-webkit-search-cancel-button {
+    display: none;
+  }
+
+  .search-close {
+    flex-shrink: 0;
+    width: 2.75rem;
+    height: 2.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: 0;
+    border-radius: 0.4rem;
+    color: var(--color-ink);
+    cursor: pointer;
+    transition:
+      color 0.2s ease,
+      background-color 0.2s ease;
+  }
+  .search-close:hover {
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-ink) 8%, transparent);
+  }
+  .search-close svg {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  /* --- Results ------------------------------------------------------ */
+  .search-drop {
+    border-top: 1px solid var(--color-line);
+    max-height: min(60vh, 30rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .search-drop-inner {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 0.75rem 1.25rem 1.25rem;
+  }
+  @media (min-width: 640px) {
+    .search-drop-inner {
+      padding: 0.75rem 2rem 1.5rem;
+    }
+  }
+
+  .search-results {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Result rows are built at runtime with innerHTML, so they never receive
+     Astro's data-astro-cid scope attribute. Scoping the PARENT and marking
+     the children :global() is what makes these rules actually match. */
+  .search-results :global(.search-result) {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.8rem 0.9rem;
+    border-radius: 0.45rem;
+    text-decoration: none;
+    transition: background-color 0.12s ease;
+  }
+  .search-results :global(.search-result:hover),
+  .search-results :global(.search-result.is-active) {
+    background: var(--color-surface-2);
+  }
+  .search-results :global(.search-result-title) {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--color-ink);
+  }
+  .search-results :global(.search-result-section) {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-ink-faint);
+  }
+
+  .search-empty {
+    margin: 0;
+    padding: 1rem 0.9rem 1.5rem;
+    font-size: 0.95rem;
+    color: var(--color-ink-faint);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .search-bar,
+    .search-scrim {
+      transition: none;
+    }
+  }
+</style>

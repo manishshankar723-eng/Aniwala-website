@@ -1,0 +1,198 @@
+---
+import { nav, cta } from '../config/nav';
+
+const year = new Date().getFullYear();
+
+const social = [
+  { label: 'ArtStation', href: '#' },
+  { label: 'Instagram', href: '#' },
+  { label: 'LinkedIn', href: '#' },
+  { label: 'Vimeo', href: '#' },
+];
+---
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-lead">
+      <p class="footer-eyebrow">Start a project</p>
+      <a href="mailto:hello@aniwala.com" class="footer-mail">hello@aniwala.com</a>
+      <p class="footer-note">
+        Tell us the deadline first. We will tell you honestly whether we can hit it.
+      </p>
+      <a href={cta.href} class="footer-cta">{cta.label}</a>
+    </div>
+
+    <nav class="footer-cols" aria-label="Footer">
+      <div class="footer-col">
+        <h2 class="footer-col-title">Studio</h2>
+        <ul>
+          {
+            nav
+              .filter((i) => i.href && i.href !== '/')
+              .map((i) => (
+                <li>
+                  <a href={i.href}>{i.label}</a>
+                </li>
+              ))
+          }
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h2 class="footer-col-title">Services</h2>
+        <ul>
+          {
+            nav
+              .find((i) => i.children)
+              ?.children?.map((c) => (
+                <li>
+                  <a href={c.href}>{c.label}</a>
+                </li>
+              ))
+          }
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h2 class="footer-col-title">Follow</h2>
+        <ul>
+          {
+            social.map((s) => (
+              <li>
+                <a href={s.href}>{s.label}</a>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </nav>
+  </div>
+
+  <div class="footer-base">
+    <span>© {year} Aniwala Studios</span>
+    <span>Animation &amp; game art · India</span>
+  </div>
+</footer>
+
+<style>
+  .footer {
+    border-top: 1px solid var(--color-line);
+    background: var(--color-ground);
+  }
+
+  .footer-inner {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: clamp(3rem, 8vw, 6rem) 1.25rem clamp(2rem, 5vw, 4rem);
+    display: grid;
+    gap: clamp(2.5rem, 6vw, 5rem);
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 900px) {
+    .footer-inner {
+      grid-template-columns: 1.2fr 1fr;
+      padding-left: 2rem;
+      padding-right: 2rem;
+    }
+  }
+
+  .footer-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    margin: 0 0 1.25rem;
+  }
+  .footer-mail {
+    display: inline-block;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-stretch: 112%;
+    letter-spacing: -0.03em;
+    font-size: clamp(1.6rem, 5vw, 3rem);
+    color: var(--color-ink);
+    text-decoration: none;
+    transition: color 0.2s ease;
+  }
+  .footer-mail:hover {
+    color: var(--color-accent);
+  }
+  .footer-note {
+    margin: 1.25rem 0 0;
+    max-width: 40ch;
+    color: var(--color-ink-muted);
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+  .footer-cta {
+    display: inline-flex;
+    margin-top: 2rem;
+    padding: 0.8rem 1.35rem;
+    border-radius: 0.3rem;
+    background: var(--color-cta);
+    color: var(--color-cta-ink);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-decoration: none;
+    transition: background-color 0.2s ease;
+  }
+  .footer-cta:hover {
+    background: var(--color-cta-hover);
+  }
+
+  .footer-cols {
+    display: grid;
+    gap: 2rem;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    align-content: start;
+  }
+  .footer-col-title {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-ink-faint);
+    margin: 0 0 1rem;
+  }
+  .footer-col ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+  .footer-col a {
+    color: var(--color-ink-muted);
+    text-decoration: none;
+    font-size: 0.92rem;
+    transition: color 0.15s ease;
+  }
+  .footer-col a:hover {
+    color: var(--color-accent);
+  }
+
+  .footer-base {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 1.5rem 1.25rem 2.5rem;
+    border-top: 1px solid var(--color-line);
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--color-ink-faint);
+  }
+  @media (min-width: 640px) {
+    .footer-base {
+      padding-left: 2rem;
+      padding-right: 2rem;
+    }
+  }
+</style>

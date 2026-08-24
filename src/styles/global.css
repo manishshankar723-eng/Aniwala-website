@@ -1,21 +1,63 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------
-   Design tokens. Change brand colour / type in ONE place: here.
-   Phase 02 replaces these once brand direction is locked.
-   --------------------------------------------------------------- */
-@theme {
-  --color-ink:        #F2F3F7;
-  --color-ink-muted:  #9AA0B2;
-  --color-ink-faint:  #5E6478;
-  --color-ground:     #0B0C10;
-  --color-surface:    #14161C;
-  --color-line:       #232733;
-  --color-accent:     #FF6B2C;
+   Design tokens.
 
-  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
-  --font-body:    "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-mono:    "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+   Dark is the brand default, so it lives on :root. Light is an opt-in
+   override applied by the header toggle via [data-theme="light"] on
+   <html>. Every colour in the site resolves through these names — never
+   hardcode a hex in a component, or it will break in one of the themes.
+   --------------------------------------------------------------- */
+:root {
+  color-scheme: dark;
+
+  --color-ground: #0b0c10;
+  --color-surface: #14161c;
+  --color-surface-2: #1c1f27;
+  --color-line: #262a35;
+  --color-line-strong: #39404f;
+
+  --color-ink: #f4f4f2;
+  --color-ink-muted: #9aa0ae;
+  --color-ink-faint: #61677a;
+
+  /* Gold: the brand accent, used for links, eyebrows and active states. */
+  --color-accent: #e4c24c;
+  /* Button fill. Text on it is always --color-cta-ink. */
+  --color-cta: #e4c24c;
+  --color-cta-ink: #14161d;
+  --color-cta-hover: #eed071;
+
+  --header-h: 5rem;
+  /* Height of the announcement strip above the header. Everything fixed to
+     the top offsets by this, so dismissing it collapses the layout cleanly. */
+  --announce-h: 2.75rem;
+}
+
+/* Set before first paint by the inline script in Base.astro. */
+html[data-announce='off'] {
+  --announce-h: 0rem;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --color-ground: #faf9f5;
+  --color-surface: #ffffff;
+  --color-surface-2: #f2f0e9;
+  --color-line: #e2e0d6;
+  --color-line-strong: #c8c5b8;
+
+  --color-ink: #16171b;
+  --color-ink-muted: #55596a;
+  --color-ink-faint: #83879a;
+
+  /* Bright gold fails contrast as text on white, so light mode uses a
+     deeper bronze for type while the button keeps a rich gold fill. */
+  --color-accent: #8a6a10;
+  --color-cta: #d4ac2b;
+  --color-cta-ink: #14161d;
+  --color-cta-hover: #c09a1f;
 }
 
 html {
@@ -27,15 +69,33 @@ html {
 
 body {
   margin: 0;
+  background: var(--color-ground);
+  color: var(--color-ink);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   overscroll-behavior-y: none;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+@theme {
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 
 /* Lenis requirements */
-html.lenis, html.lenis body { height: auto; }
-.lenis.lenis-smooth { scroll-behavior: auto !important; }
-.lenis.lenis-stopped { overflow: hidden; }
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
 
 /* Visible keyboard focus everywhere. */
 :focus-visible {
@@ -44,16 +104,137 @@ html.lenis, html.lenis body { height: auto; }
   border-radius: 2px;
 }
 
-/* Elements that animate in start hidden — but ONLY when JS will animate
-   them. `.no-js` is removed by the motion module on boot, so if JS fails
-   the content is still visible instead of permanently invisible. */
-.js-reveal { will-change: transform, opacity; }
+.js-reveal {
+  will-change: transform, opacity;
+}
+
+/* Keyboard users land here first and can jump past the nav. */
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -3rem;
+  z-index: 100;
+  padding: 0.6rem 1rem;
+  border-radius: 0 0 0.4rem 0.4rem;
+  background: var(--color-cta);
+  color: var(--color-cta-ink);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  text-decoration: none;
+  transition: top 0.2s ease;
+}
+.skip-link:focus {
+  top: 0;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Theme toggle icon: show the icon for the theme the click would switch TO.
+   Dark is the default, so the sun (= "go light") shows unless light is set. */
+.icon-moon {
+  display: none;
+}
+.icon-sun {
+  display: block;
+}
+:root[data-theme="light"] .icon-sun {
+  display: none;
+}
+:root[data-theme="light"] .icon-moon {
+  display: block;
+}
+
+/* ------------------------------------------------------------------
+   Shared section primitives.
+
+   These live globally, not in a page's <style>, because Astro scopes
+   component styles: a class defined in index.astro is stamped with that
+   page's id and will NOT style markup coming from a component such as
+   BookCall.astro. Anything more than one component uses belongs here.
+   ------------------------------------------------------------------ */
+/* --- Section shell -------------------------------------------------- */
+.section {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: clamp(4rem, 9vw, 7.5rem) 1.25rem;
+}
+@media (min-width: 640px) {
+  .section {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+.section--bordered {
+  border-top: 1px solid var(--color-line);
+}
+.section--intro {
+  padding-top: clamp(3rem, 7vw, 5rem);
+  padding-bottom: clamp(3rem, 7vw, 5rem);
+}
+
+.statement {
+  margin: 0;
+  max-width: 34ch;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-stretch: 105%;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  font-size: clamp(1.35rem, 3.4vw, 2.4rem);
+  text-wrap: balance;
+}
+
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem 2rem;
+  margin-bottom: clamp(2rem, 4vw, 3.25rem);
+}
+.section-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  margin: 0 0 0.75rem;
+  flex-basis: 100%;
+}
+.section-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 750;
+  font-stretch: 110%;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  font-size: clamp(1.75rem, 4.5vw, 3.25rem);
+  text-wrap: balance;
+  flex: 1 1 20ch;
+}
+.section-link {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  text-decoration: none;
+  white-space: nowrap;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid currentColor;
+}
+.section-link span {
+  display: inline-block;
+  transition: transform 0.25s ease;
+}
+.section-link:hover span {
+  transform: translateX(4px);
 }
