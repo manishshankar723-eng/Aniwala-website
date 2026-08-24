@@ -1,0 +1,87 @@
+---
+import Base from '../layouts/Base.astro';
+
+const services = ['2D Animation', '3D Animation', 'VFX', 'Game Art', 'Motion Graphics'];
+---
+
+<Base
+  title="Aniwala — Animation Studio"
+  description="Aniwala is an animation studio producing 2D, 3D, VFX and game art. Site launching soon."
+>
+  <main
+    class="min-h-screen flex flex-col justify-between px-6 py-8 sm:px-10 sm:py-12 max-w-6xl mx-auto"
+  >
+    <header class="flex items-center justify-between" data-reveal>
+      <span
+        class="font-display text-lg font-extrabold tracking-tight"
+        style="font-stretch:115%"
+      >
+        ANIWALA
+      </span>
+      <span class="font-mono text-[0.7rem] tracking-[0.18em] uppercase text-ink-faint">
+        Est. 2026 · India
+      </span>
+    </header>
+
+    <div class="py-20 sm:py-28">
+      <p
+        class="font-mono text-[0.7rem] tracking-[0.18em] uppercase text-accent mb-6"
+        data-reveal
+      >
+        Animation Studio
+      </p>
+
+      <h1
+        class="font-display font-extrabold leading-[0.95] tracking-[-0.03em] text-[clamp(2.75rem,9vw,7rem)] text-balance"
+        style="font-stretch:118%"
+        data-reveal
+        data-reveal-delay="0.08"
+      >
+        We make things<br />move.
+      </h1>
+
+      <p
+        class="mt-8 max-w-[46ch] text-ink-muted text-lg leading-relaxed"
+        data-reveal
+        data-reveal-delay="0.16"
+      >
+        A new studio for 2D, 3D, VFX and game art. The full site — work,
+        showreel and journal — lands shortly.
+      </p>
+
+      <div
+        class="mt-10 flex flex-wrap gap-x-3 gap-y-2"
+        data-reveal
+        data-reveal-delay="0.24"
+      >
+        {services.map((s) => (
+          <span
+            class="font-mono text-[0.7rem] tracking-wider uppercase text-ink-muted border border-line rounded-full px-3 py-1.5"
+          >
+            {s}
+          </span>
+        ))}
+      </div>
+    </div>
+
+    <footer
+      class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 border-t border-line pt-8"
+      data-reveal
+    >
+      <div class="flex flex-col gap-1">
+        <span class="font-mono text-[0.65rem] tracking-[0.18em] uppercase text-ink-faint">
+          New projects
+        </span>
+        <a
+          href="mailto:hello@aniwala.com"
+          class="font-display text-xl font-bold tracking-tight hover:text-accent transition-colors"
+        >
+          hello@aniwala.com
+        </a>
+      </div>
+      <span class="font-mono text-[0.65rem] text-ink-faint">
+        © {new Date().getFullYear()} Aniwala
+      </span>
+    </footer>
+  </main>
+</Base>

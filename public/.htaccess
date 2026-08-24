@@ -1,0 +1,48 @@
+# ---------------------------------------------------------------
+# Aniwala — Apache/LiteSpeed config for Hostinger shared hosting.
+# Lives in public/ so Astro copies it into dist/ on every build.
+# ---------------------------------------------------------------
+
+RewriteEngine On
+
+# Force HTTPS.
+RewriteCond %{HTTPS} !=on
+RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+
+# One canonical hostname: aniwala.com.
+# Sends www.aniwala.com, aniwala.in and www.aniwala.in to the .com apex.
+# Harmless if a hostname never reaches this server.
+RewriteCond %{HTTP_HOST} ^www\.aniwala\.com$ [NC,OR]
+RewriteCond %{HTTP_HOST} ^(www\.)?aniwala\.in$ [NC]
+RewriteRule ^(.*)$ https://aniwala.com/$1 [R=301,L]
+
+ErrorDocument 404 /404.html
+
+# --- Caching -----------------------------------------------------
+<IfModule mod_headers.c>
+  # Astro fingerprints everything in /_astro/, so it can cache forever.
+  <FilesMatch "\.(js|css|woff2|svg|jpg|jpeg|png|webp|avif|mp4|webm)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # HTML must revalidate or visitors get a stale site after a deploy.
+  <FilesMatch "\.html$">
+    Header set Cache-Control "public, max-age=0, must-revalidate"
+  </FilesMatch>
+
+  Header set X-Content-Type-Options "nosniff"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# --- Compression -------------------------------------------------
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/javascript \
+    application/javascript application/json image/svg+xml
+</IfModule>
+
+# --- Correct MIME types for modern formats -----------------------
+<IfModule mod_mime.c>
+  AddType image/avif  .avif
+  AddType font/woff2  .woff2
+  AddType video/webm  .webm
+</IfModule>

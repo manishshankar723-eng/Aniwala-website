@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------
+   Design tokens. Change brand colour / type in ONE place: here.
+   Phase 02 replaces these once brand direction is locked.
+   --------------------------------------------------------------- */
+@theme {
+  --color-ink:        #F2F3F7;
+  --color-ink-muted:  #9AA0B2;
+  --color-ink-faint:  #5E6478;
+  --color-ground:     #0B0C10;
+  --color-surface:    #14161C;
+  --color-line:       #232733;
+  --color-accent:     #FF6B2C;
+
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body:    "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+html {
+  background: var(--color-ground);
+  color: var(--color-ink);
+  /* Lenis drives scrolling; native smooth scroll would fight it. */
+  scroll-behavior: auto;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+
+/* Lenis requirements */
+html.lenis, html.lenis body { height: auto; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-stopped { overflow: hidden; }
+
+/* Visible keyboard focus everywhere. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* Elements that animate in start hidden — but ONLY when JS will animate
+   them. `.no-js` is removed by the motion module on boot, so if JS fails
+   the content is still visible instead of permanently invisible. */
+.js-reveal { will-change: transform, opacity; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
