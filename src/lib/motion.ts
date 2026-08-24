@@ -37,17 +37,33 @@ export function initMotion() {
   ScrollTrigger.refresh();
 }
 
-/** Any element with data-reveal rises and fades in once, on scroll. */
+/**
+ * Any element with data-reveal rises and fades in.
+ *
+ * Elements already on screen at load animate immediately. Giving them a
+ * ScrollTrigger instead would leave them stuck at opacity 0 forever on any
+ * page that fits the viewport, because no scroll ever happens to fire it.
+ */
 function initReveals() {
+  const vh = window.innerHeight;
+
   gsap.utils.toArray<HTMLElement>('[data-reveal]').forEach((el) => {
-    gsap.from(el, {
+    const vars: gsap.TweenVars = {
       opacity: 0,
       y: 24,
       duration: 0.9,
       ease: 'power3.out',
       delay: Number(el.dataset.revealDelay ?? 0),
-      scrollTrigger: { trigger: el, start: 'top 85%', once: true },
-    });
+    };
+
+    if (el.getBoundingClientRect().top < vh) {
+      gsap.from(el, vars);
+    } else {
+      gsap.from(el, {
+        ...vars,
+        scrollTrigger: { trigger: el, start: 'top 85%', once: true },
+      });
+    }
   });
 }
 
