@@ -1,0 +1,8 @@
+# Keep server-side and config files LF so Apache and CI never see CRLF.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
+*.mp4 binary
+*.webm binary
