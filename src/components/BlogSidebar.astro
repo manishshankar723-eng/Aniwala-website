@@ -1,0 +1,770 @@
+---
+import { CATEGORIES } from '../config/categories';
+import {
+  getPosts,
+  getTags,
+  getArchive,
+  formatDate,
+  isoDate,
+  categorySlug,
+} from '../lib/posts';
+
+/**
+ * The rail beside every blog page.
+ *
+ * All of it is derived from the collection, so a published post shows up in
+ * recent posts, its month appears in the archive and its tags appear in the
+ * cloud without anyone editing a list.
+ *
+ * Layout: a normal column on desktop that scrolls with the page — NOT a
+ * sticky box with its own scrollbar, which makes the page feel like two
+ * documents fighting each other. Below 1050px the same markup becomes a
+ * drawer opened by a tab on the right edge.
+ */
+interface Heading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+
+interface Props {
+  /** On a post page: its own h2s, shown as "On this page". */
+  toc?: Heading[];
+  /** Post to leave out of "recent" — itself, on a post page. */
+  excludeId?: string;
+  /** Highlights the current filter, whichever kind it is. */
+  activeCategory?: string;
+  activeTag?: string;
+  activePeriod?: string;
+}
+
+const { toc = [], excludeId, activeCategory, activeTag, activePeriod } = Astro.props;
+
+const allPosts = await getPosts();
+const recent = allPosts.filter((p) => p.id !== excludeId).slice(0, 5);
+const tags = await getTags();
+const archive = await getArchive();
+
+const counts = Object.fromEntries(
+  CATEGORIES.map((c) => [c, allPosts.filter((p) => p.data.category === c).length])
+);
+
+/* Under three headings there is nothing worth navigating. */
+const showToc = toc.length >= 3;
+
+/**
+ * The search index for this box: posts only.
+ *
+ * Small enough to inline — seven posts is a couple of KB — so searching costs
+ * no network request. Deliberately separate from the site-wide overlay: on a
+ * blog page people expect the search beside the posts to search the posts.
+ */
+const blogIndex = allPosts.map((p) => ({
+  title: p.data.title,
+  href: `/blog/${p.id}/`,
+  date: formatDate(p.data.pubDate),
+  haystack: [p.data.title, p.data.description, p.data.category, ...p.data.tags]
+    .join(' ')
+    .toLowerCase(),
+}));
+---
+
+<!--
+  Drawer chrome. Both are position:fixed, so although they are children of the
+  .blog-shell grid they take no track and cannot disturb the two-column layout.
+  Hidden entirely once the rail has a column of its own.
+-->
+<button
+  type="button"
+  class="rail-tab"
+  data-rail-open
+  aria-expanded="false"
+  aria-controls="blog-rail"
+  aria-label="Open blog menu"
+>
+  <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+    <rect x="2.5" y="3" width="15" height="14" rx="2" stroke="currentColor" stroke-width="1.6"></rect>
+    <path d="M2.5 7.5h15M7.5 7.5V17" stroke="currentColor" stroke-width="1.6"></path>
+  </svg>
+</button>
+
+<div class="rail-scrim" data-rail-close hidden></div>
+
+<aside id="blog-rail" class="rail" aria-label="Blog sidebar" data-lenis-prevent>
+  <button type="button" class="rail-close" data-rail-close aria-label="Close blog menu">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+      ></path>
+    </svg>
+  </button>
+
+  <!-- Search. Searches the blog and nothing else — the site-wide overlay is
+       still on the header for anyone who wants the whole site. -->
+  <section class="rail-block" aria-labelledby="rail-search-title">
+    <h2 class="rail-title" id="rail-search-title">Search</h2>
+
+    <div class="rail-search">
+      <input
+        type="search"
+        class="rail-search-input"
+        data-blog-search
+        placeholder="Search posts…"
+        autocomplete="off"
+        spellcheck="false"
+        aria-label="Search blog posts"
+        aria-controls="rail-search-results"
+      />
+      <svg class="rail-search-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <circle cx="9" cy="9" r="6.25" stroke="currentColor" stroke-width="1.6"></circle>
+        <path d="M13.5 13.5L17.5 17.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
+        ></path>
+      </svg>
+    </div>
+
+    <ul class="rail-results" id="rail-search-results" data-blog-results hidden></ul>
+    <p class="rail-empty" data-blog-empty hidden>No posts match that.</p>
+  </section>
+
+  {
+    showToc && (
+      <nav class="rail-block" aria-labelledby="rail-toc-title">
+        <h2 class="rail-title" id="rail-toc-title">On this page</h2>
+        <ol class="rail-toc">
+          {toc.map((h) => (
+            <li>
+              <a href={`#${h.slug}`} data-toc-link={h.slug}>
+                {h.text}
+              </a>
+            </li>
+          ))}
+        </ol>
+      </nav>
+    )
+  }
+
+  {
+    recent.length > 0 && (
+      <section class="rail-block" aria-labelledby="rail-recent-title">
+        <h2 class="rail-title" id="rail-recent-title">Recent posts</h2>
+        <ul class="rail-posts">
+          {recent.map((p) => (
+            <li>
+              <a href={`/blog/${p.id}/`} style={`--tint:${p.data.tint}`}>
+                <span class="rail-thumb" aria-hidden="true" />
+                <span class="rail-post-body">
+                  <span class="rail-post-title">{p.data.title}</span>
+                  <time class="rail-post-date" datetime={isoDate(p.data.pubDate)}>
+                    {formatDate(p.data.pubDate)}
+                  </time>
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )
+  }
+
+  <section class="rail-block" aria-labelledby="rail-cat-title">
+    <h2 class="rail-title" id="rail-cat-title">Categories</h2>
+    <ul class="rail-list">
+      {
+        CATEGORIES.map((c) => {
+          const n = counts[c] ?? 0;
+          return (
+            <li>
+              {n === 0 ? (
+                <span class="rail-row is-empty">
+                  {c} <span class="rail-n">0</span>
+                </span>
+              ) : (
+                <a
+                  href={`/blog/category/${categorySlug(c)}/`}
+                  class:list={['rail-row', activeCategory === c && 'is-active']}
+                  aria-current={activeCategory === c ? 'page' : undefined}
+                >
+                  {c} <span class="rail-n">{n}</span>
+                </a>
+              )}
+            </li>
+          );
+        })
+      }
+    </ul>
+  </section>
+
+  {
+    archive.length > 0 && (
+      <section class="rail-block" aria-labelledby="rail-archive-title">
+        <h2 class="rail-title" id="rail-archive-title">Archive</h2>
+        <ul class="rail-list">
+          {archive.map((a) => (
+            <li>
+              <a
+                href={`/blog/archive/${a.period}/`}
+                class:list={['rail-row', activePeriod === a.period && 'is-active']}
+                aria-current={activePeriod === a.period ? 'page' : undefined}
+              >
+                {a.label} <span class="rail-n">{a.count}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )
+  }
+
+  {
+    tags.length > 0 && (
+      <section class="rail-block" aria-labelledby="rail-tags-title">
+        <h2 class="rail-title" id="rail-tags-title">Tags</h2>
+        <ul class="rail-tags">
+          {tags.map((t) => (
+            <li>
+              <a
+                href={`/blog/tag/${t.slug}/`}
+                class:list={['rail-tag', activeTag === t.slug && 'is-active']}
+                aria-current={activeTag === t.slug ? 'page' : undefined}
+              >
+                {t.tag}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )
+  }
+
+  <a href="/services/" class="rail-promo">
+    <span class="rail-promo-art" aria-hidden="true"></span>
+    <span class="rail-promo-body">
+      <span class="rail-promo-title">Animation &amp; game art, end to end</span>
+      <span class="rail-promo-text">
+        Six disciplines, one pipeline, and a schedule we actually believe.
+      </span>
+      <span class="rail-promo-cta">
+        See what we do <span aria-hidden="true">&rarr;</span>
+      </span>
+    </span>
+  </a>
+</aside>
+
+<script is:inline define:vars={{ blogIndex }}>
+  // Inline so the index ships with the markup — it is tiny and needs no fetch.
+  window.__aniwalaBlogIndex = blogIndex;
+</script>
+
+<style>
+  /* ---------------------------------------------------------------------
+     Desktop: an ordinary column.
+
+     Explicitly NOT sticky with its own overflow. A rail that scrolls
+     independently turns one page into two scrolling documents, and the
+     wheel does different things depending on where the pointer happens to
+     be. It scrolls with the page like everything else.
+     --------------------------------------------------------------------- */
+  .rail {
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+    min-width: 0;
+  }
+
+  .rail-title {
+    margin: 0 0 1rem;
+    padding-bottom: 0.65rem;
+    border-bottom: 1px solid var(--color-line);
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-ink-faint);
+  }
+
+  /* --- Search ---------------------------------------------------------- */
+  .rail-search {
+    position: relative;
+  }
+  .rail-search-input {
+    width: 100%;
+    padding: 0.75rem 2.5rem 0.75rem 1rem;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 0.5rem;
+    background: var(--color-surface);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+  }
+  .rail-search-input::placeholder {
+    color: var(--color-ink-faint);
+  }
+  .rail-search-input:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
+  }
+  /* Safari draws its own clear button on type=search; ours would collide. */
+  .rail-search-input::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+  }
+  .rail-search-icon {
+    position: absolute;
+    right: 0.9rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1rem;
+    height: 1rem;
+    pointer-events: none;
+    color: var(--color-ink-faint);
+  }
+
+  .rail-results {
+    list-style: none;
+    margin: 0.85rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  /* Built at runtime, so these never get Astro's scope attribute — scoping
+     the parent and marking children :global is what reaches them. */
+  .rail-results :global(a) {
+    display: block;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--color-line);
+    text-decoration: none;
+  }
+  .rail-results :global(.rr-title) {
+    display: block;
+    font-size: 0.86rem;
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--color-ink);
+    transition: color 0.2s ease;
+  }
+  .rail-results :global(a:hover .rr-title) {
+    color: var(--color-accent);
+  }
+  .rail-results :global(.rr-date) {
+    display: block;
+    margin-top: 0.2rem;
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    color: var(--color-ink-faint);
+  }
+  .rail-empty {
+    margin: 0.85rem 0 0;
+    font-size: 0.85rem;
+    color: var(--color-ink-faint);
+  }
+
+  /* --- Contents -------------------------------------------------------- */
+  .rail-toc {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-left: 1px solid var(--color-line);
+  }
+  .rail-toc a {
+    display: block;
+    padding: 0.4rem 0 0.4rem 0.9rem;
+    margin-left: -1px;
+    border-left: 1px solid transparent;
+    font-size: 0.84rem;
+    line-height: 1.45;
+    color: var(--color-ink-faint);
+    text-decoration: none;
+    transition:
+      color 0.2s ease,
+      border-color 0.2s ease;
+  }
+  .rail-toc a:hover,
+  .rail-toc a.is-current {
+    color: var(--color-accent);
+    border-left-color: var(--color-accent);
+  }
+
+  /* --- Recent posts ---------------------------------------------------- */
+  .rail-posts {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .rail-posts a {
+    display: grid;
+    grid-template-columns: 3.75rem 1fr;
+    gap: 0.85rem;
+    align-items: start;
+    text-decoration: none;
+  }
+  .rail-thumb {
+    display: block;
+    aspect-ratio: 1;
+    border-radius: 0.35rem;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse 80% 70% at 28% 18%, hsl(var(--tint) / 0.9), transparent 72%),
+      linear-gradient(148deg, hsl(var(--tint) / 0.6), #0b0c10 78%);
+  }
+  .rail-post-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-width: 0;
+  }
+  .rail-post-title {
+    font-size: 0.86rem;
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--color-ink);
+    transition: color 0.2s ease;
+  }
+  .rail-posts a:hover .rail-post-title {
+    color: var(--color-accent);
+  }
+  .rail-post-date {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    color: var(--color-ink-faint);
+  }
+
+  /* --- Categories and archive ------------------------------------------ */
+  .rail-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .rail-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--color-line);
+    font-size: 0.88rem;
+    color: var(--color-ink-muted);
+    text-decoration: none;
+    transition: color 0.2s ease;
+  }
+  .rail-row:hover {
+    color: var(--color-accent);
+  }
+  .rail-row.is-active {
+    color: var(--color-accent);
+    font-weight: 600;
+  }
+  .rail-row.is-empty {
+    opacity: 0.4;
+  }
+  .rail-n {
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    color: var(--color-ink-faint);
+  }
+
+
+  /* --- Tags ------------------------------------------------------------ */
+  .rail-tags {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .rail-tag {
+    display: inline-block;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--color-line);
+    border-radius: 100px;
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    color: var(--color-ink-faint);
+    text-decoration: none;
+    transition:
+      border-color 0.2s ease,
+      color 0.2s ease;
+  }
+  .rail-tag:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+  }
+  .rail-tag.is-active {
+    background: var(--color-cta);
+    border-color: var(--color-cta);
+    color: var(--color-cta-ink);
+  }
+
+  /* --- Promo ----------------------------------------------------------- */
+  .rail-promo {
+    position: relative;
+    display: block;
+    isolation: isolate;
+    overflow: hidden;
+    padding: 1.75rem 1.5rem;
+    border-radius: 0.75rem;
+    text-decoration: none;
+    min-height: 15rem;
+  }
+  .rail-promo-art {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background:
+      radial-gradient(ellipse 90% 70% at 20% 15%, hsl(265 65% 42% / 0.95), transparent 70%),
+      linear-gradient(155deg, hsl(220 70% 32%), hsl(280 60% 22%) 75%);
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .rail-promo:hover .rail-promo-art {
+    transform: scale(1.06);
+  }
+  .rail-promo-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    height: 100%;
+    justify-content: flex-end;
+  }
+  .rail-promo-title {
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    font-weight: 760;
+    font-stretch: 106%;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    /* Sits on its own dark gradient in both themes, so it is pinned rather
+       than following the theme tokens. */
+    color: #f4f4f2;
+  }
+  .rail-promo-text {
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: rgb(255 255 255 / 0.75);
+  }
+  .rail-promo-cta {
+    margin-top: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #e4c24c;
+  }
+  .rail-promo-cta span {
+    display: inline-block;
+    transition: transform 0.25s ease;
+  }
+  .rail-promo:hover .rail-promo-cta span {
+    transform: translateX(4px);
+  }
+
+  /* =====================================================================
+     Mobile and tablet: the same rail becomes a drawer.
+
+     Below the breakpoint where it earns a column, stacking it under a long
+     post buries it — nobody scrolls past 2000 words to find the archive.
+     A tab on the edge keeps it one tap away instead.
+     ===================================================================== */
+  .rail-tab,
+  .rail-scrim,
+  .rail-close {
+    display: none;
+  }
+
+  @media (max-width: 1049px) {
+    .rail-tab {
+      position: fixed;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 70;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.6rem;
+      height: 3.2rem;
+      padding: 0;
+      border: 1px solid var(--color-line-strong);
+      border-right: 0;
+      border-radius: 0.5rem 0 0 0.5rem;
+      background: var(--color-surface);
+      color: var(--color-ink);
+      cursor: pointer;
+      box-shadow: 0 8px 30px -10px rgb(0 0 0 / 0.5);
+    }
+    .rail-tab svg {
+      width: 1.15rem;
+      height: 1.15rem;
+    }
+    .rail-tab[aria-expanded='true'] {
+      /* Hidden rather than moved: the drawer's own close button takes over,
+         and two controls doing the same job is one too many. */
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .rail-scrim {
+      position: fixed;
+      inset: 0;
+      z-index: 70;
+      display: block;
+      background: rgb(0 0 0 / 0.5);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .rail-scrim.is-open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .rail {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 71;
+      width: min(23rem, 88vw);
+      padding: 4.25rem 1.5rem 3rem;
+      margin: 0;
+      background: var(--color-ground);
+      border-left: 1px solid var(--color-line);
+      box-shadow: -20px 0 60px -20px rgb(0 0 0 / 0.6);
+      /* The drawer is fixed-height, so THIS one does scroll internally —
+         there is nothing behind it to scroll instead. */
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      transform: translateX(100%);
+      visibility: hidden;
+      transition:
+        transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0.35s;
+    }
+    .rail.is-open {
+      transform: translateX(0);
+      visibility: visible;
+    }
+
+    .rail-close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.5rem;
+      height: 2.5rem;
+      border: 0;
+      border-radius: 0.4rem;
+      background: none;
+      color: var(--color-ink);
+      cursor: pointer;
+    }
+    .rail-close svg {
+      width: 1.25rem;
+      height: 1.25rem;
+    }
+    .rail-close:hover {
+      color: var(--color-accent);
+    }
+  }
+</style>
+
+<script>
+  import { lockScroll, unlockScroll } from '../lib/motion';
+
+  interface BlogDoc {
+    title: string;
+    href: string;
+    date: string;
+    haystack: string;
+  }
+
+  function initRail() {
+    const rail = document.getElementById('blog-rail');
+    if (!rail) return;
+
+    /* ---------- drawer ---------- */
+    const tab = document.querySelector<HTMLButtonElement>('[data-rail-open]');
+    const scrim = document.querySelector<HTMLElement>('.rail-scrim');
+    const closers = [...document.querySelectorAll<HTMLElement>('[data-rail-close]')];
+
+    const setOpen = (open: boolean) => {
+      rail.classList.toggle('is-open', open);
+      scrim?.classList.toggle('is-open', open);
+      scrim?.toggleAttribute('hidden', !open);
+      tab?.setAttribute('aria-expanded', String(open));
+      if (open) lockScroll();
+      else unlockScroll();
+    };
+
+    tab?.addEventListener('click', () => setOpen(true));
+    closers.forEach((c) => c.addEventListener('click', () => setOpen(false)));
+
+    // Following a link inside the drawer should not leave it open behind the
+    // next page, and Astro's view transitions keep the DOM alive long enough
+    // for that to be visible.
+    rail.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('a')) setOpen(false);
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && rail.classList.contains('is-open')) setOpen(false);
+    });
+
+    /* ---------- blog-only search ---------- */
+    const input = rail.querySelector<HTMLInputElement>('[data-blog-search]');
+    const results = rail.querySelector<HTMLUListElement>('[data-blog-results]');
+    const empty = rail.querySelector<HTMLElement>('[data-blog-empty]');
+    if (!input || !results || !empty) return;
+
+    const docs: BlogDoc[] = (window as any).__aniwalaBlogIndex ?? [];
+
+    const render = (query: string) => {
+      const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+
+      if (terms.length === 0) {
+        results.replaceChildren();
+        results.hidden = true;
+        empty.hidden = true;
+        return;
+      }
+
+      // Every term must appear somewhere, so a second word narrows rather
+      // than widens — which is what people expect from a search box.
+      const hits = docs.filter((d) => terms.every((t) => d.haystack.includes(t)));
+
+      results.replaceChildren();
+      for (const hit of hits) {
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.href = hit.href;
+
+        const title = document.createElement('span');
+        title.className = 'rr-title';
+        title.textContent = hit.title;
+
+        const date = document.createElement('span');
+        date.className = 'rr-date';
+        date.textContent = hit.date;
+
+        a.append(title, date);
+        li.append(a);
+        results.append(li);
+      }
+
+      results.hidden = hits.length === 0;
+      empty.hidden = hits.length > 0;
+    };
+
+    input.addEventListener('input', () => render(input.value));
+    input.addEventListener('search', () => render(input.value));
+  }
+
+  document.addEventListener('astro:page-load', initRail);
+  // A drawer must never survive into the next page with the scroll still locked.
+  document.addEventListener('astro:before-swap', unlockScroll);
+</script>

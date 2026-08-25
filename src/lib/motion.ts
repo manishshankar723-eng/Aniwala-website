@@ -58,8 +58,19 @@ function initAnchors() {
 
       e.preventDefault();
 
-      if (lenis) lenis.scrollTo(target);
-      else target.scrollIntoView({ block: 'start' });
+      if (lenis) {
+        // Lenis scrolls to the element's raw offset and ignores
+        // scroll-margin-top, so a heading would land underneath the fixed
+        // header. Reading the property back and passing it as a negative
+        // offset reproduces what a native anchor jump already does — and
+        // keeps the amount declared in CSS next to the header height it
+        // depends on, rather than hardcoded here.
+        const margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
+        lenis.scrollTo(target, { offset: -margin });
+      } else {
+        // Native scrollIntoView honours scroll-margin-top by itself.
+        target.scrollIntoView({ block: 'start' });
+      }
 
       // Move keyboard focus too, or the skip link scrolls but strands the
       // caret in the nav. tabindex lets a non-interactive target receive it.

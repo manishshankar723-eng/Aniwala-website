@@ -2,18 +2,24 @@
 import Base from '../layouts/Base.astro';
 import VideoHero from '../components/VideoHero.astro';
 import BookCall from '../components/BookCall.astro';
+import CaseCard from '../components/CaseCard.astro';
+import Marquee from '../components/Marquee.astro';
 import Footer from '../components/Footer.astro';
 import { nav } from '../config/nav';
 import {
   workCategories,
   processSteps,
   capabilities,
+  marqueeItems,
   testimonials,
   clients,
-  featuredPosts,
 } from '../config/site';
+import { getCaseStudies } from '../lib/caseStudies';
 
 const services = nav.find((i) => i.children)?.children ?? [];
+
+/* Three, and no more. "View all" carries the rest. */
+const caseStudies = (await getCaseStudies()).slice(0, 3);
 ---
 
 <Base
@@ -40,6 +46,10 @@ const services = nav.find((i) => i.children)?.children ?? [];
   </VideoHero>
 
   <main id="main">
+    <!-- Straight off the hero: what is actually on the desks, before any
+         section header asks the visitor to commit to reading. -->
+    <Marquee items={marqueeItems} />
+
     <!-- Positioning. Deliberately short: the hero already showed the work. -->
     <section class="section section--intro">
       <p class="statement" data-reveal>
@@ -80,6 +90,29 @@ const services = nav.find((i) => i.children)?.children ?? [];
         }
       </div>
     </section>
+
+    <!-- CASE STUDIES — the work taken apart. Sits directly after the work
+         grid because it is the only genuinely load-bearing proof on the page:
+         tiles show what we make, these show how, and how is what gets a new
+         studio hired. -->
+    {
+      caseStudies.length > 0 && (
+        <section class="section section--bordered" id="case-studies">
+          <div class="section-head" data-reveal>
+            <p class="section-eyebrow">Case studies</p>
+            <h2 class="section-title">Projects with the working shown</h2>
+            <a href="/case-studies/" class="section-link">
+              View all <span aria-hidden="true">&rarr;</span>
+            </a>
+          </div>
+          <div class="cases">
+            {caseStudies.map((c) => (
+              <CaseCard study={c} />
+            ))}
+          </div>
+        </section>
+      )
+    }
 
     <!-- SERVICES — a grid, not the carousel Lakshya uses. Carousels hide half
          the content behind an arrow most visitors never press. -->
@@ -177,31 +210,6 @@ const services = nav.find((i) => i.children)?.children ?? [];
                   </span>
                 </figcaption>
               </figure>
-            ))}
-          </div>
-        </section>
-      )
-    }
-
-    {
-      featuredPosts.length > 0 && (
-        <section class="section section--bordered" id="journal">
-          <div class="section-head" data-reveal>
-            <p class="section-eyebrow">Journal</p>
-            <h2 class="section-title">The latest from the studio</h2>
-            <a href="/blog/" class="section-link">
-              All posts <span aria-hidden="true">&rarr;</span>
-            </a>
-          </div>
-          <div class="posts">
-            {featuredPosts.map((p) => (
-              <a href={p.href} class="post" data-reveal>
-                <span class="post-meta">
-                  {p.tag} · {p.readingTime}
-                </span>
-                <h3 class="post-title">{p.title}</h3>
-                <p class="post-excerpt">{p.excerpt}</p>
-              </a>
             ))}
           </div>
         </section>
@@ -518,44 +526,21 @@ const services = nav.find((i) => i.children)?.children ?? [];
     color: var(--color-ink);
   }
 
-  .posts {
+  /* Cards themselves are CaseCard.astro; this only lays them out. */
+  .cases {
     display: grid;
     gap: 1.25rem;
-    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    grid-template-columns: 1fr;
   }
-  .post {
-    display: flex;
-    flex-direction: column;
-    gap: 0.65rem;
-    padding: 1.75rem;
-    background: var(--color-surface);
-    border: 1px solid var(--color-line);
-    border-radius: 0.75rem;
-    text-decoration: none;
-    transition: border-color 0.2s ease;
+  @media (min-width: 800px) {
+    .cases {
+      grid-template-columns: repeat(2, 1fr);
+    }
   }
-  .post:hover {
-    border-color: var(--color-accent);
-  }
-  .post-meta {
-    font-family: var(--font-mono);
-    font-size: 0.65rem;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--color-ink-faint);
-  }
-  .post-title {
-    margin: 0;
-    font-family: var(--font-display);
-    font-size: 1.15rem;
-    font-weight: 700;
-    color: var(--color-ink);
-  }
-  .post-excerpt {
-    margin: 0;
-    font-size: 0.9rem;
-    line-height: 1.55;
-    color: var(--color-ink-muted);
+  @media (min-width: 1200px) {
+    .cases {
+      grid-template-columns: repeat(3, 1fr);
+    }
   }
 
   /* --- Careers ---------------------------------------------------------- */

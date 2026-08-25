@@ -3,6 +3,8 @@ import { nav, cta } from '../config/nav';
 
 const year = new Date().getFullYear();
 
+const serviceParent = nav.find((i) => i.children);
+
 const social = [
   { label: 'ArtStation', href: '#' },
   { label: 'Instagram', href: '#' },
@@ -27,8 +29,10 @@ const social = [
         <h2 class="footer-col-title">Studio</h2>
         <ul>
           {
+            /* Items with children have their own column below, so listing them
+               here too would print "Services" twice in the same footer. */
             nav
-              .filter((i) => i.href && i.href !== '/')
+              .filter((i) => i.href && i.href !== '/' && !i.children)
               .map((i) => (
                 <li>
                   <a href={i.href}>{i.label}</a>
@@ -41,14 +45,17 @@ const social = [
       <div class="footer-col">
         <h2 class="footer-col-title">Services</h2>
         <ul>
+          {serviceParent?.href && (
+            <li>
+              <a href={serviceParent.href}>All services</a>
+            </li>
+          )}
           {
-            nav
-              .find((i) => i.children)
-              ?.children?.map((c) => (
-                <li>
-                  <a href={c.href}>{c.label}</a>
-                </li>
-              ))
+            serviceParent?.children?.map((c) => (
+              <li>
+                <a href={c.href}>{c.label}</a>
+              </li>
+            ))
           }
         </ul>
       </div>
@@ -81,9 +88,9 @@ const social = [
   }
 
   .footer-inner {
-    max-width: 1600px;
+    max-width: var(--shell-max);
     margin: 0 auto;
-    padding: clamp(3rem, 8vw, 6rem) 1.25rem clamp(2rem, 5vw, 4rem);
+    padding: clamp(3rem, 8vw, 6rem) var(--gutter) clamp(2rem, 5vw, 4rem);
     display: grid;
     gap: clamp(2.5rem, 6vw, 5rem);
     grid-template-columns: 1fr;
@@ -91,8 +98,6 @@ const social = [
   @media (min-width: 900px) {
     .footer-inner {
       grid-template-columns: 1.2fr 1fr;
-      padding-left: 2rem;
-      padding-right: 2rem;
     }
   }
 
@@ -177,9 +182,9 @@ const social = [
   }
 
   .footer-base {
-    max-width: 1600px;
+    max-width: var(--shell-max);
     margin: 0 auto;
-    padding: 1.5rem 1.25rem 2.5rem;
+    padding: 1.5rem var(--gutter) 2.5rem;
     border-top: 1px solid var(--color-line);
     display: flex;
     flex-wrap: wrap;
@@ -188,11 +193,5 @@ const social = [
     font-family: var(--font-mono);
     font-size: 0.68rem;
     color: var(--color-ink-faint);
-  }
-  @media (min-width: 640px) {
-    .footer-base {
-      padding-left: 2rem;
-      padding-right: 2rem;
-    }
   }
 </style>

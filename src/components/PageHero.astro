@@ -1,0 +1,224 @@
+---
+/**
+ * The hero for inner pages — services, blog, anything that is not the
+ * homepage. Deliberately NOT the full-bleed video hero: those pages run under
+ * a solid header, so this one carries the top offset for the fixed header and
+ * announcement strip itself.
+ *
+ * Unlike VideoHero it follows the theme tokens rather than pinning to
+ * light-on-dark. There is no dark video underneath to force the issue, and a
+ * black band across the top of every page fights light mode.
+ */
+interface Crumb {
+  label: string;
+  href?: string;
+}
+
+interface Props {
+  eyebrow?: string;
+  title: string;
+  /** One or two sentences. Longer than that belongs in the page body. */
+  lead?: string;
+  /** Trail shown above the title. The last item renders as plain text. */
+  crumbs?: Crumb[];
+  /** HSL triple, e.g. '210 70% 22%'. Washes the background. */
+  tint?: string;
+  /** Small caps row under the lead — dates, categories, reading time. */
+  meta?: string[];
+  /** Tighter vertical rhythm, for listing pages that lead into a grid. */
+  compact?: boolean;
+}
+
+const {
+  eyebrow,
+  title,
+  lead,
+  crumbs = [],
+  tint = '210 70% 22%',
+  meta = [],
+  compact = false,
+} = Astro.props;
+---
+
+<section class:list={['page-hero', compact && 'page-hero--compact']} style={`--tint:${tint}`}>
+  <div class="page-hero-wash" aria-hidden="true"></div>
+
+  <div class="page-hero-inner">
+    {
+      crumbs.length > 0 && (
+        <nav class="crumbs" aria-label="Breadcrumb" data-reveal>
+          <ol>
+            {crumbs.map((c, i) => (
+              <li>
+                {c.href && i < crumbs.length - 1 ? (
+                  <a href={c.href}>{c.label}</a>
+                ) : (
+                  <span aria-current="page">{c.label}</span>
+                )}
+              </li>
+            ))}
+          </ol>
+        </nav>
+      )
+    }
+
+    {eyebrow && <p class="page-hero-eyebrow" data-reveal data-reveal-delay="0.04">{eyebrow}</p>}
+
+    <h1 class="page-hero-title" data-reveal data-reveal-delay="0.08">{title}</h1>
+
+    {
+      lead && (
+        <p class="page-hero-lead" data-reveal data-reveal-delay="0.14">
+          {lead}
+        </p>
+      )
+    }
+
+    {
+      meta.length > 0 && (
+        <ul class="page-hero-meta" data-reveal data-reveal-delay="0.18">
+          {meta.map((m) => (
+            <li>{m}</li>
+          ))}
+        </ul>
+      )
+    }
+
+    <slot />
+  </div>
+</section>
+
+<style>
+  .page-hero {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    border-bottom: 1px solid var(--color-line);
+    /* Clears the fixed header AND the announcement strip above it. */
+    padding-top: calc(var(--announce-h) + var(--header-h));
+  }
+
+  /* Tint wash. Sits behind the content and fades out downward so the section
+     that follows starts on flat ground rather than mid-gradient. */
+  .page-hero-wash {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background:
+      radial-gradient(ellipse 70% 90% at 88% 0%, hsl(var(--tint) / 0.5), transparent 70%),
+      radial-gradient(
+        ellipse 60% 80% at 0% 10%,
+        color-mix(in srgb, var(--color-accent) 12%, transparent),
+        transparent 65%
+      ),
+      linear-gradient(to bottom, var(--color-surface), var(--color-ground) 92%);
+  }
+  /* Light mode: the same tint at full strength turns the type unreadable. */
+  :global(:root[data-theme='light']) .page-hero-wash {
+    background:
+      radial-gradient(ellipse 70% 90% at 88% 0%, hsl(var(--tint) / 0.16), transparent 70%),
+      radial-gradient(
+        ellipse 60% 80% at 0% 10%,
+        color-mix(in srgb, var(--color-accent) 14%, transparent),
+        transparent 65%
+      ),
+      linear-gradient(to bottom, var(--color-surface-2), var(--color-ground) 92%);
+  }
+
+  .page-hero-inner {
+    max-width: var(--shell-max);
+    margin: 0 auto;
+    padding: clamp(3.5rem, 8vw, 7rem) var(--gutter) clamp(3rem, 6vw, 5rem);
+  }
+  .page-hero--compact .page-hero-inner {
+    padding-top: clamp(2.5rem, 6vw, 4.5rem);
+    padding-bottom: clamp(2rem, 4vw, 3rem);
+  }
+
+  /* --- Breadcrumb ---------------------------------------------------- */
+  .crumbs ol {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 1.75rem;
+    padding: 0;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-ink-faint);
+  }
+  .crumbs li + li::before {
+    content: '/';
+    margin-right: 0.5rem;
+    color: var(--color-ink-faint);
+    opacity: 0.6;
+  }
+  .crumbs a {
+    color: var(--color-ink-muted);
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+  .crumbs a:hover {
+    color: var(--color-accent);
+  }
+  .crumbs span {
+    color: var(--color-ink-faint);
+  }
+
+  /* --- Type ---------------------------------------------------------- */
+  .page-hero-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    margin: 0 0 1.25rem;
+  }
+
+  .page-hero-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-stretch: 115%;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    font-size: clamp(2.4rem, 6.5vw, 6.5rem);
+    text-wrap: balance;
+    max-width: 18ch;
+    color: var(--color-ink);
+  }
+  .page-hero--compact .page-hero-title {
+    font-size: clamp(2rem, 5.5vw, 4rem);
+  }
+
+  .page-hero-lead {
+    margin: 1.75rem 0 0;
+    max-width: 52ch;
+    font-size: clamp(1rem, 1.6vw, 1.15rem);
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+
+  .page-hero-meta {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    margin: 1.75rem 0 0;
+    padding: 0;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-ink-faint);
+  }
+  .page-hero-meta li + li::before {
+    content: '·';
+    margin-right: 1rem;
+    opacity: 0.6;
+  }
+</style>

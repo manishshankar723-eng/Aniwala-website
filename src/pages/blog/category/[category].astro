@@ -1,0 +1,78 @@
+---
+import Base from '../../../layouts/Base.astro';
+import PageHero from '../../../components/PageHero.astro';
+import PostCard from '../../../components/PostCard.astro';
+import CategoryBar from '../../../components/CategoryBar.astro';
+import CtaBand from '../../../components/CtaBand.astro';
+import Footer from '../../../components/Footer.astro';
+import { getPosts, categorySlug, type Post } from '../../../lib/posts';
+import { CATEGORIES, CATEGORY_BLURBS, type Category } from '../../../config/categories';
+
+/**
+ * One page per category that actually has posts in it. Empty categories get no
+ * route at all — CategoryBar renders those as dimmed text rather than links,
+ * so nothing here can 404.
+ */
+export async function getStaticPaths() {
+  const posts = await getPosts();
+
+  return CATEGORIES.filter((c) => posts.some((p) => p.data.category === c)).map((category) => ({
+    params: { category: categorySlug(category) },
+    props: {
+      category,
+      posts: posts.filter((p) => p.data.category === category),
+      counts: Object.fromEntries(
+        CATEGORIES.map((c) => [c, posts.filter((p) => p.data.category === c).length])
+      ),
+    },
+  }));
+}
+
+interface Props {
+  category: Category;
+  posts: Post[];
+  counts: Record<string, number>;
+}
+const { category, posts, counts } = Astro.props;
+
+const blurb = CATEGORY_BLURBS[category];
+
+const count = `${posts.length} ${posts.length === 1 ? 'post' : 'posts'}`;
+---
+
+<Base
+  title={`${category} — Blog — Aniwala Studios`}
+  description={blurb}
+  canonical={`/blog/category/${categorySlug(category)}/`}
+>
+  <main id="main">
+    <PageHero
+      eyebrow="Blog"
+      title={category}
+      lead={blurb}
+      meta={[count]}
+      crumbs={[
+        { label: 'Home', href: '/' },
+        { label: 'Blog', href: '/blog/' },
+        { label: category },
+      ]}
+      tint="195 60% 24%"
+      compact
+    />
+
+    <section class="section">
+      <CategoryBar active={category} counts={counts} />
+
+      <h2 class="visually-hidden">Posts in {category}</h2>
+
+      <div class="blog-grid">
+        {posts.map((post) => <PostCard post={post} />)}
+      </div>
+    </section>
+
+    <CtaBand />
+  </main>
+
+  <Footer />
+</Base>
+

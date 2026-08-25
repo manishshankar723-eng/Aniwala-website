@@ -1,0 +1,379 @@
+---
+import { render } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import CaseCard from '../../components/CaseCard.astro';
+import CtaBand from '../../components/CtaBand.astro';
+import Footer from '../../components/Footer.astro';
+import {
+  getCaseStudies,
+  getRelatedCaseStudies,
+  servicesFor,
+  type CaseStudy,
+} from '../../lib/caseStudies';
+
+export async function getStaticPaths() {
+  const studies = await getCaseStudies();
+  return studies.map((study) => ({ params: { slug: study.id }, props: { study } }));
+}
+
+interface Props {
+  study: CaseStudy;
+}
+const { study } = Astro.props;
+const { title, description, kind, client, sector, year, deliverables, tools, results, tint } =
+  study.data;
+
+const { Content } = await render(study);
+const related = await getRelatedCaseStudies(study);
+const linkedServices = servicesFor(study);
+
+const isStudioProject = kind === 'Studio project';
+
+/* The facts panel. Built as pairs so the markup does not have to branch for
+   rows that happen to be empty on a given project. */
+const facts: { label: string; value: string }[] = [
+  { label: isStudioProject ? 'Made by' : 'Client', value: client },
+  { label: 'Type', value: sector },
+  { label: 'Year', value: String(year) },
+  { label: 'Engagement', value: kind },
+];
+
+const caseSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'CreativeWork',
+  name: title,
+  description,
+  dateCreated: String(year),
+  creator: { '@type': 'Organization', name: 'Aniwala Studios', url: 'https://aniwala.com/' },
+  genre: sector,
+  keywords: tools.join(', '),
+};
+---
+
+<Base
+  title={`${title} — Case study — Aniwala Studios`}
+  description={description}
+  canonical={`/case-studies/${study.id}/`}
+>
+  <main id="main">
+    <PageHero
+      eyebrow="Case study"
+      title={title}
+      lead={description}
+      tint={tint}
+      meta={[kind, sector, String(year)]}
+      crumbs={[
+        { label: 'Home', href: '/' },
+        { label: 'Case studies', href: '/case-studies/' },
+        { label: title },
+      ]}
+    />
+
+    {/* Said once, at the top, before anything below can be misread. */}
+    {
+      isStudioProject && (
+        <section class="section section--intro">
+          <p class="own-note" data-reveal>
+            <strong>Self-directed studio project.</strong> Nobody commissioned this. We
+            built it to test a claim we make to clients, on our own time — so the working
+            below is complete, including the parts that did not go well.
+          </p>
+        </section>
+      )
+    }
+
+    <!-- FACTS — what a producer scans for before reading a word of the body. -->
+    <section class="section section--intro" id="facts">
+      <dl class="facts" data-reveal>
+        {
+          facts.map((f) => (
+            <div class="fact">
+              <dt>{f.label}</dt>
+              <dd>{f.value}</dd>
+            </div>
+          ))
+        }
+      </dl>
+
+      {
+        results.length > 0 && (
+          <dl class="figures" data-reveal data-reveal-delay="0.06">
+            {results.map((r) => (
+              <div class="figure">
+                <dd>{r.value}</dd>
+                <dt>{r.label}</dt>
+              </div>
+            ))}
+          </dl>
+        )
+      }
+    </section>
+
+    <article class="section">
+      <div class="body-grid">
+        <div class="body-main">
+          {/* .prose is global — <Content /> emits unscoped HTML. */}
+          <div class="prose" data-reveal>
+            <Content />
+          </div>
+        </div>
+
+        <aside class="rail" data-reveal data-reveal-delay="0.08">
+          {
+            linkedServices.length > 0 && (
+              <div class="rail-block">
+                <h2 class="rail-title">Disciplines</h2>
+                <ul class="rail-links">
+                  {linkedServices.map((s) => (
+                    <li>
+                      <a href={`/services/${s.slug}/`}>
+                        {s.label} <span aria-hidden="true">&rarr;</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          }
+
+          {
+            deliverables.length > 0 && (
+              <div class="rail-block">
+                <h2 class="rail-title">Delivered</h2>
+                <ul class="rail-list">
+                  {deliverables.map((d) => (
+                    <li>{d}</li>
+                  ))}
+                </ul>
+              </div>
+            )
+          }
+
+          {
+            tools.length > 0 && (
+              <div class="rail-block">
+                <h2 class="rail-title">Built with</h2>
+                <ul class="rail-tools">
+                  {tools.map((t) => (
+                    <li>{t}</li>
+                  ))}
+                </ul>
+              </div>
+            )
+          }
+        </aside>
+      </div>
+    </article>
+
+    {
+      related.length > 0 && (
+        <section class="section section--bordered">
+          <div class="section-head" data-reveal>
+            <p class="section-eyebrow">More work</p>
+            <h2 class="section-title">Other case studies</h2>
+            <a href="/case-studies/" class="section-link">
+              View all <span aria-hidden="true">&rarr;</span>
+            </a>
+          </div>
+          <div class="related">
+            {related.map((r) => (
+              <CaseCard study={r} />
+            ))}
+          </div>
+        </section>
+      )
+    }
+
+    <CtaBand />
+
+    <script type="application/ld+json" set:html={JSON.stringify(caseSchema)} is:inline />
+  </main>
+
+  <Footer />
+</Base>
+
+<style>
+  /* --- Studio-project disclosure ---------------------------------------- */
+  .own-note {
+    max-width: 66ch;
+    margin: 0;
+    padding: 1.1rem 1.35rem;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 35%, var(--color-line));
+    border-radius: 0.6rem;
+    background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+    font-size: 0.95rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+  .own-note strong {
+    color: var(--color-ink);
+  }
+
+  /* --- Facts ------------------------------------------------------------ */
+  .facts {
+    display: grid;
+    gap: 1px;
+    margin: 0;
+    background: var(--color-line);
+    border: 1px solid var(--color-line);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    grid-template-columns: repeat(2, 1fr);
+  }
+  @media (min-width: 800px) {
+    .facts {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+  .fact {
+    background: var(--color-ground);
+    padding: 1.35rem 1.25rem;
+  }
+  .fact dt {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-ink-faint);
+    margin-bottom: 0.5rem;
+  }
+  .fact dd {
+    margin: 0;
+    font-size: 0.98rem;
+    line-height: 1.4;
+    color: var(--color-ink);
+  }
+
+  /* --- Figures ---------------------------------------------------------- */
+  .figures {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem 3.5rem;
+    margin: clamp(2rem, 4vw, 3rem) 0 0;
+  }
+  .figure dd {
+    margin: 0 0 0.35rem;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-stretch: 112%;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    font-size: clamp(1.9rem, 4.5vw, 3rem);
+    color: var(--color-accent);
+  }
+  .figure dt {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-ink-faint);
+  }
+
+  /* --- Body + rail ------------------------------------------------------ */
+  .body-grid {
+    display: grid;
+    gap: clamp(2.5rem, 5vw, 4rem);
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 1050px) {
+    .body-grid {
+      grid-template-columns: minmax(0, 1fr) 17rem;
+    }
+  }
+  .body-main {
+    min-width: 0;
+  }
+
+  .rail {
+    display: flex;
+    flex-direction: column;
+    gap: 2.25rem;
+  }
+  @media (min-width: 1050px) {
+    .rail {
+      position: sticky;
+      top: calc(var(--announce-h) + var(--header-h) + 2rem);
+      align-self: start;
+    }
+  }
+  .rail-title {
+    margin: 0 0 0.9rem;
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-ink-faint);
+  }
+
+  .rail-links,
+  .rail-list,
+  .rail-tools {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .rail-links li + li {
+    margin-top: 0.5rem;
+  }
+  .rail-links a {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-stretch: 106%;
+    letter-spacing: -0.015em;
+    color: var(--color-ink);
+    text-decoration: none;
+    transition: color 0.2s ease;
+  }
+  .rail-links a span {
+    display: inline-block;
+    color: var(--color-accent);
+    transition: transform 0.25s ease;
+  }
+  .rail-links a:hover {
+    color: var(--color-accent);
+  }
+  .rail-links a:hover span {
+    transform: translateX(4px);
+  }
+
+  .rail-list li {
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--color-line);
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: var(--color-ink-muted);
+  }
+  .rail-list li:first-child {
+    border-top: 1px solid var(--color-line);
+  }
+
+  .rail-tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .rail-tools li {
+    padding: 0.4rem 0.8rem;
+    border: 1px solid var(--color-line);
+    border-radius: 100px;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--color-ink-faint);
+  }
+
+  /* --- Related ---------------------------------------------------------- */
+  .related {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 800px) {
+    .related {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+</style>

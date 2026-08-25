@@ -1,0 +1,146 @@
+---
+import { CATEGORIES } from '../config/categories';
+import { categorySlug } from '../lib/posts';
+
+/**
+ * The filter row on the blog. Real links to real pages rather than a
+ * JavaScript filter, so every category is crawlable, linkable and works
+ * before the bundle loads.
+ */
+interface Props {
+  /** Category name currently being viewed, or undefined on the index. */
+  active?: string;
+  /** Post count per category, so an empty one can be dimmed rather than lie. */
+  counts: Record<string, number>;
+  /**
+   * A filter that is not a category — a tag or an archive month. Rendered as
+   * one extra selected chip so those pages show what is filtering them and
+   * can clear it, exactly like a category can.
+   */
+  extraActive?: string;
+}
+
+const { active, counts, extraActive } = Astro.props;
+const total = Object.values(counts).reduce((n, c) => n + c, 0);
+
+/*
+  "All" is only the current view on /blog/ itself. Deriving it from the path
+  rather than from `active` being undefined matters on the tag and archive
+  pages: something IS filtered there, just not a category, and lighting up
+  "All" would tell the visitor the opposite.
+*/
+const isUnfiltered = Astro.url.pathname === '/blog/';
+---
+
+<nav class="cats" aria-label="Filter by category" data-reveal>
+  <a
+    href="/blog/"
+    class:list={['cat', isUnfiltered && 'is-active']}
+    aria-current={isUnfiltered ? 'page' : undefined}
+  >
+    All <span class="cat-n">{total}</span>
+  </a>
+
+  {
+    CATEGORIES.map((c) => {
+      const n = counts[c] ?? 0;
+      return n === 0 ? (
+        <span class="cat is-empty" aria-disabled="true">
+          {c} <span class="cat-n">0</span>
+        </span>
+      ) : (
+        <a
+          href={active === c ? '/blog/' : `/blog/category/${categorySlug(c)}/`}
+          class:list={['cat', active === c && 'is-active']}
+          aria-current={active === c ? 'page' : undefined}
+          title={active === c ? 'Clear this filter' : undefined}
+        >
+          {c} <span class="cat-n">{n}</span>
+          {active === c && <span class="cat-clear" aria-hidden="true" />}
+        </a>
+      );
+    })
+  }
+
+  {
+    extraActive && (
+      <a href="/blog/" class="cat is-active" title="Clear this filter">
+        {extraActive} <span class="cat-clear" aria-hidden="true" />
+      </a>
+    )
+  }
+</nav>
+
+<style>
+  .cats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: clamp(2rem, 4vw, 3rem);
+  }
+
+  .cat {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1.05rem;
+    border: 1px solid var(--color-line);
+    border-radius: 100px;
+    font-family: var(--font-mono);
+    font-size: 0.73rem;
+    letter-spacing: 0.06em;
+    color: var(--color-ink-muted);
+    text-decoration: none;
+    white-space: nowrap;
+    transition:
+      border-color 0.2s ease,
+      color 0.2s ease,
+      background-color 0.2s ease;
+  }
+  .cat:hover {
+    border-color: var(--color-line-strong);
+    color: var(--color-ink);
+  }
+  .cat.is-active {
+    background: var(--color-cta);
+    border-color: var(--color-cta);
+    color: var(--color-cta-ink);
+  }
+  /* A category with nothing in it stays visible but is plainly not a link —
+     hiding it would make the row change shape as posts get published. */
+  .cat.is-empty {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .cat-n {
+    font-size: 0.62rem;
+    opacity: 0.7;
+  }
+
+  /* The selected chip links back to /blog/, so clicking it again clears the
+     filter. This × says so. */
+  .cat-clear {
+    position: relative;
+    width: 0.65rem;
+    height: 0.65rem;
+    margin-left: 0.1rem;
+  }
+  .cat-clear::before,
+  .cat-clear::after {
+    content: '';
+    position: absolute;
+    inset: 50% 0 auto 0;
+    height: 1.5px;
+    background: currentColor;
+  }
+  .cat-clear::before {
+    transform: rotate(45deg);
+  }
+  .cat-clear::after {
+    transform: rotate(-45deg);
+  }
+  .cat.is-active .cat-n {
+    opacity: 0.8;
+  }
+</style>

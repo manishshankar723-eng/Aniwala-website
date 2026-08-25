@@ -1,0 +1,128 @@
+---
+/**
+ * The scrolling capability strip.
+ *
+ * Two identical copies of the list sit side by side and the track slides
+ * exactly one copy's width (-50%) before repeating, which is what makes the
+ * loop seamless — at -50% the second copy is sitting precisely where the first
+ * one started. Any other distance produces a visible jump.
+ *
+ * Only `transform` is animated, per the repo's motion rule.
+ */
+interface Props {
+  items: string[];
+  /** Seconds for one full cycle. Longer = slower. */
+  speed?: number;
+  /** Scroll left-to-right instead of right-to-left. */
+  reverse?: boolean;
+}
+
+const { items, speed = 45, reverse = false } = Astro.props;
+
+/* The duplicate is decorative repetition, so it is hidden from assistive tech —
+   otherwise every capability gets announced twice. */
+const copies = [false, true];
+---
+
+{
+  items.length > 0 && (
+    <div
+      class:list={['marquee', reverse && 'marquee--reverse']}
+      style={`--marquee-speed:${speed}s`}
+    >
+      <div class="marquee-track">
+        {copies.map((isDuplicate) => (
+          <ul class="marquee-group" aria-hidden={isDuplicate ? 'true' : undefined}>
+            {items.map((item) => (
+              <li class="marquee-item">
+                <svg class="marquee-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <path d="M8 0l1.6 4.6L14 6.2l-4.4 1.6L8 12.4 6.4 7.8 2 6.2l4.4-1.6L8 0Z" />
+                </svg>
+                <span class="marquee-label">{item}</span>
+              </li>
+            ))}
+          </ul>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+<style>
+  .marquee {
+    overflow: hidden;
+    background: var(--color-marquee);
+    color: var(--color-marquee-ink);
+    /* Nothing else on the page is this colour, so it does not need a border
+       to separate itself from the sections above and below. */
+    user-select: none;
+  }
+
+  .marquee-track {
+    display: flex;
+    width: max-content;
+    animation: marquee-scroll var(--marquee-speed) linear infinite;
+  }
+  .marquee--reverse .marquee-track {
+    animation-direction: reverse;
+  }
+
+  /* Hovering pauses it, so anything that catches the eye can be read. */
+  .marquee:hover .marquee-track {
+    animation-play-state: paused;
+  }
+
+  .marquee-group {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .marquee-item {
+    display: flex;
+    align-items: center;
+    gap: clamp(1.25rem, 3vw, 2.5rem);
+    padding-right: clamp(1.25rem, 3vw, 2.5rem);
+  }
+
+  .marquee-star {
+    width: 0.7rem;
+    height: 0.7rem;
+    flex-shrink: 0;
+    /* The star is the separator, not a bullet — knocking it back keeps the
+       labels reading as the content. */
+    opacity: 0.55;
+  }
+
+  .marquee-label {
+    padding: clamp(0.85rem, 1.7vw, 1.2rem) 0;
+    font-family: var(--font-body);
+    font-size: clamp(0.72rem, 1.25vw, 0.88rem);
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  @keyframes marquee-scroll {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      /* Exactly one copy of the list. See the note at the top of this file. */
+      transform: translateX(-50%);
+    }
+  }
+
+  /* Stated explicitly rather than relying on the global reduced-motion block:
+     that one only clamps duration, which would leave the track parked at the
+     END of the animation. Killing the animation by name parks it at the start. */
+  @media (prefers-reduced-motion: reduce) {
+    .marquee-track {
+      animation: none;
+    }
+  }
+</style>

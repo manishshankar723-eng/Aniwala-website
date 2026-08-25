@@ -1,0 +1,82 @@
+---
+import Base from '../../../layouts/Base.astro';
+import PageHero from '../../../components/PageHero.astro';
+import PostCard from '../../../components/PostCard.astro';
+import CategoryBar from '../../../components/CategoryBar.astro';
+import CtaBand from '../../../components/CtaBand.astro';
+import Footer from '../../../components/Footer.astro';
+import { getArchive, getPostsByPeriod, getPosts, type Post } from '../../../lib/posts';
+import { CATEGORIES } from '../../../config/categories';
+
+/**
+ * One page per month that actually has posts in it — the archive list is
+ * built from the post dates, so an empty month has no route and the sidebar
+ * never links to one.
+ */
+export async function getStaticPaths() {
+  const archive = await getArchive();
+
+  const all = await getPosts();
+  const counts = Object.fromEntries(
+    CATEGORIES.map((c) => [c, all.filter((p) => p.data.category === c).length])
+  );
+
+  return Promise.all(
+    archive.map(async (a) => ({
+      params: { period: a.period },
+      props: {
+        label: a.label,
+        posts: await getPostsByPeriod(a.period),
+        period: a.period,
+        counts,
+      },
+    }))
+  );
+}
+
+interface Props {
+  label: string;
+  period: string;
+  posts: Post[];
+  counts: Record<string, number>;
+}
+const { label, period, posts, counts } = Astro.props;
+const count = `${posts.length} ${posts.length === 1 ? 'post' : 'posts'}`;
+---
+
+<Base
+  title={`${label} — Blog — Aniwala Studios`}
+  description={`Posts published in ${label}.`}
+  canonical={`/blog/archive/${period}/`}
+>
+  <main id="main">
+    <PageHero
+      eyebrow="Archive"
+      title={label}
+      lead={`Everything published in ${label}.`}
+      meta={[count]}
+      crumbs={[
+        { label: 'Home', href: '/' },
+        { label: 'Blog', href: '/blog/' },
+        { label },
+      ]}
+      tint="195 60% 24%"
+      compact
+    />
+
+    <section class="section">
+      {/* Categories rather than the full rail: an archive page still needs a
+          way back into the blog, and the rail now lives only on post pages. */}
+      <CategoryBar counts={counts} extraActive={label} />
+
+      <h2 class="visually-hidden">Posts from {label}</h2>
+      <div class="blog-grid">
+        {posts.map((post) => <PostCard post={post} />)}
+      </div>
+    </section>
+
+    <CtaBand />
+  </main>
+
+  <Footer />
+</Base>

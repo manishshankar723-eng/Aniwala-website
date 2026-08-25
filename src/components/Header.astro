@@ -8,6 +8,10 @@ interface Props {
 const { overlay = false } = Astro.props;
 const path = Astro.url.pathname;
 
+/* Some routes are worth a footer link and a search entry but not one of the
+   header's few slots. Both the desktop nav and the drawer read this. */
+const headerNav = nav.filter((i) => !i.hiddenInHeader);
+
 const isCurrent = (href?: string) =>
   href ? (href === '/' ? path === '/' : path.startsWith(href)) : false;
 ---
@@ -40,12 +44,31 @@ const isCurrent = (href?: string) =>
     <!-- Desktop nav -->
     <nav class="nav-desktop" aria-label="Main">
       {
-        nav.map((item) =>
+        headerNav.map((item) =>
           item.children ? (
             <div class="nav-group">
-              <button type="button" class="nav-link nav-trigger" aria-expanded="false">
-                {item.label}
-                <svg class="nav-caret" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              {/*
+                A parent with its own page gets two targets: the label
+                navigates, the caret opens the panel. Merging them into one
+                control would force a choice between never reaching
+                /services/ and never seeing the dropdown.
+              */}
+              {item.href ? (
+                <>
+                  <a
+                    href={item.href}
+                    class="nav-link nav-link--parent"
+                    aria-current={isCurrent(item.href) ? 'page' : undefined}
+                  >
+                    <span class="nav-label"><span data-text={item.label}>{item.label}</span></span>
+                  </a>
+                  <button
+                    type="button"
+                    class="nav-trigger nav-caret-btn"
+                    aria-expanded="false"
+                    aria-label={`Show ${item.label} menu`}
+                  >
+                    <svg class="nav-caret" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                   <path
                     d="M3 4.5L6 7.5L9 4.5"
                     stroke="currentColor"
@@ -54,7 +77,22 @@ const isCurrent = (href?: string) =>
                     stroke-linejoin="round"
                   />
                 </svg>
-              </button>
+                  </button>
+                </>
+              ) : (
+                <button type="button" class="nav-link nav-trigger" aria-expanded="false">
+                  <span class="nav-label"><span data-text={item.label}>{item.label}</span></span>
+                  <svg class="nav-caret" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                  <path
+                    d="M3 4.5L6 7.5L9 4.5"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+                </button>
+              )}
 
               <div class="nav-panel">
                 <ul class="nav-panel-list">
@@ -79,7 +117,7 @@ const isCurrent = (href?: string) =>
               class="nav-link"
               aria-current={isCurrent(item.href) ? 'page' : undefined}
             >
-              {item.label}
+              <span class="nav-label"><span data-text={item.label}>{item.label}</span></span>
             </a>
           )
         )
@@ -148,7 +186,7 @@ const isCurrent = (href?: string) =>
 <div id="mobile-menu" class="mobile-menu" data-lenis-prevent>
   <nav class="mobile-nav" aria-label="Mobile">
     {
-      nav.map((item) =>
+      headerNav.map((item) =>
         item.children ? (
           <details class="mobile-details">
             <summary class="mobile-summary">
@@ -164,6 +202,15 @@ const isCurrent = (href?: string) =>
               </svg>
             </summary>
             <ul class="mobile-sublist">
+              {/* A <summary> that contained a link would navigate and toggle
+                  on the same tap, so the parent page gets its own row. */}
+              {item.href && (
+                <li>
+                  <a href={item.href} class="mobile-sublink mobile-sublink--all">
+                    All {item.label}
+                  </a>
+                </li>
+              )}
               {item.children.map((child) => (
                 <li>
                   <a href={child.href} class="mobile-sublink">
@@ -217,6 +264,7 @@ const isCurrent = (href?: string) =>
      adds the solid background, the normal theme tokens take over again. */
   .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .brand,
   .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .nav-link,
+  .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .nav-caret-btn,
   .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .icon-btn {
     color: #f4f4f2;
   }
@@ -228,24 +276,43 @@ const isCurrent = (href?: string) =>
   }
   .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .nav-link:hover,
   .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .nav-link[aria-current='page'],
+  .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .nav-group:hover .nav-link--parent,
+  .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .nav-group:hover .nav-caret-btn,
   .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .icon-btn:hover {
     color: #e4c24c;
   }
 
   .header-inner {
-    max-width: 1600px;
+    max-width: var(--shell-max);
     margin: 0 auto;
-    padding: 0 1.25rem;
+    padding: 0 var(--gutter);
     height: var(--header-h);
-    display: flex;
+    /*
+      Three columns with equal outer tracks, so the nav is centred on the PAGE.
+      With flex + space-between it was centred in the space left over between
+      the brand and the actions — and since the actions block is far wider than
+      the wordmark, that put it well left of true centre.
+
+      Columns are assigned explicitly below rather than by source order: the
+      desktop nav is display:none under 1240px, and an auto-placed grid would
+      then slide the actions into the middle column.
+    */
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: space-between;
     gap: 1.5rem;
   }
-  @media (min-width: 640px) {
-    .header-inner {
-      padding: 0 2rem;
-    }
+  .header-inner > .brand {
+    grid-column: 1;
+    justify-self: start;
+  }
+  .header-inner > .nav-desktop {
+    grid-column: 2;
+    justify-self: center;
+  }
+  .header-inner > .header-end {
+    grid-column: 3;
+    justify-self: end;
   }
 
   /* --- Brand -------------------------------------------------------- */
@@ -317,6 +384,78 @@ const isCurrent = (href?: string) =>
     color: var(--color-accent);
   }
 
+  /*
+    Hover roll. The label sits in a masked box; the inner span slides up by its
+    own height and a duplicate — drawn with content: attr(data-text) so there is
+    no second copy in the markup for a screen reader to read out — rides up
+    behind it in the accent colour.
+
+    Only transform animates, per the repo's motion rule.
+  */
+  .nav-label {
+    display: inline-block;
+    position: relative;
+    overflow: hidden;
+    /* Descenders (g, p, y) would be clipped by the mask; the negative margin
+       gives them room without changing the height of the row. */
+    padding-bottom: 0.12em;
+    margin-bottom: -0.12em;
+    vertical-align: bottom;
+  }
+  .nav-label > span {
+    display: block;
+    transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .nav-label > span::after {
+    content: attr(data-text);
+    position: absolute;
+    left: 0;
+    top: 100%;
+    color: var(--color-accent);
+  }
+  .nav-link:hover .nav-label > span,
+  .nav-group:hover .nav-label > span,
+  .nav-link:focus-visible .nav-label > span {
+    transform: translateY(-100%);
+  }
+
+  /* Underline wipes in under the text. On .nav-label rather than .nav-link so
+     it matches the word's width instead of the link's padding box — which
+     differs on the split parent. */
+  .nav-label::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: var(--color-accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .nav-link:hover .nav-label::after,
+  .nav-group:hover .nav-label::after,
+  .nav-link:focus-visible .nav-label::after,
+  .nav-link[aria-current='page'] .nav-label::after {
+    transform: scaleX(1);
+  }
+
+  /* The roll is decorative movement, so it goes away entirely rather than
+     being crushed to 0.01ms by the global reduced-motion block. Colour still
+     changes, so hover is never ambiguous. */
+  @media (prefers-reduced-motion: reduce) {
+    .nav-label > span,
+    .nav-label::after {
+      transition: none;
+    }
+    .nav-link:hover .nav-label > span,
+    .nav-group:hover .nav-label > span,
+    .nav-link:focus-visible .nav-label > span {
+      transform: none;
+    }
+  }
+
   .nav-caret {
     width: 0.7rem;
     height: 0.7rem;
@@ -326,6 +465,31 @@ const isCurrent = (href?: string) =>
   /* --- Dropdown ----------------------------------------------------- */
   .nav-group {
     position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  /* Split parent: the link keeps the left padding, the caret button the
+     right, so the pair still reads as one nav item at one hit height. */
+  .nav-link--parent {
+    padding-right: 0.3rem;
+  }
+  .nav-caret-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.55rem 0.65rem 0.55rem 0.1rem;
+    border: 0;
+    border-radius: 0.375rem;
+    background: none;
+    color: var(--color-ink);
+    cursor: pointer;
+    transition: color 0.2s ease;
+  }
+  /* Hovering either half highlights both — two elements, one affordance. */
+  .nav-group:hover .nav-link--parent,
+  .nav-group:hover .nav-caret-btn,
+  .nav-caret-btn:hover {
+    color: var(--color-accent);
   }
   .nav-panel {
     position: absolute;
@@ -580,6 +744,10 @@ const isCurrent = (href?: string) =>
   }
   .mobile-sublink:hover {
     color: var(--color-accent);
+  }
+  .mobile-sublink--all {
+    color: var(--color-ink);
+    font-weight: 500;
   }
 </style>
 

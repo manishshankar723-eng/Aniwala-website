@@ -1,0 +1,361 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import CtaBand from '../../components/CtaBand.astro';
+import Footer from '../../components/Footer.astro';
+import { services, engagementModels } from '../../config/services';
+import { processSteps } from '../../config/site';
+
+/**
+ * Every tool named on any service page, de-duplicated. Built from the service
+ * records rather than typed out again, so the pipeline list here can never
+ * disagree with the individual pages.
+ */
+const allTools = [...new Set(services.flatMap((s) => s.tools))].sort((a, b) => a.localeCompare(b));
+---
+
+<Base
+  title="Services — Aniwala Studios"
+  description="3D art, 2D art, animation, VFX, engine integration and video editing. One pipeline, six disciplines, an honest schedule."
+>
+  <main id="main">
+    <PageHero
+      eyebrow="What we do"
+      title="Six disciplines, one pipeline."
+      lead="Most studios sell you a department. We run the whole route from board to delivery, so the handoffs that usually lose a week happen inside one building instead of between three vendors."
+      crumbs={[{ label: 'Home', href: '/' }, { label: 'Services' }]}
+      tint="210 70% 22%"
+    />
+
+    <!-- The list. Rows rather than a grid: five items is too few for a grid to
+         earn its scan cost, and rows leave room for each service to say
+         something. The homepage already has the grid version. -->
+    <section class="section" id="disciplines">
+      <ol class="svc-list">
+        {
+          services.map((s, i) => (
+            <li class="svc-row" style={`--tint:${s.tint}`} data-reveal>
+              <a href={`/services/${s.slug}/`} class="svc-link">
+                <span class="svc-wash" aria-hidden="true" />
+
+                <span class="svc-n">{String(i + 1).padStart(2, '0')}</span>
+
+                <span class="svc-main">
+                  <h2 class="svc-title">{s.title}</h2>
+                  <span class="svc-tagline">{s.tagline}</span>
+                  <span class="svc-tags">
+                    {s.offerings.slice(0, 3).map((o) => (
+                      <span class="svc-tag">{o.title}</span>
+                    ))}
+                  </span>
+                </span>
+
+                <span class="svc-go" aria-hidden="true">
+                  &rarr;
+                </span>
+              </a>
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+
+    <!-- How you actually hire us. The question every producer asks on the
+         first call, answered before they have to ask it. -->
+    <section class="section section--bordered" id="engagement">
+      <div class="section-head" data-reveal>
+        <p class="section-eyebrow">Engagement</p>
+        <h2 class="section-title">Three ways to work with us</h2>
+      </div>
+
+      <div class="models">
+        {
+          engagementModels.map((m) => (
+            <div class="model" data-reveal>
+              <h3 class="model-title">{m.title}</h3>
+              <p class="model-body">{m.body}</p>
+              <p class="model-best">
+                <span>Best for</span>
+                {m.bestFor}
+              </p>
+            </div>
+          ))
+        }
+      </div>
+    </section>
+
+    <!-- Studio-wide process. The per-service pages break this down further
+         into their own pipelines; this is the shape all of them share. -->
+    <section class="section section--bordered" id="process">
+      <div class="section-head" data-reveal>
+        <p class="section-eyebrow">How we work</p>
+        <h2 class="section-title">No surprises at the end</h2>
+      </div>
+
+      <ol class="process">
+        {
+          processSteps.map((step, i) => (
+            <li class="step" data-reveal>
+              <span class="step-n">{String(i + 1).padStart(2, '0')}</span>
+              <h3 class="step-title">{step.title}</h3>
+              <p class="step-body">{step.body}</p>
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+
+    <section class="section section--bordered" id="pipeline">
+      <div class="section-head" data-reveal>
+        <p class="section-eyebrow">Pipeline</p>
+        <h2 class="section-title">What we run</h2>
+        <a href="/contact/" class="section-link">
+          Ask about yours <span aria-hidden="true">&rarr;</span>
+        </a>
+      </div>
+      <ul class="tools" data-reveal>
+        {allTools.map((t) => <li class="tool">{t}</li>)}
+      </ul>
+    </section>
+
+    <CtaBand
+      eyebrow="Start a project"
+      title="Not sure which one you need?"
+      body="Describe the problem rather than the discipline. Half the briefs we get are labelled as one service and are really another — we would rather sort that out on a call than sell you the wrong thing."
+    />
+  </main>
+
+  <Footer />
+</Base>
+
+<style>
+  /* --- Service rows ---------------------------------------------------- */
+  .svc-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--color-line);
+  }
+  .svc-row {
+    border-bottom: 1px solid var(--color-line);
+  }
+
+  .svc-link {
+    position: relative;
+    isolation: isolate;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: start;
+    gap: 1rem 1.5rem;
+    padding: clamp(1.75rem, 3.5vw, 2.75rem) clamp(0.75rem, 2vw, 1.5rem);
+    text-decoration: none;
+    color: inherit;
+  }
+  @media (min-width: 700px) {
+    .svc-link {
+      gap: 1rem 3rem;
+      align-items: center;
+    }
+  }
+
+  /* Tint sweeps in from the left on hover — the row equivalent of a tile
+     lighting up, and cheap because it only animates transform and opacity. */
+  .svc-wash {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    opacity: 0;
+    background: linear-gradient(90deg, hsl(var(--tint) / 0.35), transparent 65%);
+    transform: translateX(-1.5rem);
+    transition:
+      opacity 0.35s ease,
+      transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .svc-link:hover .svc-wash,
+  .svc-link:focus-visible .svc-wash {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .svc-n {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    color: var(--color-accent);
+    padding-top: 0.4rem;
+  }
+
+  .svc-main {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .svc-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 780;
+    font-stretch: 110%;
+    letter-spacing: -0.028em;
+    line-height: 1.05;
+    font-size: clamp(1.6rem, 4.2vw, 3rem);
+    color: var(--color-ink);
+    transition: color 0.2s ease;
+  }
+  .svc-link:hover .svc-title {
+    color: var(--color-accent);
+  }
+
+  .svc-tagline {
+    font-size: 0.98rem;
+    line-height: 1.55;
+    color: var(--color-ink-muted);
+    max-width: 46ch;
+  }
+
+  .svc-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.35rem;
+  }
+  .svc-tag {
+    padding: 0.32rem 0.7rem;
+    border: 1px solid var(--color-line);
+    border-radius: 100px;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.04em;
+    color: var(--color-ink-faint);
+    white-space: nowrap;
+  }
+
+  .svc-go {
+    font-size: 1.4rem;
+    color: var(--color-accent);
+    padding-top: 0.2rem;
+    transition: transform 0.25s ease;
+  }
+  .svc-link:hover .svc-go {
+    transform: translateX(6px);
+  }
+
+  /* --- Engagement models ----------------------------------------------- */
+  .models {
+    display: grid;
+    gap: 1px;
+    background: var(--color-line);
+    border: 1px solid var(--color-line);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 900px) {
+    .models {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+  .model {
+    background: var(--color-ground);
+    padding: clamp(1.75rem, 3vw, 2.5rem);
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+  .model-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    font-weight: 700;
+    font-stretch: 108%;
+    letter-spacing: -0.015em;
+  }
+  .model-body {
+    margin: 0;
+    font-size: 0.93rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+  .model-best {
+    margin: auto 0 0;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--color-line);
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: var(--color-ink);
+  }
+  .model-best span {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-ink-faint);
+  }
+
+  /* --- Process (same shape as the homepage; kept local, Astro scopes it) - */
+  .process {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 2.5rem 2rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 700px) {
+    .process {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (min-width: 1100px) {
+    .process {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+  .step {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--color-line-strong);
+  }
+  .step-n {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    color: var(--color-accent);
+  }
+  .step-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    font-stretch: 106%;
+  }
+  .step-body {
+    margin: 0;
+    font-size: 0.92rem;
+    line-height: 1.6;
+    color: var(--color-ink-muted);
+  }
+
+  /* --- Tools ------------------------------------------------------------ */
+  .tools {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+  .tool {
+    padding: 0.6rem 1.1rem;
+    border: 1px solid var(--color-line);
+    border-radius: 100px;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--color-ink-muted);
+  }
+</style>

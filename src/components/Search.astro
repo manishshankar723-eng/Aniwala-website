@@ -1,5 +1,49 @@
 ---
 import { searchIndex } from '../config/nav';
+import { getPosts } from '../lib/posts';
+import { getCaseStudies } from '../lib/caseStudies';
+import { services } from '../config/services';
+
+/**
+ * Blog posts are folded into the index at build time rather than being listed
+ * by hand in nav.ts. Publishing a post therefore makes it findable with no
+ * second edit — the failure mode of a hand-kept index is that it silently
+ * stops matching the site.
+ *
+ * Tags and category go into `keywords` so a search for "unreal" or "pricing"
+ * finds the post even when neither word is in its title.
+ */
+const posts = await getPosts();
+const studies = await getCaseStudies();
+
+/* Derived, not listed by hand — renaming a service in config/services.ts must
+   not be able to leave a dead entry behind in search. */
+const serviceDocs = services.map((s) => ({
+  title: s.label,
+  href: `/services/${s.slug}/`,
+  section: 'Services',
+  keywords: [s.tagline, ...s.offerings.map((o) => o.title), ...s.tools]
+    .join(' ')
+    .toLowerCase(),
+}));
+
+const postDocs = posts.map((p) => ({
+  title: p.data.title,
+  href: `/blog/${p.id}/`,
+  section: 'Blog',
+  keywords: [p.data.description, p.data.category, ...p.data.tags].join(' ').toLowerCase(),
+}));
+
+const caseDocs = studies.map((c) => ({
+  title: c.data.title,
+  href: `/case-studies/${c.id}/`,
+  section: 'Case studies',
+  keywords: [c.data.description, c.data.sector, c.data.client, ...c.data.tools]
+    .join(' ')
+    .toLowerCase(),
+}));
+
+const docs = [...searchIndex, ...serviceDocs, ...caseDocs, ...postDocs];
 ---
 
 <div id="search-overlay" class="search" role="dialog" aria-modal="true" aria-label="Search">
@@ -47,7 +91,7 @@ import { searchIndex } from '../config/nav';
   </div>
 </div>
 
-<script is:inline define:vars={{ docs: searchIndex }}>
+<script is:inline define:vars={{ docs }}>
   // Inline so the index ships with the markup — it is small and needs no fetch.
   window.__aniwalaSearchDocs = docs;
 </script>
@@ -223,9 +267,9 @@ import { searchIndex } from '../config/nav';
   }
 
   .search-bar-inner {
-    max-width: 1600px;
+    max-width: var(--shell-max);
     margin: 0 auto;
-    padding: 0 1.25rem;
+    padding: 0 var(--gutter);
     height: 5.5rem;
     display: flex;
     align-items: center;
@@ -233,7 +277,6 @@ import { searchIndex } from '../config/nav';
   }
   @media (min-width: 640px) {
     .search-bar-inner {
-      padding: 0 2rem;
       height: 6.25rem;
       gap: 1.75rem;
     }
@@ -302,14 +345,9 @@ import { searchIndex } from '../config/nav';
     overscroll-behavior: contain;
   }
   .search-drop-inner {
-    max-width: 1600px;
+    max-width: var(--shell-max);
     margin: 0 auto;
-    padding: 0.75rem 1.25rem 1.25rem;
-  }
-  @media (min-width: 640px) {
-    .search-drop-inner {
-      padding: 0.75rem 2rem 1.5rem;
-    }
+    padding: 0.75rem var(--gutter) clamp(1.25rem, 2vw, 1.5rem);
   }
 
   .search-results {

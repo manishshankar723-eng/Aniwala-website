@@ -1,0 +1,605 @@
+---
+import { commentsEnabled } from '../config/site';
+import { supabaseConfigured } from '../lib/supabase';
+
+/**
+ * Blog comments, stored in Supabase alongside enquiries — one project, one
+ * dashboard, one export.
+ *
+ * Nothing appears until it is approved by hand in the Supabase Table Editor.
+ * That moderation queue is the real spam control; the honeypot and time-gate
+ * below only stop naive bots.
+ *
+ * The read path is a plain PostgREST select restricted by RLS to
+ * `approved = true`, so an unapproved comment is not merely hidden by CSS —
+ * it is never sent to the browser at all.
+ */
+interface Props {
+  /** Post id, used as the thread key. Matches the folder name in the URL. */
+  slug: string;
+}
+const { slug } = Astro.props;
+
+const live = commentsEnabled && supabaseConfigured;
+
+/* Shown only under `astro dev`. A visitor gets the plain fallback; whoever is
+   building the site gets told exactly why the form is missing. */
+const showSetupHint = !live && import.meta.env.DEV;
+---
+
+<section class="comments" id="comments" aria-labelledby="comments-title">
+  <h2 class="comments-title" id="comments-title">Comments</h2>
+
+  {
+    live ? (
+      <div class="comments-root" data-comments data-slug={slug}>
+        {/* Filled in by the script below. Server-rendered empty because the
+            page is static HTML — approved comments are fetched per view so a
+            newly approved one shows up without a rebuild. */}
+        <div class="comments-list" data-comments-list aria-live="polite" aria-busy="true">
+          <p class="comments-status">Loading comments…</p>
+        </div>
+
+        <form class="comments-form" data-comments-form novalidate>
+          <h3 class="comments-form-title">Leave a comment</h3>
+          <p class="comments-form-note">
+            Your email address will not be published. Required fields are marked *
+          </p>
+
+          <div class="comments-fields">
+            <label class="comments-field">
+              <span>Full name *</span>
+              <input type="text" name="author_name" maxlength="80" required autocomplete="name" />
+            </label>
+
+            <label class="comments-field">
+              <span>Email *</span>
+              <input
+                type="email"
+                name="author_email"
+                maxlength="200"
+                required
+                autocomplete="email"
+              />
+            </label>
+
+            {/*
+              Honeypot. Hidden from people, irresistible to naive bots.
+              aria-hidden + tabindex keep it out of the accessibility tree so
+              a screen reader never announces a field nobody should fill.
+            */}
+            <div class="comments-hp" aria-hidden="true">
+              <label>
+                Website
+                <input type="text" name="website" tabindex="-1" autocomplete="off" />
+              </label>
+            </div>
+          </div>
+
+          <label class="comments-field">
+            <span>Comment *</span>
+            <textarea name="body" rows="5" maxlength="4000" required></textarea>
+          </label>
+
+          <label class="comments-remember">
+            <input type="checkbox" name="remember" data-comments-remember />
+            <span>Save my name and email in this browser for next time.</span>
+          </label>
+
+          <p class="comments-msg" data-comments-msg role="status" aria-live="polite"></p>
+
+          <div class="comments-actions">
+            <button type="submit" class="comments-submit">Post comment</button>
+            <span class="comments-note">Held for review before it appears.</span>
+          </div>
+        </form>
+      </div>
+    ) : (
+      <div class="comments-off">
+        <p class="comments-off-lead">Comments are not switched on yet.</p>
+        <p class="comments-off-body">
+          If something here was useful, wrong, or worth arguing about, we would
+          genuinely like to hear it — email the studio and we will reply.
+        </p>
+        <a href="mailto:hello@aniwala.com?subject=Blog%20feedback" class="comments-off-cta">
+          hello@aniwala.com
+        </a>
+
+        {
+          showSetupHint && (
+            <div class="comments-hint">
+              <p>
+                <strong>Dev note.</strong> The form is hidden because Supabase is not
+                connected. To switch it on:
+              </p>
+              <ol>
+                <li>
+                  Run all of <code>supabase/schema.sql</code> in the Supabase SQL editor.
+                </li>
+                <li>
+                  Put your project URL and <em>anon public</em> key into{' '}
+                  <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> in{' '}
+                  <code>src/config/site.ts</code>.
+                </li>
+              </ol>
+              <p>This note only ever appears in dev.</p>
+            </div>
+          )
+        }
+      </div>
+    )
+  }
+</section>
+
+<style>
+  .comments {
+    max-width: 68ch;
+    margin-top: clamp(3rem, 6vw, 4.5rem);
+    padding-top: clamp(2rem, 4vw, 3rem);
+    border-top: 1px solid var(--color-line);
+    scroll-margin-top: calc(var(--announce-h) + var(--header-h) + 1.5rem);
+  }
+
+  .comments-title {
+    margin: 0 0 1.75rem;
+    font-family: var(--font-display);
+    font-size: clamp(1.4rem, 3vw, 1.9rem);
+    font-weight: 750;
+    font-stretch: 108%;
+    letter-spacing: -0.022em;
+  }
+
+  /* --- Thread ---------------------------------------------------------- */
+  .comments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    margin-bottom: 2.5rem;
+  }
+  .comments-status {
+    margin: 0;
+    font-size: 0.92rem;
+    color: var(--color-ink-faint);
+  }
+
+  /* Rows are built at runtime, so they never receive Astro's scope
+     attribute. Scoping the parent and using :global on the children is what
+     lets these rules reach them. */
+  .comments-list :global(.comment) {
+    padding: 1.25rem 1.4rem;
+    border: 1px solid var(--color-line);
+    border-radius: 0.6rem;
+    background: var(--color-surface);
+  }
+  .comments-list :global(.comment-head) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem 0.85rem;
+    margin-bottom: 0.6rem;
+  }
+  .comments-list :global(.comment-author) {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--color-ink);
+  }
+  .comments-list :global(.comment-date) {
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-ink-faint);
+  }
+  .comments-list :global(.comment-body) {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+    /* Comment text is plain text, never markup — newlines still need to
+       survive, so whitespace is preserved rather than parsed. */
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  /* --- Form ------------------------------------------------------------ */
+  .comments-form {
+    padding: 1.75rem;
+    border: 1px solid var(--color-line);
+    border-radius: 0.75rem;
+    background: var(--color-surface);
+  }
+  .comments-form-title {
+    margin: 0 0 1.25rem;
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    font-weight: 700;
+    font-stretch: 104%;
+  }
+  .comments-form-note {
+    margin: -0.5rem 0 1.5rem;
+    font-size: 0.85rem;
+    line-height: 1.55;
+    color: var(--color-ink-faint);
+  }
+
+  .comments-fields {
+    display: grid;
+    gap: 0 1rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 560px) {
+    .comments-fields {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  .comments-field {
+    display: block;
+    margin-bottom: 1rem;
+  }
+  .comments-field span {
+    display: block;
+    margin-bottom: 0.4rem;
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-ink-faint);
+  }
+  .comments-field input,
+  .comments-field textarea {
+    width: 100%;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 0.4rem;
+    background: var(--color-ground);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+  .comments-field textarea {
+    resize: vertical;
+    min-height: 7rem;
+  }
+  .comments-field input:focus-visible,
+  .comments-field textarea:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
+  }
+
+  /* Off-screen rather than display:none — some bots skip hidden fields. */
+  .comments-hp {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
+
+  .comments-remember {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    margin: 0 0 1.25rem;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: var(--color-ink-muted);
+    cursor: pointer;
+  }
+  .comments-remember input {
+    width: 1rem;
+    height: 1rem;
+    margin-top: 0.18rem;
+    flex-shrink: 0;
+    accent-color: var(--color-cta);
+  }
+
+  /* Dev-only setup hint. Never rendered in a production build. */
+  .comments-hint {
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px dashed var(--color-line-strong);
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--color-ink-muted);
+  }
+  .comments-hint p {
+    margin: 0 0 0.75rem;
+  }
+  .comments-hint ol {
+    margin: 0 0 0.75rem;
+    padding-left: 1.25rem;
+  }
+  .comments-hint li + li {
+    margin-top: 0.4rem;
+  }
+  .comments-hint code {
+    font-family: var(--font-mono);
+    font-size: 0.82em;
+    padding: 0.1em 0.35em;
+    border-radius: 0.25rem;
+    background: var(--color-surface-2);
+    color: var(--color-ink);
+  }
+
+  .comments-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1.25rem;
+    margin-top: 0.5rem;
+  }
+  .comments-submit {
+    padding: 0.8rem 1.5rem;
+    border: 0;
+    border-radius: 0.3rem;
+    background: var(--color-cta);
+    color: var(--color-cta-ink);
+    font-family: var(--font-body);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+  .comments-submit:hover:not(:disabled) {
+    background: var(--color-cta-hover);
+  }
+  .comments-submit:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  .comments-note {
+    font-size: 0.8rem;
+    color: var(--color-ink-faint);
+  }
+
+  .comments-msg {
+    margin: 0 0 1rem;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+  .comments-msg:empty {
+    display: none;
+  }
+  .comments-msg.is-error {
+    color: #ff8a8a;
+  }
+  .comments-msg.is-ok {
+    color: var(--color-accent);
+  }
+
+  /* --- Not configured -------------------------------------------------- */
+  .comments-off {
+    padding: 1.75rem;
+    border: 1px dashed var(--color-line-strong);
+    border-radius: 0.75rem;
+  }
+  .comments-off-lead {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-stretch: 104%;
+    color: var(--color-ink);
+  }
+  .comments-off-body {
+    margin: 0.75rem 0 0;
+    font-size: 0.95rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+  .comments-off-cta {
+    display: inline-block;
+    margin-top: 1.25rem;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--color-accent);
+    text-decoration: none;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid currentColor;
+  }
+</style>
+
+<script>
+  import { insertRow, selectRows } from '../lib/supabase';
+
+  interface CommentRow {
+    id: string;
+    created_at: string;
+    author_name: string;
+    body: string;
+  }
+
+  /** Bots that fill a form the instant it parses are not reading the post. */
+  const MIN_SECONDS_BEFORE_SUBMIT = 3;
+
+  /** Where "save my details" keeps them. Per-browser, never sent anywhere. */
+  const REMEMBER_KEY = 'aniwala-commenter';
+
+  const fmtDate = (iso: string) =>
+    new Date(iso).toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+
+  /**
+   * Build one comment row.
+   *
+   * Every value goes in through textContent, never innerHTML. Comment bodies
+   * are attacker-controlled text from a public form — this is the difference
+   * between a comment section and a stored-XSS hole.
+   */
+  function renderComment(row: CommentRow): HTMLElement {
+    const el = document.createElement('article');
+    el.className = 'comment';
+
+    const head = document.createElement('div');
+    head.className = 'comment-head';
+
+    const author = document.createElement('span');
+    author.className = 'comment-author';
+    author.textContent = row.author_name;
+
+    const date = document.createElement('time');
+    date.className = 'comment-date';
+    date.dateTime = row.created_at;
+    date.textContent = fmtDate(row.created_at);
+
+    head.append(author, date);
+
+    const body = document.createElement('p');
+    body.className = 'comment-body';
+    body.textContent = row.body;
+
+    el.append(head, body);
+    return el;
+  }
+
+  async function initComments() {
+    const root = document.querySelector<HTMLElement>('[data-comments]');
+    if (!root) return;
+
+    const slug = root.dataset.slug ?? '';
+    const list = root.querySelector<HTMLElement>('[data-comments-list]')!;
+    const form = root.querySelector<HTMLFormElement>('[data-comments-form]')!;
+    const msg = root.querySelector<HTMLElement>('[data-comments-msg]')!;
+    const submit = form.querySelector<HTMLButtonElement>('.comments-submit')!;
+    const nameInput = form.elements.namedItem('author_name') as HTMLInputElement;
+    const emailInput = form.elements.namedItem('author_email') as HTMLInputElement;
+    const remember = form.querySelector<HTMLInputElement>('[data-comments-remember]')!;
+    const mountedAt = Date.now();
+
+    // ---------- remembered details ----------
+    // localStorage throws outright in some privacy modes, so every access is
+    // guarded; the form simply starts empty when it fails.
+    try {
+      const saved = localStorage.getItem(REMEMBER_KEY);
+      if (saved) {
+        const { name, email } = JSON.parse(saved);
+        if (name) nameInput.value = name;
+        if (email) emailInput.value = email;
+        remember.checked = true;
+      }
+    } catch {
+      /* private mode — nothing to restore */
+    }
+
+    // ---------- read ----------
+    const load = async () => {
+      try {
+        const rows = await selectRows<CommentRow>(
+          'comments',
+          // RLS already limits this to approved rows; the filter is here so
+          // one post's thread does not download every comment on the site.
+          `select=id,created_at,author_name,body&post_slug=eq.${encodeURIComponent(slug)}` +
+            `&order=created_at.asc`
+        );
+
+        list.replaceChildren();
+        if (rows.length === 0) {
+          const p = document.createElement('p');
+          p.className = 'comments-status';
+          p.textContent = 'No comments yet.';
+          list.append(p);
+        } else {
+          rows.forEach((r) => list.append(renderComment(r)));
+        }
+      } catch {
+        list.replaceChildren();
+        const p = document.createElement('p');
+        p.className = 'comments-status';
+        p.textContent = 'Comments could not be loaded right now.';
+        list.append(p);
+      } finally {
+        list.setAttribute('aria-busy', 'false');
+      }
+    };
+
+    // ---------- write ----------
+    const fail = (text: string) => {
+      msg.textContent = text;
+      msg.className = 'comments-msg is-error';
+    };
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msg.textContent = '';
+      msg.className = 'comments-msg';
+
+      const data = new FormData(form);
+      const author = String(data.get('author_name') ?? '').trim();
+      const email = String(data.get('author_email') ?? '').trim();
+      const body = String(data.get('body') ?? '').trim();
+
+      // Honeypot: report success and drop it. Telling a bot it failed only
+      // teaches whoever wrote it to try again.
+      if (String(data.get('website') ?? '').trim() !== '') {
+        msg.textContent = 'Thanks — your comment is awaiting review.';
+        msg.className = 'comments-msg is-ok';
+        form.reset();
+        return;
+      }
+
+      if (!author) return fail('Add a name so we know who we are talking to.');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return fail('That email address does not look right. It is never published.');
+      }
+      if (body.length < 2) return fail('Write a comment first.');
+      if ((Date.now() - mountedAt) / 1000 < MIN_SECONDS_BEFORE_SUBMIT) {
+        return fail('That was quick — give it a second and try again.');
+      }
+
+      submit.disabled = true;
+      submit.textContent = 'Posting…';
+      try {
+        // `approved` is deliberately absent: anon holds no INSERT grant on
+        // that column, so it cannot be set from here at all. The column
+        // default supplies false and the RLS check confirms it.
+        await insertRow('comments', {
+          post_slug: slug,
+          author_name: author,
+          author_email: email,
+          body,
+        });
+
+        try {
+          if (remember.checked) {
+            localStorage.setItem(REMEMBER_KEY, JSON.stringify({ name: author, email }));
+          } else {
+            localStorage.removeItem(REMEMBER_KEY);
+          }
+        } catch {
+          /* private mode — the choice just will not persist */
+        }
+
+        form.reset();
+        // reset() clears the remembered values too, so put them back.
+        if (remember.checked) {
+          nameInput.value = author;
+          emailInput.value = email;
+          remember.checked = true;
+        }
+        msg.textContent = 'Thanks — your comment is awaiting review and will appear once approved.';
+        msg.className = 'comments-msg is-ok';
+      } catch (err) {
+        fail(
+          err instanceof Error && err.message
+            ? `Could not post that — ${err.message}`
+            : 'Could not post that. Try again shortly.'
+        );
+      } finally {
+        if (submit.isConnected) {
+          submit.disabled = false;
+          submit.textContent = 'Post comment';
+        }
+      }
+    });
+
+    await load();
+  }
+
+  document.addEventListener('astro:page-load', initComments);
+</script>

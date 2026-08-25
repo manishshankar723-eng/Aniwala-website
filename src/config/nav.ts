@@ -13,34 +13,52 @@ export interface NavItem {
   label: string;
   href?: string;
   children?: NavChild[];
+  /**
+   * Keep the item out of the header, but still list it in the footer and in
+   * search. For pages that deserve a route and a link without spending one of
+   * the six slots a header can carry before it starts to read as a directory.
+   */
+  hiddenInHeader?: boolean;
 }
+
+/**
+ * An item may have BOTH `href` and `children`. The header then renders the
+ * label as a link to `href` and the caret beside it as the dropdown toggle,
+ * and the mobile drawer adds an "All <label>" row at the top of the sublist.
+ * So a parent page never needs a hand-written row of its own in `children`.
+ */
 
 export const nav: NavItem[] = [
   { label: 'Home', href: '/' },
   { label: 'Portfolio', href: '/portfolio/' },
+  /* Reachable from the homepage section, the footer and search — the header
+     stays short. */
+  { label: 'Case Studies', href: '/case-studies/', hiddenInHeader: true },
   {
     label: 'Services',
+    href: '/services/',
     children: [
       {
-        label: '2D Animation',
-        href: '/services/2d-animation/',
-        blurb: 'Frame-by-frame and rigged character work',
+        label: '3D Art',
+        href: '/services/3d-art/',
+        blurb: 'Characters, environments, props and vehicles',
       },
+      { label: '2D Art', href: '/services/2d-art/', blurb: 'Concept, illustration, UI and key art' },
       {
-        label: '3D Animation',
-        href: '/services/3d-animation/',
-        blurb: 'Cinematics, character and creature performance',
+        label: 'Animation',
+        href: '/services/animation/',
+        blurb: '2D and 3D performance, gameplay and cinematic',
       },
       { label: 'VFX', href: '/services/vfx/', blurb: 'Simulation, compositing and finishing' },
       {
-        label: 'Game Art',
-        href: '/services/game-art/',
-        blurb: 'Concept, environment and asset production',
+        label: 'Integration',
+        href: '/services/integration/',
+        blurb: 'Engine setup, materials and profiling',
       },
       {
-        label: 'Motion Graphics',
-        href: '/services/motion-graphics/',
-        blurb: 'Titles, explainers and broadcast design',
+        label: 'Video Editing',
+        href: '/services/video-editing/',
+        blurb: 'Trailers, cutdowns, titles and grade',
       },
     ],
   },
@@ -67,9 +85,13 @@ export const announce = {
 export const cta = { label: 'Book Appointment', href: '/contact/' };
 
 /**
- * What the search overlay looks through until there is real content.
- * Once blog and portfolio pages exist, swap this for a build-time index
- * (Pagefind indexes the built HTML and needs no hand maintenance).
+ * The hand-kept part of the search index: pages whose text is written in
+ * markup rather than content files.
+ *
+ * Blog posts are NOT listed here — Search.astro reads the blog collection at
+ * build time and merges them in, so publishing a post makes it searchable
+ * without anyone remembering to edit this array. Portfolio pages should be
+ * folded in the same way once they exist.
  */
 export interface SearchDoc {
   title: string;
@@ -95,33 +117,15 @@ export const searchIndex: SearchDoc[] = [
     keywords: 'book appointment enquiry email hire quote',
   },
   {
-    title: '2D Animation',
-    href: '/services/2d-animation/',
-    section: 'Services',
-    keywords: 'traditional frame by frame rigged character cutout',
+    title: 'Case Studies',
+    href: '/case-studies/',
+    section: 'Pages',
+    keywords: 'work projects breakdown process results portfolio examples',
   },
   {
-    title: '3D Animation',
-    href: '/services/3d-animation/',
-    section: 'Services',
-    keywords: 'cgi cinematic maya blender character creature',
-  },
-  {
-    title: 'VFX',
-    href: '/services/vfx/',
-    section: 'Services',
-    keywords: 'visual effects simulation compositing houdini nuke',
-  },
-  {
-    title: 'Game Art',
-    href: '/services/game-art/',
-    section: 'Services',
-    keywords: 'concept environment props assets unreal unity',
-  },
-  {
-    title: 'Motion Graphics',
-    href: '/services/motion-graphics/',
-    section: 'Services',
-    keywords: 'titles explainer broadcast after effects design',
+    title: 'Services',
+    href: '/services/',
+    section: 'Pages',
+    keywords: 'disciplines pipeline engagement outsourcing capabilities what we do',
   },
 ];

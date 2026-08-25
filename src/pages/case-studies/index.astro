@@ -1,0 +1,143 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import CaseCard from '../../components/CaseCard.astro';
+import CtaBand from '../../components/CtaBand.astro';
+import Footer from '../../components/Footer.astro';
+import { getCaseStudies } from '../../lib/caseStudies';
+
+const studies = await getCaseStudies();
+const [lead, ...rest] = studies;
+
+/* Said plainly rather than implied. Every card carries its own badge too, but
+   the count belongs at the top where someone decides how much weight to give
+   the page. */
+const ownCount = studies.filter((s) => s.data.kind === 'Studio project').length;
+const allOwn = studies.length > 0 && ownCount === studies.length;
+---
+
+<Base
+  title="Case studies — Aniwala Studios"
+  description="Projects taken apart: the brief, the pipeline decisions, what worked and what did not. Animation, game art and VFX."
+>
+  <main id="main">
+    <PageHero
+      eyebrow="Selected work"
+      title="Case studies"
+      lead="Projects with the working shown — what the brief was, which decisions were expensive, and what we would tell the next client who asks for something similar."
+      crumbs={[{ label: 'Home', href: '/' }, { label: 'Case studies' }]}
+      tint="150 45% 20%"
+      compact
+    />
+
+    <section class="section">
+      {
+        studies.length === 0 ? (
+          <div class="empty" data-reveal>
+            <p class="empty-title">No case studies published yet.</p>
+            <p class="empty-body">
+              They go up as projects wrap and clients clear them. In the meantime,
+              the fastest way to judge how we work is to ask us about a brief.
+            </p>
+            <a href="/contact/" class="empty-cta">
+              Talk to the studio <span aria-hidden="true">&rarr;</span>
+            </a>
+          </div>
+        ) : (
+          <>
+            {allOwn && (
+              <p class="note" data-reveal>
+                Everything below is self-directed studio work — pieces we set
+                ourselves to test a pipeline claim before making it to a client.
+                Commissioned projects appear here as they clear approval.
+              </p>
+            )}
+
+            <h2 class="visually-hidden">All case studies</h2>
+
+            <div class="lead-slot">
+              <CaseCard study={lead} featured />
+            </div>
+
+            {rest.length > 0 && (
+              <div class="grid">
+                {rest.map((study) => (
+                  <CaseCard study={study} />
+                ))}
+              </div>
+            )}
+          </>
+        )
+      }
+    </section>
+
+    <CtaBand
+      eyebrow="Start a project"
+      title="Want this level of detail on your brief?"
+      body="Send the cut, the asset list or just the problem. You get the same working — a shot or asset count, the decisions that will cost money, and a date we believe."
+    />
+  </main>
+
+  <Footer />
+</Base>
+
+<style>
+  .note {
+    max-width: 62ch;
+    margin: 0 0 clamp(2rem, 4vw, 3rem);
+    padding-left: 1rem;
+    border-left: 2px solid var(--color-accent);
+    font-size: 0.95rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+
+  .lead-slot {
+    margin-bottom: 1.25rem;
+  }
+
+  .grid {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 800px) {
+    .grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  /* --- Empty state ------------------------------------------------------ */
+  .empty {
+    padding: clamp(3rem, 8vw, 6rem) 1.5rem;
+    text-align: center;
+    border: 1px dashed var(--color-line-strong);
+    border-radius: 0.75rem;
+  }
+  .empty-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.4rem, 3vw, 2rem);
+    font-weight: 750;
+    font-stretch: 108%;
+    letter-spacing: -0.022em;
+  }
+  .empty-body {
+    margin: 1rem auto 0;
+    max-width: 44ch;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+  .empty-cta {
+    display: inline-block;
+    margin-top: 1.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    text-decoration: none;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid currentColor;
+  }
+</style>

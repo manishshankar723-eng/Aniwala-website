@@ -10,6 +10,9 @@
    --------------------------------------------------------------- */
 :root {
   color-scheme: dark;
+  /* Lets block-size animate to `auto` — the FAQ accordion relies on it.
+     Ignored by browsers without support, which cut open instead. */
+  interpolate-size: allow-keywords;
 
   --color-ground: #0b0c10;
   --color-surface: #14161c;
@@ -27,6 +30,28 @@
   --color-cta: #e4c24c;
   --color-cta-ink: #14161d;
   --color-cta-hover: #eed071;
+
+  /* The capability marquee under the hero. Its own pair rather than reusing
+     --color-cta, because this is the one band on the site that could take a
+     second brand colour without touching buttons — change these two and the
+     strip changes, nothing else does. */
+  --color-marquee: #e4c24c;
+  --color-marquee-ink: #14161d;
+
+  /* --- Page shell ---------------------------------------------------
+     Every full-width band — header, hero, sections, footer, search — sizes
+     itself through these two, so the page scales as one thing instead of ten
+     containers that have to be kept in step by hand.
+
+     --gutter grows with the viewport, so a large monitor gets margin in
+     proportion rather than the same fixed 2rem a phone gets.
+     --shell-max is where content stops widening. Set it to `none` for true
+     edge-to-edge at any width. */
+  /* The 1rem base matters: a pure vw gutter overtakes the old fixed 2rem
+     around 1100px and makes mid-size laptops NARROWER than before. This
+     curve tracks 2rem through the mid range, then opens up. */
+  --gutter: clamp(1.25rem, 1rem + 1.8vw, 4.5rem);
+  --shell-max: 2240px;
 
   --header-h: 5rem;
   /* Height of the announcement strip above the header. Everything fixed to
@@ -58,6 +83,9 @@ html[data-announce='off'] {
   --color-cta: #d4ac2b;
   --color-cta-ink: #14161d;
   --color-cta-hover: #c09a1f;
+
+  --color-marquee: #d4ac2b;
+  --color-marquee-ink: #14161d;
 }
 
 html {
@@ -106,6 +134,21 @@ html.lenis body {
 
 .js-reveal {
   will-change: transform, opacity;
+}
+
+/* Present for screen readers and the document outline, invisible on screen.
+   Used where a listing needs a heading so the card titles are not an h1 -> h3
+   jump, but the page design has no room for one. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* Keyboard users land here first and can jump past the nav. */
@@ -163,18 +206,20 @@ html.lenis body {
    ------------------------------------------------------------------ */
 /* --- Section shell -------------------------------------------------- */
 .section {
-  max-width: 1600px;
+  max-width: var(--shell-max);
   margin: 0 auto;
-  padding: clamp(4rem, 9vw, 7.5rem) 1.25rem;
-}
-@media (min-width: 640px) {
-  .section {
-    padding-left: 2rem;
-    padding-right: 2rem;
-  }
+  padding: clamp(4rem, 9vw, 7.5rem) var(--gutter);
 }
 .section--bordered {
   border-top: 1px solid var(--color-line);
+}
+/* Any section an in-page link can jump to has to clear the fixed header and
+   the announcement strip, or the heading lands behind them. Declared here
+   rather than per page so a new anchor target never has to remember it.
+   `main#main` is deliberately excluded — the hero scroll cue points at it and
+   should land flush at the top. */
+section[id] {
+  scroll-margin-top: calc(var(--announce-h) + var(--header-h) + 1rem);
 }
 .section--intro {
   padding-top: clamp(3rem, 7vw, 5rem);
@@ -189,7 +234,7 @@ html.lenis body {
   font-stretch: 105%;
   letter-spacing: -0.015em;
   line-height: 1.25;
-  font-size: clamp(1.35rem, 3.4vw, 2.4rem);
+  font-size: clamp(1.35rem, 3.4vw, 3rem);
   text-wrap: balance;
 }
 
@@ -216,7 +261,7 @@ html.lenis body {
   font-stretch: 110%;
   letter-spacing: -0.025em;
   line-height: 1.05;
-  font-size: clamp(1.75rem, 4.5vw, 3.25rem);
+  font-size: clamp(1.75rem, 4.5vw, 4rem);
   text-wrap: balance;
   flex: 1 1 20ch;
 }
@@ -238,3 +283,282 @@ html.lenis body {
 .section-link:hover span {
   transform: translateX(4px);
 }
+
+/* ------------------------------------------------------------------
+   Blog shell: content column plus the sidebar rail.
+
+   Global because four pages use it (post, index, category, tag, archive) and
+   Astro scopes a page's own <style> to that page alone.
+   ------------------------------------------------------------------ */
+.blog-shell {
+  display: grid;
+  gap: clamp(2.5rem, 4vw, 4.5rem);
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+/*
+   The rail only earns a column once there is room for the content beside it
+   to still hold a full measure. Below this it stacks underneath.
+
+   The shell is capped and centred rather than filling the 2240px page shell.
+   The prose inside is limited to a 68ch measure (~790px at full size), so a
+   1fr track on a wide monitor left roughly a thousand pixels of dead space
+   between the end of the text and the rail. Sizing the pair to what they
+   actually need puts that space in the page margins, where it reads as
+   deliberate, instead of in a hole down the middle.
+*/
+@media (min-width: 1050px) {
+  .blog-shell {
+    max-width: 76rem;
+    margin-inline: auto;
+    grid-template-columns: minmax(0, 1fr) 20rem;
+  }
+}
+/* Without this a long code block or wide table stretches the track instead of
+   scrolling inside itself, and drags the sidebar off screen. */
+.blog-main {
+  min-width: 0;
+}
+
+/* Sections that follow the article on a post page. Same cap as .blog-shell so
+   the reading column continues in a straight line down the page instead of
+   stepping out to full width for one card row. Declared after .section so it
+   wins; the cap is a no-op below ~1216px, so it needs no media query.
+   The CTA band is deliberately NOT given this — it paints its own background
+   and reads as a full-bleed break. */
+.blog-section {
+  max-width: 76rem;
+  margin-inline: auto;
+}
+
+/* Listing grid. Listing pages run full width — the rail is only on posts —
+   so this can go to three across without squeezing the cards. */
+.blog-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 640px) {
+  .blog-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 1100px) {
+  .blog-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (min-width: 1900px) {
+  .blog-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* ------------------------------------------------------------------
+   Long-form prose.
+
+   This is GLOBAL on purpose. Blog bodies come out of <Content /> as plain
+   HTML with no scope attribute, so a `.prose` rule written inside a page's
+   <style> block would never reach a single paragraph of it.
+
+   Measure is capped at 68ch. Anything wider and the eye loses the start of
+   the next line; that is a readability floor, not a taste preference.
+   ------------------------------------------------------------------ */
+.prose {
+  max-width: 68ch;
+  font-size: clamp(1rem, 1.4vw, 1.09rem);
+  line-height: 1.75;
+  color: var(--color-ink-muted);
+}
+
+.prose > * + * {
+  margin-top: 1.4em;
+}
+
+/* Headings pull the eye back to full-contrast ink. */
+.prose h2,
+.prose h3,
+.prose h4 {
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  letter-spacing: -0.022em;
+  text-wrap: balance;
+  /* Extra air above, so a heading belongs to what follows it, not above. */
+  margin-top: 2.6em;
+  margin-bottom: 0;
+}
+.prose h2 {
+  font-size: clamp(1.35rem, 3vw, 1.9rem);
+  font-weight: 760;
+  font-stretch: 108%;
+  line-height: 1.2;
+  /* Anchor jumps land under the fixed header rather than behind it. */
+  scroll-margin-top: calc(var(--announce-h) + var(--header-h) + 1.5rem);
+}
+.prose h3 {
+  font-size: clamp(1.12rem, 2.2vw, 1.35rem);
+  font-weight: 700;
+  font-stretch: 106%;
+  line-height: 1.3;
+  margin-top: 2.2em;
+  scroll-margin-top: calc(var(--announce-h) + var(--header-h) + 1.5rem);
+}
+.prose h2 + *,
+.prose h3 + * {
+  margin-top: 0.7em;
+}
+
+.prose p {
+  margin-bottom: 0;
+}
+
+.prose strong {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+.prose em {
+  font-style: italic;
+}
+
+.prose a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: opacity 0.15s ease;
+}
+.prose a:hover {
+  opacity: 0.75;
+}
+
+/* --- Lists ---------------------------------------------------------- */
+.prose ul,
+.prose ol {
+  padding-left: 1.35rem;
+}
+.prose li + li {
+  margin-top: 0.55em;
+}
+.prose li::marker {
+  color: var(--color-accent);
+}
+.prose ol {
+  list-style: decimal;
+}
+.prose ol li::marker {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+.prose li > ul,
+.prose li > ol {
+  margin-top: 0.55em;
+}
+
+/* --- Pull quote ------------------------------------------------------ */
+.prose blockquote {
+  margin-left: 0;
+  margin-right: 0;
+  padding: 0.25em 0 0.25em 1.5rem;
+  border-left: 2px solid var(--color-accent);
+  font-family: var(--font-display);
+  font-size: clamp(1.1rem, 2.2vw, 1.4rem);
+  font-weight: 500;
+  font-stretch: 104%;
+  line-height: 1.45;
+  letter-spacing: -0.015em;
+  color: var(--color-ink);
+  text-wrap: balance;
+}
+.prose blockquote p {
+  margin: 0;
+}
+.prose blockquote p + p {
+  margin-top: 0.6em;
+}
+
+/* --- Code ------------------------------------------------------------ */
+.prose code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  padding: 0.15em 0.4em;
+  border-radius: 0.25rem;
+  background: var(--color-surface-2);
+  color: var(--color-ink);
+}
+.prose pre {
+  padding: 1.25rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.6rem;
+  background: var(--color-surface);
+  /* Long lines scroll inside the block; the page itself must never move. */
+  overflow-x: auto;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+.prose pre code {
+  padding: 0;
+  background: none;
+  font-size: inherit;
+}
+
+/* --- Tables ---------------------------------------------------------- */
+/* Wrapped by Astro in nothing, so the table scrolls itself on narrow screens. */
+.prose table {
+  display: block;
+  overflow-x: auto;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+.prose th,
+.prose td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--color-line);
+  vertical-align: top;
+}
+.prose th {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+  border-bottom-color: var(--color-line-strong);
+  white-space: nowrap;
+}
+.prose td:first-child {
+  color: var(--color-ink);
+}
+
+/* --- Media and rules -------------------------------------------------- */
+.prose img,
+.prose video {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.6rem;
+  display: block;
+}
+.prose figure {
+  margin-left: 0;
+  margin-right: 0;
+}
+.prose figcaption {
+  margin-top: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: var(--color-ink-faint);
+}
+.prose hr {
+  margin-top: 2.8em;
+  margin-bottom: 2.8em;
+  border: 0;
+  border-top: 1px solid var(--color-line);
+}
+
+/* First child never needs a top margin — the container already spaced it. */
+.prose > :first-child {
+  margin-top: 0;
+}
+

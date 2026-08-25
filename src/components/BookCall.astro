@@ -1,6 +1,5 @@
 ---
 import {
-  WEB3FORMS_KEY,
   bookingHost,
   callDurations,
   workingHours,
@@ -12,7 +11,10 @@ import {
   enquiryTypes,
 } from '../config/site';
 
-const configured = !WEB3FORMS_KEY.startsWith('PASTE-');
+import { supabaseConfigured } from '../lib/supabase';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config/site';
+
+const configured = supabaseConfigured;
 const defaultDuration = callDurations[Math.floor(callDurations.length / 2)];
 const initials = bookingHost.name
   .split(' ')
@@ -194,9 +196,10 @@ const initials = bookingHost.name
         {
           !configured && (
             <p class="bk-warn">
-              <strong>Not connected yet.</strong> Add a free Web3Forms access key to{' '}
-              <code>src/config/site.ts</code> and this starts emailing the studio inbox.
-              Until then it will not submit, so no enquiry is silently lost.
+              <strong>Not connected yet.</strong> Add your Supabase project URL and anon
+              key to <code>src/config/site.ts</code>, and run{' '}
+              <code>supabase/schema.sql</code> in the Supabase SQL editor. Until then
+              this will not submit, so no enquiry is silently lost.
             </p>
           )
         }
@@ -208,8 +211,13 @@ const initials = bookingHost.name
 <script
   define:vars={{
     cfg: {
-      key: WEB3FORMS_KEY,
       configured,
+      // Passed through rather than imported: define:vars makes this script
+      // inline, and inline scripts are not bundled, so `import` would not
+      // resolve at runtime. The anon key is public by design — see
+      // supabase/schema.sql for why that is safe.
+      supabaseUrl: SUPABASE_URL,
+      supabaseKey: SUPABASE_ANON_KEY,
       durations: callDurations,
       defaultDuration,
       hours: workingHours,
@@ -499,30 +507,63 @@ const initials = bookingHost.name
       if (!name) return fail('Add your name so we know who we are meeting.');
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail('That email address does not look right.');
       if (!cfg.configured)
-        return fail('Booking is not connected yet — no email would reach the studio.');
+        return fail('Booking is not connected yet — nothing would reach the studio.');
 
       submit.disabled = true;
       submit.textContent = 'Sending…';
       try {
-        const data = Object.fromEntries(new FormData(form).entries());
-        const res = await fetch('https://api.web3forms.com/submit', {
+        const data = Object.fromEntries(new FormData(form).entries()) as Record<string, string>;
+
+        // Column names, not form field names. Anything not in the table is
+        // dropped rather than sent, so a stray hidden input cannot make
+        // PostgREST reject the whole insert.
+        const res = await fetch(`${cfg.supabaseUrl.replace(/\/$/, '')}/rest/v1/enquiries`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({ access_key: cfg.key, ...data }),
+          headers: {
+            apikey: cfg.supabaseKey,
+            Authorization: `Bearer ${cfg.supabaseKey}`,
+            'Content-Type': 'application/json',
+            // Anon has no SELECT policy on enquiries, so asking PostgREST to
+            // echo the row back would fail the request after a successful
+            // insert. Minimal returns nothing but the status.
+            Prefer: 'return=minimal',
+          },
+          body: JSON.stringify({
+            name,
+            email,
+            company: data.company || null,
+            enquiry_type: data.enquiry_type || null,
+            message: data.message || null,
+            duration_mins: Number(data.duration) || null,
+            slot_label: $<HTMLInputElement>('bk-f-when').value || null,
+            visitor_tz: data.timezone || null,
+            source_path: location.pathname,
+          }),
         });
-        const json = await res.json();
-        if (res.ok && json.success) {
-          details.innerHTML = `<div class="bk-done">
-              <h3>Request sent.</h3>
-              <p>Thanks ${name.replace(/[<>&]/g, '')} — we have your request for
-                 <strong>${$<HTMLInputElement>('bk-f-when').value}</strong>.
-                 We will confirm by email, usually within one working day.</p>
-            </div>`;
-        } else {
-          fail(json.message || 'Something went wrong. Email hello@aniwala.com instead.');
+
+        if (!res.ok) {
+          let detail = `HTTP ${res.status}`;
+          try {
+            const j = await res.json();
+            if (j?.message) detail = j.message;
+          } catch {
+            /* non-JSON error body — the status is all we have */
+          }
+          throw new Error(detail);
         }
-      } catch {
-        fail('Could not reach the server. Email hello@aniwala.com instead.');
+
+        details.innerHTML = `<div class="bk-done">
+            <h3>Request sent.</h3>
+            <p>Thanks ${name.replace(/[<>&]/g, '')} — we have your request for
+               <strong>${$<HTMLInputElement>('bk-f-when').value}</strong>.
+               We will confirm by email, usually within one working day.</p>
+          </div>`;
+      } catch (err) {
+        fail(
+          err instanceof Error && err.message
+            ? `Could not send that — ${err.message}. Email hello@aniwala.com instead.`
+            : 'Could not reach the server. Email hello@aniwala.com instead.'
+        );
       } finally {
         if (submit.isConnected) {
           submit.disabled = false;

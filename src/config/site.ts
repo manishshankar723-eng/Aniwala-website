@@ -92,6 +92,29 @@ export const processSteps: ProcessStep[] = [
 ];
 
 /* ------------------------------------------------------------------ */
+/* Marquee — the scrolling strip directly under the hero               */
+/*                                                                     */
+/* Craft specialisms, NOT the five services. The services grid further */
+/* down already sells those; this says what is actually on the desks,  */
+/* at the granularity an art director thinks in. Twelve is enough to   */
+/* fill a wide screen twice over — fewer and the loop shows a gap.     */
+/* ------------------------------------------------------------------ */
+export const marqueeItems: string[] = [
+  'Character Design',
+  'Creature Design',
+  'Environment Art',
+  'Concept Art',
+  'Storyboarding',
+  '3D Modelling',
+  'Rigging',
+  'Cinematics',
+  'Simulation & FX',
+  'Compositing',
+  'Motion Design',
+  'UI / UX Art',
+];
+
+/* ------------------------------------------------------------------ */
 /* Capabilities — the pipeline facts a first client actually asks about */
 /* ------------------------------------------------------------------ */
 export const capabilities: string[] = [
@@ -129,31 +152,58 @@ export interface Client {
 export const clients: Client[] = [];
 
 /* ------------------------------------------------------------------ */
-/* Journal — three on the homepage, not ten                            */
+/* Blog and case studies                                               */
+/*                                                                     */
+/* Both are Markdown collections, not data here — see                   */
+/* src/content.config.ts for their frontmatter schemas, and             */
+/* src/lib/posts.ts / src/lib/caseStudies.ts for the read helpers.      */
 /* ------------------------------------------------------------------ */
-export interface Post {
-  title: string;
-  href: string;
-  date: string;
-  readingTime: string;
-  excerpt: string;
-  tag: string;
-}
 
-export const featuredPosts: Post[] = [];
+/* ------------------------------------------------------------------ */
+/* Supabase — the one place visitor-submitted data lives               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Enquiries, bookings and blog comments all land in one Supabase project,
+ * so there is a single dashboard to check and a single export to take.
+ *
+ * SETUP
+ *   1. Create a free project at https://supabase.com.
+ *   2. SQL Editor -> New query -> paste ALL of `supabase/schema.sql` -> Run.
+ *      That creates both tables AND the Row Level Security policies. Do not
+ *      skip it: the policies are the only thing protecting the data.
+ *   3. Project Settings -> API. Copy "Project URL" and the "anon public"
+ *      key into the two constants below.
+ *
+ * THE ANON KEY IS PUBLIC. It ships inside the JavaScript bundle and anyone
+ * can read it — that is how Supabase is designed. Security comes entirely
+ * from the RLS policies, which let anon INSERT and nothing else (comments
+ * can additionally read rows you have approved).
+ *
+ * NEVER put the `service_role` key here. It bypasses RLS completely, and
+ * this file is compiled into a public website.
+ *
+ * While these are left as placeholders, the booking form and comment form
+ * both refuse to submit and say so, rather than dropping data into a void.
+ */
+export const SUPABASE_URL = 'PASTE-YOUR-SUPABASE-PROJECT-URL';
+export const SUPABASE_ANON_KEY = 'PASTE-YOUR-SUPABASE-ANON-PUBLIC-KEY';
+
+/**
+ * Comments are held for approval before they appear. Flip `approved` to true
+ * in the Supabase Table Editor to publish one.
+ *
+ * This is the actual spam control. The honeypot and time-gate on the form are
+ * speed bumps that stop naive bots; the moderation queue is what stops the
+ * rest. Set this to false only if you are willing to have unreviewed text
+ * appear on the site immediately — you would also have to loosen the RLS
+ * policy in schema.sql, which is deliberately hard to do by accident.
+ */
+export const commentsEnabled = true;
 
 /* ------------------------------------------------------------------ */
 /* Booking — the multi-step "book a call" widget                       */
 /* ------------------------------------------------------------------ */
-
-/**
- * Web3Forms access key. Get a free one at https://web3forms.com — enter
- * the studio inbox and the key arrives by email. Paste it here.
- *
- * While this is left as the placeholder the widget refuses to submit and
- * says so, rather than silently posting enquiries into a void.
- */
-export const WEB3FORMS_KEY = 'PASTE-YOUR-WEB3FORMS-ACCESS-KEY-HERE';
 
 /** Whose calendar this is. Shown in the left panel. */
 export const bookingHost = {
@@ -191,13 +241,18 @@ export const whatToExpect = [
   'Answering your questions and sharing insights',
 ];
 
-/** What the enquiry is about. */
+/**
+ * What the enquiry is about. Mirrors the six services in config/services.ts —
+ * keep them in step, or someone picks a service off the dropdown that has no
+ * page behind it.
+ */
 export const enquiryTypes = [
-  '2D Animation',
-  '3D Animation',
+  '3D Art',
+  '2D Art',
+  'Animation',
   'VFX',
-  'Game Art',
-  'Motion Graphics',
+  'Integration',
+  'Video Editing',
   'AI + Animation',
   'Not sure yet',
 ];

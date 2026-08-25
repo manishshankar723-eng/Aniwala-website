@@ -1,0 +1,258 @@
+---
+import { render } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import PostCard from '../../components/PostCard.astro';
+import BlogSidebar from '../../components/BlogSidebar.astro';
+import Comments from '../../components/Comments.astro';
+import CtaBand from '../../components/CtaBand.astro';
+import Footer from '../../components/Footer.astro';
+import {
+  getPosts,
+  getRelatedPosts,
+  formatDate,
+  isoDate,
+  readingTime,
+  categorySlug,
+  tagSlug,
+  type Post,
+} from '../../lib/posts';
+
+export async function getStaticPaths() {
+  const posts = await getPosts();
+  return posts.map((post) => ({ params: { slug: post.id }, props: { post } }));
+}
+
+interface Props {
+  post: Post;
+}
+const { post } = Astro.props;
+const { title, description, pubDate, updatedDate, category, tags, author, tint } = post.data;
+
+const { Content, headings } = await render(post);
+const related = await getRelatedPosts(post);
+
+/* Only h2s. Including h3s makes the contents list longer than the rail it
+   sits in, which defeats the point of it being sticky. */
+const toc = headings.filter((h) => h.depth === 2);
+
+const articleSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'BlogPosting',
+  headline: title,
+  description,
+  datePublished: isoDate(pubDate),
+  dateModified: isoDate(updatedDate ?? pubDate),
+  author: { '@type': 'Organization', name: author },
+  publisher: {
+    '@type': 'Organization',
+    name: 'Aniwala Studios',
+    url: 'https://aniwala.com/',
+  },
+  mainEntityOfPage: new URL(`/blog/${post.id}/`, Astro.site).href,
+  keywords: tags.join(', '),
+};
+---
+
+<Base
+  title={`${title} — Aniwala Studios`}
+  description={description}
+  canonical={`/blog/${post.id}/`}
+>
+  <main id="main">
+    <PageHero
+      eyebrow={category}
+      title={title}
+      lead={description}
+      tint={tint}
+      meta={[formatDate(pubDate), readingTime(post.body), author]}
+      crumbs={[
+        { label: 'Home', href: '/' },
+        { label: 'Blog', href: '/blog/' },
+        { label: category, href: `/blog/category/${categorySlug(category)}/` },
+        { label: title },
+      ]}
+    />
+
+    <div class="section blog-shell">
+      <article class="blog-main">
+        {/* .prose lives in global.css — Astro's scoped styles do not reach
+            markup produced by <Content />. */}
+        <div class="prose" data-reveal>
+          <Content />
+        </div>
+
+        <footer class="article-foot">
+          {
+            tags.length > 0 && (
+              <ul class="tags" aria-label="Tags">
+                {tags.map((t) => (
+                  <li>
+                    <a href={`/blog/tag/${tagSlug(t)}/`}>#{t}</a>
+                  </li>
+                ))}
+              </ul>
+            )
+          }
+
+          {
+            updatedDate && (
+              <p class="updated">
+                Updated <time datetime={isoDate(updatedDate)}>{formatDate(updatedDate)}</time>
+              </p>
+            )
+          }
+
+          <a href="/blog/" class="back">
+            <span aria-hidden="true">&larr;</span> All posts
+          </a>
+        </footer>
+
+        <Comments slug={post.id} />
+      </article>
+
+      <BlogSidebar toc={toc} excludeId={post.id} activeCategory={category} />
+    </div>
+
+    {
+      related.length > 0 && (
+        <section class="section section--bordered blog-section">
+          <div class="section-head" data-reveal>
+            <p class="section-eyebrow">Keep reading</p>
+            <h2 class="section-title">More from the blog</h2>
+            <a href="/blog/" class="section-link">
+              All posts <span aria-hidden="true">&rarr;</span>
+            </a>
+          </div>
+          <div class="related">
+            {related.map((r) => (
+              <PostCard post={r} terse />
+            ))}
+          </div>
+        </section>
+      )
+    }
+
+    <CtaBand />
+
+    <script type="application/ld+json" set:html={JSON.stringify(articleSchema)} is:inline />
+  </main>
+
+  <Footer />
+</Base>
+
+<style>
+  .article-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem 1.5rem;
+    margin-top: clamp(2.5rem, 5vw, 4rem);
+    padding-top: 1.75rem;
+    border-top: 1px solid var(--color-line);
+    max-width: 68ch;
+  }
+  .tags {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+  }
+  .tags a {
+    display: inline-block;
+    padding: 0.35rem 0.75rem;
+    border: 1px solid var(--color-line);
+    border-radius: 100px;
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    color: var(--color-ink-faint);
+    text-decoration: none;
+    transition:
+      border-color 0.2s ease,
+      color 0.2s ease;
+  }
+  .tags a:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+  }
+  .updated {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-ink-faint);
+  }
+  .back {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .back:hover {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  .related {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 700px) {
+    .related {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+</style>
+
+<script>
+  /**
+   * Highlights the contents entry for whichever section is on screen.
+   *
+   * Purely decorative — the links are ordinary anchors and work without this,
+   * which is why it bails silently when the rail has no contents list.
+   */
+  function initToc() {
+    const links = [...document.querySelectorAll<HTMLAnchorElement>('[data-toc-link]')];
+    if (links.length === 0) return;
+
+    const targets = links
+      .map((l) => document.getElementById(l.dataset.tocLink!))
+      .filter((el): el is HTMLElement => Boolean(el));
+    if (targets.length === 0) return;
+
+    const setCurrent = (id: string) => {
+      links.forEach((l) => l.classList.toggle('is-current', l.dataset.tocLink === id));
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // The topmost heading inside the band wins. Reading the last entry
+        // instead would flip the highlight when scrolling up.
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible[0]) setCurrent(visible[0].target.id);
+      },
+      // A band across the upper third: a heading counts as "current" from the
+      // moment it reaches the header until the next one displaces it.
+      { rootMargin: '-15% 0px -70% 0px', threshold: 0 }
+    );
+
+    targets.forEach((t) => observer.observe(t));
+    setCurrent(targets[0].id);
+
+    // Astro swaps the document on navigation; a stale observer would keep
+    // pointing at detached nodes.
+    document.addEventListener('astro:before-swap', () => observer.disconnect(), { once: true });
+  }
+
+  document.addEventListener('astro:page-load', initToc);
+</script>

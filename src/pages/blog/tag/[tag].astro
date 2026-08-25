@@ -1,0 +1,76 @@
+---
+import Base from '../../../layouts/Base.astro';
+import PageHero from '../../../components/PageHero.astro';
+import PostCard from '../../../components/PostCard.astro';
+import CategoryBar from '../../../components/CategoryBar.astro';
+import CtaBand from '../../../components/CtaBand.astro';
+import Footer from '../../../components/Footer.astro';
+import { getTags, getPostsByTag, getPosts, type Post } from '../../../lib/posts';
+import { CATEGORIES } from '../../../config/categories';
+
+/**
+ * One page per tag in use. Tags come from the posts themselves, so there is
+ * no list to maintain and no route for a tag nothing carries.
+ */
+export async function getStaticPaths() {
+  const tags = await getTags();
+
+  const all = await getPosts();
+  const counts = Object.fromEntries(
+    CATEGORIES.map((c) => [c, all.filter((p) => p.data.category === c).length])
+  );
+
+  return Promise.all(
+    tags.map(async (t) => ({
+      params: { tag: t.slug },
+      props: { tag: t.tag, slug: t.slug, posts: await getPostsByTag(t.slug), counts },
+    }))
+  );
+}
+
+interface Props {
+  tag: string;
+  slug: string;
+  posts: Post[];
+  counts: Record<string, number>;
+}
+const { tag, slug, posts, counts } = Astro.props;
+const count = `${posts.length} ${posts.length === 1 ? 'post' : 'posts'}`;
+---
+
+<Base
+  title={`${tag} — Blog — Aniwala Studios`}
+  description={`Posts tagged ${tag}.`}
+  canonical={`/blog/tag/${slug}/`}
+>
+  <main id="main">
+    <PageHero
+      eyebrow="Tag"
+      title={`#${tag}`}
+      lead={`Everything on the blog tagged ${tag}.`}
+      meta={[count]}
+      crumbs={[
+        { label: 'Home', href: '/' },
+        { label: 'Blog', href: '/blog/' },
+        { label: `#${tag}` },
+      ]}
+      tint="195 60% 24%"
+      compact
+    />
+
+    <section class="section">
+      {/* Categories rather than the full rail: a tag page still needs a way
+          back into the blog, and the rail now lives only on post pages. */}
+      <CategoryBar counts={counts} extraActive={`#${tag}`} />
+
+      <h2 class="visually-hidden">Posts tagged {tag}</h2>
+      <div class="blog-grid">
+        {posts.map((post) => <PostCard post={post} />)}
+      </div>
+    </section>
+
+    <CtaBand />
+  </main>
+
+  <Footer />
+</Base>

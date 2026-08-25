@@ -1,0 +1,232 @@
+---
+import type { CaseStudy } from '../lib/caseStudies';
+
+interface Props {
+  study: CaseStudy;
+  /** Wide two-column treatment for the lead study on a listing. */
+  featured?: boolean;
+}
+
+const { study, featured = false } = Astro.props;
+const { title, description, kind, client, sector, year, results, tint } = study.data;
+const href = `/case-studies/${study.id}/`;
+
+/* A self-directed piece must never read as commissioned work, so the client
+   line is only shown when there is a client distinct from us. */
+const isStudioProject = kind === 'Studio project';
+const attribution = isStudioProject ? sector : `${client} · ${sector}`;
+---
+
+<article class:list={['case', featured && 'case--featured']} style={`--tint:${tint}`} data-reveal>
+  <a href={href} class="case-link">
+    {/* Placeholder art. Swap for <Image /> via astro:assets once stills exist. */}
+    <span class="case-media" aria-hidden="true">
+      <span class="case-art"></span>
+    </span>
+
+    <span class="case-body">
+      <span class="case-top">
+        <span class:list={['case-kind', isStudioProject && 'case-kind--own']}>{kind}</span>
+        <span class="case-attr">{attribution}</span>
+        <span class="case-year">{year}</span>
+      </span>
+
+      <h3 class="case-title">{title}</h3>
+      <p class="case-desc">{description}</p>
+
+      {
+        results.length > 0 && (
+          <dl class="case-results">
+            {results.map((r) => (
+              <div>
+                <dt>{r.label}</dt>
+                <dd>{r.value}</dd>
+              </div>
+            ))}
+          </dl>
+        )
+      }
+
+      <span class="case-more">
+        Read the case study <span aria-hidden="true">&rarr;</span>
+      </span>
+    </span>
+  </a>
+</article>
+
+<style>
+  .case {
+    display: flex;
+    border: 1px solid var(--color-line);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    background: var(--color-surface);
+    transition:
+      border-color 0.25s ease,
+      transform 0.25s ease;
+  }
+  .case:hover {
+    border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-line));
+    transform: translateY(-2px);
+  }
+
+  .case-link {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    text-decoration: none;
+    color: inherit;
+  }
+  @media (min-width: 900px) {
+    .case--featured .case-link {
+      flex-direction: row;
+      align-items: stretch;
+    }
+  }
+
+  /* --- Art ------------------------------------------------------------- */
+  .case-media {
+    display: block;
+    position: relative;
+    aspect-ratio: 16 / 10;
+    overflow: hidden;
+    background: var(--color-surface-2);
+    flex-shrink: 0;
+  }
+  @media (min-width: 900px) {
+    .case--featured .case-media {
+      width: 50%;
+      aspect-ratio: auto;
+    }
+  }
+  .case-art {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 85% 70% at 28% 18%, hsl(var(--tint) / 0.9), transparent 72%),
+      linear-gradient(148deg, hsl(var(--tint) / 0.62), #0b0c10 78%);
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .case:hover .case-art {
+    transform: scale(1.05);
+  }
+
+  /* --- Body ------------------------------------------------------------ */
+  .case-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    padding: 1.5rem;
+    flex: 1;
+  }
+  @media (min-width: 900px) {
+    .case--featured .case-body {
+      padding: clamp(2rem, 3.5vw, 3rem);
+      justify-content: center;
+    }
+  }
+
+  .case-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem 0.7rem;
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-ink-faint);
+  }
+
+  /* The badge is load-bearing, not decoration: it is what stops a
+     self-directed piece being read as commissioned work. */
+  .case-kind {
+    padding: 0.28rem 0.6rem;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 100px;
+    color: var(--color-ink-muted);
+  }
+  .case-kind--own {
+    border-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
+    color: var(--color-accent);
+  }
+
+  .case-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 760;
+    font-stretch: 108%;
+    letter-spacing: -0.024em;
+    line-height: 1.12;
+    font-size: clamp(1.35rem, 2.6vw, 1.8rem);
+    text-wrap: balance;
+    color: var(--color-ink);
+    transition: color 0.2s ease;
+  }
+  @media (min-width: 900px) {
+    .case--featured .case-title {
+      font-size: clamp(1.8rem, 3.2vw, 2.6rem);
+      line-height: 1.05;
+    }
+  }
+  .case:hover .case-title {
+    color: var(--color-accent);
+  }
+
+  .case-desc {
+    margin: 0;
+    font-size: 0.93rem;
+    line-height: 1.6;
+    color: var(--color-ink-muted);
+  }
+  @media (min-width: 900px) {
+    .case--featured .case-desc {
+      font-size: 1.02rem;
+      max-width: 50ch;
+    }
+  }
+
+  /* --- Results --------------------------------------------------------- */
+  .case-results {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.75rem;
+    margin: 0.35rem 0 0;
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-line);
+  }
+  .case-results dt {
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-ink-faint);
+    margin-bottom: 0.25rem;
+  }
+  .case-results dd {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.02rem;
+    font-weight: 700;
+    font-stretch: 106%;
+    letter-spacing: -0.015em;
+    color: var(--color-ink);
+  }
+
+  .case-more {
+    margin-top: auto;
+    padding-top: 0.6rem;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+  }
+  .case-more span {
+    display: inline-block;
+    transition: transform 0.25s ease;
+  }
+  .case:hover .case-more span {
+    transform: translateX(4px);
+  }
+</style>

@@ -1,0 +1,186 @@
+---
+import type { Post } from '../lib/posts';
+import { formatDate, isoDate, readingTime } from '../lib/posts';
+
+interface Props {
+  post: Post;
+  /** Wide, two-column treatment for the lead post on the blog index. */
+  featured?: boolean;
+  /** Drops the excerpt — used in tight "keep reading" rows. */
+  terse?: boolean;
+}
+
+const { post, featured = false, terse = false } = Astro.props;
+const { title, description, pubDate, category, tint } = post.data;
+const href = `/blog/${post.id}/`;
+---
+
+<article class:list={['card', featured && 'card--featured']} style={`--tint:${tint}`} data-reveal>
+  <a href={href} class="card-link">
+    {/* Placeholder art. Swap for <Image /> via astro:assets once covers exist. */}
+    <span class="card-media" aria-hidden="true">
+      <span class="card-media-art"></span>
+    </span>
+
+    <span class="card-body">
+      <span class="card-meta">
+        <span class="card-cat">{category}</span>
+        <time datetime={isoDate(pubDate)}>{formatDate(pubDate)}</time>
+        <span>{readingTime(post.body)}</span>
+      </span>
+
+      <h3 class="card-title">{title}</h3>
+
+      {!terse && <p class="card-excerpt">{description}</p>}
+
+      <span class="card-more">
+        Read <span aria-hidden="true">&rarr;</span>
+      </span>
+    </span>
+  </a>
+</article>
+
+<style>
+  .card {
+    display: flex;
+    border: 1px solid var(--color-line);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    background: var(--color-surface);
+    transition:
+      border-color 0.25s ease,
+      transform 0.25s ease;
+  }
+  .card:hover {
+    border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-line));
+    transform: translateY(-2px);
+  }
+
+  .card-link {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    text-decoration: none;
+    color: inherit;
+  }
+  @media (min-width: 850px) {
+    .card--featured .card-link {
+      flex-direction: row;
+      align-items: stretch;
+    }
+  }
+
+  /* --- Art ------------------------------------------------------------ */
+  .card-media {
+    display: block;
+    position: relative;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: var(--color-surface-2);
+    flex-shrink: 0;
+  }
+  @media (min-width: 850px) {
+    .card--featured .card-media {
+      width: 52%;
+      aspect-ratio: auto;
+    }
+  }
+  .card-media-art {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 70% at 25% 15%, hsl(var(--tint) / 0.9), transparent 72%),
+      linear-gradient(150deg, hsl(var(--tint) / 0.6), #0b0c10 78%);
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .card:hover .card-media-art {
+    transform: scale(1.05);
+  }
+
+  /* --- Body ----------------------------------------------------------- */
+  .card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    padding: 1.5rem;
+    flex: 1;
+  }
+  @media (min-width: 850px) {
+    .card--featured .card-body {
+      padding: clamp(2rem, 3.5vw, 3rem);
+      justify-content: center;
+    }
+  }
+
+  .card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-ink-faint);
+  }
+  .card-cat {
+    color: var(--color-accent);
+  }
+  .card-meta > * + *::before {
+    content: '·';
+    margin-right: 0.75rem;
+    opacity: 0.6;
+  }
+
+  .card-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 720;
+    font-stretch: 106%;
+    letter-spacing: -0.018em;
+    line-height: 1.2;
+    font-size: 1.2rem;
+    text-wrap: balance;
+    color: var(--color-ink);
+    transition: color 0.2s ease;
+  }
+  @media (min-width: 850px) {
+    .card--featured .card-title {
+      font-size: clamp(1.6rem, 3vw, 2.4rem);
+      line-height: 1.1;
+    }
+  }
+  .card:hover .card-title {
+    color: var(--color-accent);
+  }
+
+  .card-excerpt {
+    margin: 0;
+    font-size: 0.92rem;
+    line-height: 1.6;
+    color: var(--color-ink-muted);
+  }
+  @media (min-width: 850px) {
+    .card--featured .card-excerpt {
+      font-size: 1.02rem;
+      max-width: 48ch;
+    }
+  }
+
+  .card-more {
+    margin-top: auto;
+    padding-top: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+  }
+  .card-more span {
+    display: inline-block;
+    transition: transform 0.25s ease;
+  }
+  .card:hover .card-more span {
+    transform: translateX(4px);
+  }
+</style>

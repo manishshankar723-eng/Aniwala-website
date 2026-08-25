@@ -1,0 +1,518 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import Faq from '../../components/Faq.astro';
+import CtaBand from '../../components/CtaBand.astro';
+import Footer from '../../components/Footer.astro';
+import { services, serviceBySlug, type Service } from '../../config/services';
+
+/**
+ * One page per record in `config/services.ts`. Adding a service there adds a
+ * route here — there is no per-service template to keep in sync.
+ */
+export function getStaticPaths() {
+  return services.map((service) => ({
+    params: { slug: service.slug },
+    props: { service },
+  }));
+}
+
+interface Props {
+  service: Service;
+}
+const { service } = Astro.props;
+
+/** Cross-links. Filtered, so a typo in `related` drops the card rather than
+    rendering an undefined one. */
+const related = service.related
+  .map(serviceBySlug)
+  .filter((s): s is Service => Boolean(s));
+
+const serviceSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Service',
+  serviceType: service.title,
+  name: service.title,
+  description: service.intro,
+  provider: {
+    '@type': 'Organization',
+    name: 'Aniwala Studios',
+    url: 'https://aniwala.com/',
+  },
+  areaServed: 'Worldwide',
+  hasOfferCatalog: {
+    '@type': 'OfferCatalog',
+    name: `${service.title} services`,
+    itemListElement: service.offerings.map((o) => ({
+      '@type': 'Offer',
+      itemOffered: { '@type': 'Service', name: o.title, description: o.body },
+    })),
+  },
+};
+---
+
+<Base
+  title={`${service.title} — Aniwala Studios`}
+  description={service.tagline}
+  canonical={`/services/${service.slug}/`}
+>
+  <main id="main">
+    <PageHero
+      eyebrow="Services"
+      title={service.title}
+      lead={service.intro}
+      tint={service.tint}
+      crumbs={[
+        { label: 'Home', href: '/' },
+        { label: 'Services', href: '/services/' },
+        { label: service.label },
+      ]}
+    >
+      <div class="hero-actions" data-reveal data-reveal-delay="0.22">
+        <a href="/contact/" class="btn-primary">Start a project</a>
+        <a href="#pipeline" class="btn-ghost">See the pipeline</a>
+      </div>
+    </PageHero>
+
+    <!-- WHAT WE MAKE — the discipline split into things a client can actually
+         put on a purchase order. -->
+    <section class="section" id="offerings">
+      <div class="section-head" data-reveal>
+        <p class="section-eyebrow">What we make</p>
+        <h2 class="section-title">
+          Everything {service.article} {service.shortName} brief can include
+        </h2>
+      </div>
+
+      <div class="offerings">
+        {
+          service.offerings.map((o) => (
+            <div class="offering" data-reveal>
+              <h3 class="offering-title">{o.title}</h3>
+              <p class="offering-body">{o.body}</p>
+            </div>
+          ))
+        }
+      </div>
+    </section>
+
+    <!-- PIPELINE — the discipline-specific route through the studio. A real
+         sequence, so it is numbered, and each stage names its own approval. -->
+    <section class="section section--bordered" id="pipeline">
+      <div class="section-head" data-reveal>
+        <p class="section-eyebrow">Pipeline</p>
+        <h2 class="section-title">How {service.article} {service.shortName} job runs</h2>
+      </div>
+
+      <ol class="stages">
+        {
+          service.pipeline.map((step, i) => (
+            <li class="stage" data-reveal>
+              <div class="stage-marker" aria-hidden="true">
+                <span class="stage-n">{String(i + 1).padStart(2, '0')}</span>
+              </div>
+              <div class="stage-body">
+                <h3 class="stage-title">{step.title}</h3>
+                <p class="stage-text">{step.body}</p>
+                {step.tools && <p class="stage-tools">{step.tools}</p>}
+              </div>
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+
+    <!-- TOOLS + DELIVERABLES — the two lists a technical director asks for
+         before anyone talks about money. -->
+    <section class="section section--bordered" id="specs">
+      <div class="specs">
+        <div class="spec" data-reveal>
+          <p class="section-eyebrow">Software</p>
+          <h2 class="spec-title">What we work in</h2>
+          <ul class="tools">
+            {service.tools.map((t) => <li class="tool">{t}</li>)}
+          </ul>
+          <p class="spec-note">
+            Not on the list? Ask. Most pipelines are a swap away, and we will say so
+            plainly if yours is not.
+          </p>
+        </div>
+
+        <div class="spec" data-reveal data-reveal-delay="0.08">
+          <p class="section-eyebrow">Hand-off</p>
+          <h2 class="spec-title">What you get</h2>
+          <ul class="deliverables">
+            {
+              service.deliverables.map((d) => (
+                <li>
+                  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path
+                      d="M3 8.5l3.2 3.2L13 5"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  <span>{d}</span>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- RELATED — most briefs cross a discipline boundary somewhere. -->
+    {
+      related.length > 0 && (
+        <section class="section section--bordered" id="related">
+          <div class="section-head" data-reveal>
+            <p class="section-eyebrow">Pairs with</p>
+            <h2 class="section-title">Rarely just one discipline</h2>
+            <a href="/services/" class="section-link">
+              All services <span aria-hidden="true">&rarr;</span>
+            </a>
+          </div>
+
+          <div class="related">
+            {related.map((r) => (
+              <a href={`/services/${r.slug}/`} class="rel" style={`--tint:${r.tint}`} data-reveal>
+                <span class="rel-art" aria-hidden="true" />
+                <span class="rel-body">
+                  <span class="rel-title">{r.title}</span>
+                  <span class="rel-tagline">{r.tagline}</span>
+                </span>
+              </a>
+            ))}
+          </div>
+        </section>
+      )
+    }
+
+    <Faq items={service.faqs} name={`faq-${service.slug}`} title={`${service.label}, answered`} />
+
+    <CtaBand
+      eyebrow="Start a project"
+      title={`Have ${service.article} ${service.shortName} brief?`}
+      body="Send it with the deadline attached. You get a shot or asset count, a crew, a price and a date within two working days — or an honest no."
+    />
+
+    <script type="application/ld+json" set:html={JSON.stringify(serviceSchema)} is:inline />
+  </main>
+
+  <Footer />
+</Base>
+
+<style>
+  /* --- Hero buttons ----------------------------------------------------- */
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 2.25rem;
+  }
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.95rem 1.6rem;
+    border-radius: 0.3rem;
+    background: var(--color-cta);
+    color: var(--color-cta-ink);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-decoration: none;
+    transition: background-color 0.2s ease;
+  }
+  .btn-primary:hover {
+    background: var(--color-cta-hover);
+  }
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.95rem 1.6rem;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 0.3rem;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-ink);
+    text-decoration: none;
+    transition:
+      border-color 0.2s ease,
+      color 0.2s ease;
+  }
+  .btn-ghost:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+  }
+
+  /* --- Offerings -------------------------------------------------------- */
+  .offerings {
+    display: grid;
+    gap: 1px;
+    background: var(--color-line);
+    border: 1px solid var(--color-line);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 700px) {
+    .offerings {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (min-width: 1100px) {
+    .offerings {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+  /* A fourth column past this point. Three across a 2240px shell gives each
+     card ~90 characters of measure, which is well past readable. */
+  @media (min-width: 1700px) {
+    .offerings {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+  .offering {
+    background: var(--color-ground);
+    padding: clamp(1.6rem, 2.6vw, 2.25rem);
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    transition: background-color 0.25s ease;
+  }
+  .offering:hover {
+    background: var(--color-surface);
+  }
+  .offering-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.12rem;
+    font-weight: 700;
+    font-stretch: 106%;
+    letter-spacing: -0.012em;
+    line-height: 1.3;
+  }
+  .offering-body {
+    margin: 0;
+    font-size: 0.92rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+
+  /* --- Pipeline stages -------------------------------------------------- */
+  .stages {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-width: 62rem;
+  }
+  .stage {
+    display: grid;
+    grid-template-columns: 2.75rem 1fr;
+    gap: 1.25rem;
+  }
+  @media (min-width: 700px) {
+    .stage {
+      grid-template-columns: 3.5rem 1fr;
+      gap: 2rem;
+    }
+  }
+
+  /* The connecting rule is drawn on the marker column rather than as a
+     border on the row, so it stops cleanly at the last stage. */
+  .stage-marker {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    padding-top: 0.35rem;
+  }
+  .stage-marker::before {
+    content: '';
+    position: absolute;
+    top: 2.6rem;
+    bottom: -0.5rem;
+    width: 1px;
+    background: var(--color-line);
+  }
+  .stage:last-child .stage-marker::before {
+    display: none;
+  }
+  .stage-n {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.4rem;
+    height: 2.4rem;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 100px;
+    background: var(--color-ground);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    color: var(--color-accent);
+  }
+
+  .stage-body {
+    padding-bottom: clamp(2rem, 4vw, 3rem);
+  }
+  .stage-title {
+    margin: 0.5rem 0 0.65rem;
+    font-family: var(--font-display);
+    font-size: clamp(1.15rem, 2.4vw, 1.5rem);
+    font-weight: 720;
+    font-stretch: 106%;
+    letter-spacing: -0.018em;
+  }
+  .stage-text {
+    margin: 0;
+    max-width: 60ch;
+    font-size: 0.98rem;
+    line-height: 1.7;
+    color: var(--color-ink-muted);
+  }
+  .stage-tools {
+    margin: 0.9rem 0 0;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    color: var(--color-ink-faint);
+  }
+
+  /* --- Specs ------------------------------------------------------------ */
+  .specs {
+    display: grid;
+    gap: clamp(2.5rem, 6vw, 5rem);
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 900px) {
+    .specs {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  .spec-title {
+    margin: 0 0 1.5rem;
+    font-family: var(--font-display);
+    font-size: clamp(1.5rem, 3vw, 2.1rem);
+    font-weight: 750;
+    font-stretch: 108%;
+    letter-spacing: -0.022em;
+  }
+  .spec-note {
+    margin: 1.5rem 0 0;
+    max-width: 44ch;
+    font-size: 0.88rem;
+    line-height: 1.6;
+    color: var(--color-ink-faint);
+  }
+
+  .tools {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+  .tool {
+    padding: 0.6rem 1.1rem;
+    border: 1px solid var(--color-line);
+    border-radius: 100px;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--color-ink-muted);
+  }
+
+  .deliverables {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .deliverables li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    padding: 0.9rem 0;
+    border-bottom: 1px solid var(--color-line);
+    font-size: 0.95rem;
+    line-height: 1.55;
+    color: var(--color-ink-muted);
+  }
+  .deliverables li:first-child {
+    border-top: 1px solid var(--color-line);
+  }
+  .deliverables svg {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+    margin-top: 0.28rem;
+    color: var(--color-accent);
+  }
+
+  /* --- Related ---------------------------------------------------------- */
+  .related {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 700px) {
+    .related {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+  .rel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-height: 13rem;
+    padding: 1.4rem;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    isolation: isolate;
+    text-decoration: none;
+  }
+  .rel-art {
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    background:
+      radial-gradient(ellipse 90% 70% at 30% 20%, hsl(var(--tint) / 0.85), transparent 70%),
+      linear-gradient(160deg, hsl(var(--tint) / 0.55), #0b0c10 75%);
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .rel::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(to top, rgb(0 0 0 / 0.75), transparent 62%);
+  }
+  .rel:hover .rel-art {
+    transform: scale(1.06);
+  }
+  .rel-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .rel-title {
+    font-family: var(--font-display);
+    font-weight: 740;
+    font-stretch: 108%;
+    letter-spacing: -0.015em;
+    font-size: 1.2rem;
+    color: #f4f4f2;
+  }
+  .rel-tagline {
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: rgb(255 255 255 / 0.72);
+  }
+</style>
