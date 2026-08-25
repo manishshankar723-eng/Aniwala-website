@@ -1,0 +1,186 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import DisciplineBar from '../../components/DisciplineBar.astro';
+import PieceCard from '../../components/PieceCard.astro';
+import CaseCard from '../../components/CaseCard.astro';
+import CtaBand from '../../components/CtaBand.astro';
+import Footer from '../../components/Footer.astro';
+import { piecesIn } from '../../config/portfolio';
+import { getCaseStudies } from '../../lib/caseStudies';
+
+const pieces = piecesIn();
+
+/* Three, and no more. The band is a pointer at the case studies, not a
+   second listing of them. */
+const caseStudies = (await getCaseStudies()).slice(0, 3);
+
+/* Said plainly at the top rather than left for the visitor to work out from
+   six identical badges. Same rule the case study listing follows. */
+const ownCount = pieces.filter((p) => p.kind === 'Studio project').length;
+const allOwn = pieces.length > 0 && ownCount === pieces.length;
+---
+
+<Base
+  title="Portfolio — Aniwala Studios"
+  description="Animation, game art, VFX and design work by Aniwala Studios, filed by discipline. Characters, environments, animation, VFX, concept art and motion graphics."
+>
+  <main id="main">
+    <PageHero
+      eyebrow="Selected work"
+      title="Portfolio"
+      lead="Filed by craft rather than by client, so you can go straight to the discipline you're hiring for. Every piece says who it was for and what it was made to prove."
+      crumbs={[{ label: 'Home', href: '/' }, { label: 'Portfolio' }]}
+      tint="210 70% 22%"
+      compact
+    />
+
+    <section class="section" id="work">
+      <DisciplineBar />
+
+      {
+        pieces.length === 0 ? (
+          <div class="empty" data-reveal>
+            <p class="empty-title">Nothing published here yet.</p>
+            <p class="empty-body">
+              Pieces go up as projects wrap and clients clear them. Until then the
+              honest way to judge us is the case studies — those take a project
+              apart and show the decisions, which is more use than a thumbnail
+              anyway.
+            </p>
+            <a href="/case-studies/" class="empty-cta">
+              Read the case studies <span aria-hidden="true">&rarr;</span>
+            </a>
+          </div>
+        ) : (
+          <>
+            {allOwn && (
+              <p class="note" data-reveal>
+                Everything below is self-directed studio work: pieces we set
+                ourselves to test a pipeline claim before taking it to a client.
+                Commissioned projects appear here as they clear approval.
+              </p>
+            )}
+
+            <h2 class="visually-hidden">All work</h2>
+
+            <div class="grid">
+              {pieces.map((piece) => (
+                <PieceCard piece={piece} />
+              ))}
+            </div>
+          </>
+        )
+      }
+    </section>
+
+    {/* The depth behind the thumbnails. A portfolio tile shows what we made;
+        a case study shows how, and how is what gets a new studio hired. */}
+    {
+      caseStudies.length > 0 && (
+        <section class="section section--bordered" id="case-studies">
+          <div class="section-head" data-reveal>
+            <p class="section-eyebrow">Case studies</p>
+            <h2 class="section-title">Projects with the working shown</h2>
+            <a href="/case-studies/" class="section-link">
+              View all <span aria-hidden="true">&rarr;</span>
+            </a>
+          </div>
+          <div class="cases">
+            {caseStudies.map((c) => (
+              <CaseCard study={c} />
+            ))}
+          </div>
+        </section>
+      )
+    }
+
+    <CtaBand
+      eyebrow="Start a project"
+      title="Need something that's not up here yet?"
+      body="Most of what a studio makes never clears for public use. Tell us the brief and we'll send relevant work over directly, with a shot or asset count and a date we believe."
+    />
+  </main>
+
+  <Footer />
+</Base>
+
+<style>
+  .note {
+    max-width: 62ch;
+    margin: 0 0 clamp(2rem, 4vw, 3rem);
+    padding-left: 1rem;
+    border-left: 2px solid var(--color-accent);
+    font-size: 0.95rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+
+  /* Two columns, not three. The tiles carry a title, a blurb and a tool list
+     on top of the art — at three across on a laptop that stack collapses into
+     an unreadable smudge. The wide modifier gives the grid its rhythm back. */
+  .grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 700px) {
+    .grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (min-width: 1600px) {
+    .grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  .cases {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 800px) {
+    .cases {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (min-width: 1200px) {
+    .cases {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  /* --- Empty state ------------------------------------------------------ */
+  .empty {
+    padding: clamp(3rem, 8vw, 6rem) 1.5rem;
+    text-align: center;
+    border: 1px dashed var(--color-line-strong);
+    border-radius: 0.75rem;
+  }
+  .empty-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.4rem, 3vw, 2rem);
+    font-weight: 750;
+    font-stretch: 108%;
+    letter-spacing: -0.022em;
+  }
+  .empty-body {
+    margin: 1rem auto 0;
+    max-width: 48ch;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+  .empty-cta {
+    display: inline-block;
+    margin-top: 1.75rem;
+    font-family: var(--font-label);
+    font-size: 0.75rem;
+    letter-spacing: 0.015em;
+    color: var(--color-accent);
+    text-decoration: none;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid currentColor;
+  }
+</style>

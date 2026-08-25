@@ -1,6 +1,7 @@
 ---
 import { commentsEnabled } from '../config/site';
 import { supabaseConfigured } from '../lib/supabase';
+import { email } from '../config/contact';
 
 /**
  * Blog comments, stored in Supabase alongside enquiries — one project, one
@@ -101,8 +102,8 @@ const showSetupHint = !live && import.meta.env.DEV;
           If something here was useful, wrong, or worth arguing about, we would
           genuinely like to hear it — email the studio and we will reply.
         </p>
-        <a href="mailto:hello@aniwala.com?subject=Blog%20feedback" class="comments-off-cta">
-          hello@aniwala.com
+        <a href={`mailto:${email}?subject=Blog%20feedback`} class="comments-off-cta">
+          {email}
         </a>
 
         {
@@ -184,10 +185,9 @@ const showSetupHint = !live && import.meta.env.DEV;
     color: var(--color-ink);
   }
   .comments-list :global(.comment-date) {
-    font-family: var(--font-mono);
-    font-size: 0.64rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    font-family: var(--font-label);
+    font-size: 0.72rem;
+    letter-spacing: 0.015em;
     color: var(--color-ink-faint);
   }
   .comments-list :global(.comment-body) {
@@ -239,10 +239,9 @@ const showSetupHint = !live && import.meta.env.DEV;
   .comments-field span {
     display: block;
     margin-bottom: 0.4rem;
-    font-family: var(--font-mono);
-    font-size: 0.64rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
+    font-family: var(--font-label);
+    font-size: 0.72rem;
+    letter-spacing: 0.015em;
     color: var(--color-ink-faint);
   }
   .comments-field input,
@@ -314,7 +313,7 @@ const showSetupHint = !live && import.meta.env.DEV;
     margin-top: 0.4rem;
   }
   .comments-hint code {
-    font-family: var(--font-mono);
+    font-family: var(--font-label);
     font-size: 0.82em;
     padding: 0.1em 0.35em;
     border-radius: 0.25rem;
@@ -335,11 +334,10 @@ const showSetupHint = !live && import.meta.env.DEV;
     border-radius: 0.3rem;
     background: var(--color-cta);
     color: var(--color-cta-ink);
-    font-family: var(--font-body);
-    font-size: 0.78rem;
+    font-family: var(--font-label);
+    font-size: 0.92rem;
     font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    letter-spacing: 0.005em;
     cursor: pointer;
     transition: background-color 0.2s ease;
   }
@@ -393,7 +391,7 @@ const showSetupHint = !live && import.meta.env.DEV;
   .comments-off-cta {
     display: inline-block;
     margin-top: 1.25rem;
-    font-family: var(--font-mono);
+    font-family: var(--font-label);
     font-size: 0.8rem;
     color: var(--color-accent);
     text-decoration: none;

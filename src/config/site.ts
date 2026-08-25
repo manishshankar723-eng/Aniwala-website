@@ -8,60 +8,13 @@
  */
 
 /* ------------------------------------------------------------------ */
-/* Work — organised by craft discipline, the way an art director shops */
+/* Work                                                                */
+/*                                                                     */
+/* The portfolio disciplines and the pieces filed under them used to    */
+/* live here. They now live in `src/config/portfolio.ts`, which owns    */
+/* the whole taxonomy — the homepage work grid, `/portfolio/` and every */
+/* `/portfolio/[category]/` page all read from that one file.           */
 /* ------------------------------------------------------------------ */
-export interface WorkCategory {
-  title: string;
-  href: string;
-  blurb: string;
-  /** Swap for a real import via astro:assets once art exists. */
-  image?: string;
-  /** Placeholder tint used until `image` is set. */
-  tint: string;
-  /** Set true to make the tile span two columns. */
-  wide?: boolean;
-}
-
-export const workCategories: WorkCategory[] = [
-  {
-    title: 'Character Design',
-    href: '/portfolio/character-design/',
-    blurb: 'Concept through to production-ready rigs',
-    tint: '210 70% 22%',
-    wide: true,
-  },
-  {
-    title: 'Environments & Props',
-    href: '/portfolio/environments/',
-    blurb: 'Worlds, set dressing and hero assets',
-    tint: '150 45% 20%',
-  },
-  {
-    title: 'Animation',
-    href: '/portfolio/animation/',
-    blurb: '2D and 3D performance, gameplay and cinematic',
-    tint: '28 75% 26%',
-  },
-  {
-    title: 'VFX',
-    href: '/portfolio/vfx/',
-    blurb: 'Simulation, compositing and finishing',
-    tint: '280 50% 26%',
-    wide: true,
-  },
-  {
-    title: 'Concept & 2D Art',
-    href: '/portfolio/concept-art/',
-    blurb: 'Visual development, key art and storyboards',
-    tint: '340 55% 24%',
-  },
-  {
-    title: 'Motion Graphics',
-    href: '/portfolio/motion-graphics/',
-    blurb: 'Titles, explainers and broadcast design',
-    tint: '195 60% 24%',
-  },
-];
 
 /* ------------------------------------------------------------------ */
 /* Process — what a new studio can prove when it has no back catalogue */
@@ -75,15 +28,15 @@ export interface ProcessStep {
 export const processSteps: ProcessStep[] = [
   {
     title: 'Brief & scope',
-    body: 'We read the brief, ask the awkward questions early, and come back with a shot count, a crew and a date we actually believe.',
+    body: 'We read the brief and ask the awkward questions early. You get back a shot count, a crew, and a date we actually believe.',
   },
   {
     title: 'Look development',
-    body: 'Style frames and a short test before full production, so the look is agreed while changing it is still cheap.',
+    body: 'Style frames and a short test before full production starts. The look gets signed off while changing it is still cheap.',
   },
   {
     title: 'Production',
-    body: 'Weekly playblasts and a shared review link. You see the work while it is still wet, not at the end.',
+    body: 'Weekly playblasts and a shared review link. You see the work while it\'s still wet.',
   },
   {
     title: 'Finishing & delivery',

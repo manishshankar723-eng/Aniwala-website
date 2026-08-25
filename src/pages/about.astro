@@ -1,0 +1,706 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import CtaBand from '../components/CtaBand.astro';
+import Footer from '../components/Footer.astro';
+import {
+  positioning,
+  studioFacts,
+  principles,
+  practices,
+  milestones,
+  teamIntro,
+  publishedTeam,
+} from '../config/about';
+import { capabilities } from '../config/site';
+import { email } from '../config/contact';
+
+/* Drafts render under `astro dev` and are dropped from the production build,
+   so the layout can be worked on without risking six invented people going
+   live. See the block comment on `team` in config/about.ts. */
+const members = publishedTeam();
+
+/**
+ * About us.
+ *
+ * The shape is borrowed from the studios this site competes with — Lakshya
+ * and VSQUAD both run positioning, values, history and a leadership grid —
+ * but the content is inverted where it has to be. Those pages are load
+ * bearing because of what the numbers say: twenty years, eight hundred
+ * people, a hundred and fifty AAA titles. We have none of that, and a
+ * padded version of it is the fastest way to lose a producer who has read
+ * fifty of these.
+ *
+ * So the proof on this page is the kind a new studio can actually offer:
+ * commitments specific enough to be held to, working practices you will
+ * experience in week one, and the people who would be doing the work.
+ *
+ * The work itself is deliberately NOT here. The portfolio and the case
+ * studies are two clicks away in the header and are better at that job than
+ * a three-card digest would be; this page answers "who are you", and a page
+ * that answers two questions answers neither.
+ *
+ * The history section is built and wired but stays hidden until something
+ * has genuinely happened.
+ */
+---
+
+<Base
+  title="About us — Aniwala Studios"
+  description="Aniwala is an animation and game art studio: six disciplines in one pipeline, an honest schedule, and source files handed over on request."
+>
+  <main id="main">
+    <PageHero
+      eyebrow="About us"
+      title="A new studio. Here is what that means."
+      lead="It means we have no back catalogue to point at, so we compete on the things you can check on a first call: the scope, the schedule, and what lands in your folder at the end."
+      crumbs={[{ label: 'Home', href: '/' }, { label: 'About us' }]}
+      tint="210 70% 22%"
+    />
+
+    <!-- The one-paragraph version, in the same slot the homepage puts its
+         positioning statement. Anyone who reads only this should still know
+         what we are. -->
+    <section class="section section--intro">
+      <p class="statement" data-reveal>{positioning}</p>
+    </section>
+
+    <!-- At a glance. Facts about how the studio is set up, deliberately not a
+         stat counter — see the comment in config/about.ts. -->
+    <section class="section section--bordered" id="glance">
+      <div class="section-head" data-reveal>
+        <p class="section-eyebrow">At a glance</p>
+        <h2 class="section-title">How the studio is set up</h2>
+      </div>
+
+      <dl class="facts">
+        {
+          studioFacts.map((f) => (
+            <div class="fact" data-reveal>
+              <dt>{f.label}</dt>
+              <dd class="fact-value">{f.value}</dd>
+              {f.note && <dd class="fact-note">{f.note}</dd>}
+            </div>
+          ))
+        }
+      </dl>
+    </section>
+
+    <!-- Principles. The "Lakshya Advantage" slot, but written as commitments
+         you can hold us to rather than adjectives about ourselves. -->
+    <section class="section section--bordered" id="principles">
+      <div class="section-head" data-reveal>
+        <p class="section-eyebrow">What we hold to</p>
+        <h2 class="section-title">Four things we don't budge on</h2>
+      </div>
+
+      <div class="principles">
+        {
+          principles.map((p, i) => (
+            <article class="principle" data-reveal>
+              <span class="principle-n">{String(i + 1).padStart(2, '0')}</span>
+              <h3 class="principle-title">{p.title}</h3>
+              <p class="principle-body">{p.body}</p>
+            </article>
+          ))
+        }
+      </div>
+    </section>
+
+    <!-- Working practices. Distinct from the four-step process the homepage
+         and services page both run: that's the shape of a job, this is what
+         a week inside one feels like. -->
+    <section class="section section--bordered" id="practices">
+      <div class="section-head" data-reveal>
+        <p class="section-eyebrow">Working with us</p>
+        <h2 class="section-title">What the week actually looks like</h2>
+      </div>
+
+      <div class="practices">
+        {
+          practices.map((p) => (
+            <article class="practice" data-reveal>
+              <h3 class="practice-title">{p.title}</h3>
+              <p class="practice-body">{p.body}</p>
+            </article>
+          ))
+        }
+      </div>
+    </section>
+
+    {/* History. Hidden until something has genuinely happened — see the
+        comment on `milestones` in config/about.ts. */}
+    {
+      milestones.length > 0 && (
+        <section class="section section--bordered" id="history">
+          <div class="section-head" data-reveal>
+            <p class="section-eyebrow">History</p>
+            <h2 class="section-title">How we got here</h2>
+          </div>
+
+          <ol class="timeline">
+            {milestones.map((m) => (
+              <li class="milestone" data-reveal>
+                <span class="milestone-when">{m.when}</span>
+                <h3 class="milestone-title">{m.title}</h3>
+                <p class="milestone-body">{m.body}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )
+    }
+
+    {/*
+      The team grid.
+
+      Photo-led cards on the pattern both reference studios use, because on a
+      page with no shipped-title count this is the strongest proof available:
+      the client can see there are actual specialists here and read what each
+      one owns. The name is the identity, the role line is what they are
+      accountable for, and the bio is two or three sentences of the concrete
+      detail a producer is checking for.
+
+      Renders nothing at all when there is nobody to show — an empty grid
+      under a "meet the team" heading is worse than no section.
+    */}
+    {
+      members.length > 0 && (
+        <section class="section section--bordered" id="team">
+          <div class="section-head" data-reveal>
+            <p class="section-eyebrow">The studio</p>
+            <h2 class="section-title">Your production team</h2>
+          </div>
+
+          <p class="team-intro" data-reveal>{teamIntro}</p>
+
+          <div class="team">
+            {members.map((m) => {
+              /* Two letters, so a fallback card is never a wall of text. */
+              const initials = m.name
+                .split(' ')
+                .map((part) => part[0])
+                .join('')
+                .slice(0, 2)
+                .toUpperCase();
+
+              return (
+                <article class="member" data-reveal>
+                  <span class="member-shot">
+                    {m.photo ? (
+                      <img
+                        class="member-photo"
+                        src={m.photo}
+                        alt={`${m.name}, ${m.role}`}
+                        width="480"
+                        height="360"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      /* No photo yet: initials on the surface tone. A stock
+                         avatar would be a lie about a person. */
+                      <span class="member-photo member-photo--fallback" aria-hidden="true">
+                        {initials}
+                      </span>
+                    )}
+                  </span>
+
+                  <div class="member-info">
+                    <h3 class="member-name">{m.name}</h3>
+
+                    <div class="member-role-row">
+                      <p class="member-role">{m.role}</p>
+
+                      {/* Only rendered when there is somewhere real to go.
+                          The reference design puts a button on every card;
+                          a button that does nothing is worse than no button. */}
+                      {m.href && (
+                        <a class="member-link" href={m.href}>
+                          <span class="visually-hidden">See {m.name}'s work</span>
+                          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                            <path
+                              d="M4 12L12 4M12 4H5.5M12 4v6.5"
+                              stroke="currentColor"
+                              stroke-width="1.6"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                            />
+                          </svg>
+                        </a>
+                      )}
+                    </div>
+
+                    <p class="member-bio">{m.bio}</p>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )
+    }
+
+    <!-- Pipeline. The question every first client asks, and the one place on
+         this page where a list of names is the right answer. -->
+    <section class="section section--bordered" id="pipeline">
+      <div class="section-head" data-reveal>
+        <p class="section-eyebrow">Pipeline</p>
+        <h2 class="section-title">What we run</h2>
+        <a href="/services/" class="section-link">
+          See the disciplines <span aria-hidden="true">&rarr;</span>
+        </a>
+      </div>
+      <ul class="tools" data-reveal>
+        {capabilities.map((t) => <li class="tool">{t}</li>)}
+      </ul>
+    </section>
+
+    <!-- Careers, treated as first-class the way Lakshya treats Life@Lakshya.
+         For an art studio, hiring is existential rather than a footer link.
+         The CTA is a mailto rather than a /careers/ link because the inbox
+         genuinely exists today and that page doesn't yet. -->
+    <section class="section section--bordered careers" id="careers">
+      <div class="careers-inner" data-reveal>
+        <div>
+          <p class="section-eyebrow">Careers</p>
+          <h2 class="section-title">We're looking for artists</h2>
+          <p class="careers-body">
+            Animators, modellers, riggers and FX artists. Being early at a small
+            studio is a genuine trade-off: more say in how things get done, less
+            certainty about next year. If that sounds like a good deal, send a
+            reel. We watch all of them and reply either way.
+          </p>
+        </div>
+        <a href={`mailto:${email}?subject=Reel`} class="careers-cta">
+          Send a reel <span aria-hidden="true">&rarr;</span>
+        </a>
+      </div>
+    </section>
+
+    <CtaBand
+      eyebrow="Next step"
+      title="Test any of this."
+      body="Send a brief and see how much of the above survives contact with it. You get a shot or asset count, a note on which decisions will cost money, and a date we actually believe. Two working days."
+    />
+  </main>
+
+  <Footer />
+</Base>
+
+<style>
+  /* --- At a glance ------------------------------------------------------ */
+  /* A spec strip, not a card. Hairline rules between the columns and nothing
+     around the outside — the section already has a border above it, and a
+     boxed panel directly under a boxed panel is what made this page read as
+     one repeating rectangle. */
+  .facts {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 640px) {
+    .facts {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (min-width: 1100px) {
+    .facts {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  .fact {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1.5rem 0;
+    border-top: 1px solid var(--color-line);
+  }
+  @media (min-width: 640px) {
+    .fact {
+      padding: 0 1.75rem;
+      border-top: 0;
+      border-left: 1px solid var(--color-line);
+    }
+    .fact:first-child {
+      padding-left: 0;
+      border-left: 0;
+    }
+  }
+  @media (min-width: 1100px) {
+    /* The first item in each row loses its rule; at four across that is only
+       the first cell, but the query above already handled the two-up case. */
+    .fact:first-child {
+      padding-left: 0;
+    }
+  }
+  .fact dt {
+    font-family: var(--font-label);
+    font-size: 0.72rem;
+    letter-spacing: 0.015em;
+    color: var(--color-ink-faint);
+  }
+  .fact-value {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.15rem, 2vw, 1.4rem);
+    font-weight: 750;
+    font-stretch: 106%;
+    letter-spacing: -0.018em;
+    line-height: 1.2;
+    color: var(--color-ink);
+    text-wrap: balance;
+  }
+  .fact-note {
+    margin: 0;
+    font-size: 0.86rem;
+    line-height: 1.55;
+    color: var(--color-ink-muted);
+  }
+
+  /* --- Principles ------------------------------------------------------- */
+  .principles {
+    display: grid;
+    gap: 2.5rem 2rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 800px) {
+    .principles {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  .principle {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--color-line-strong);
+  }
+  .principle-n {
+    font-family: var(--font-label);
+    font-size: 0.72rem;
+    letter-spacing: 0.015em;
+    color: var(--color-accent);
+  }
+  .principle-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.2rem, 2.4vw, 1.6rem);
+    font-weight: 750;
+    font-stretch: 106%;
+    letter-spacing: -0.022em;
+    line-height: 1.15;
+    text-wrap: balance;
+  }
+  .principle-body {
+    margin: 0;
+    max-width: 52ch;
+    font-size: 0.97rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+
+  /* --- Practices -------------------------------------------------------- */
+  .practices {
+    display: grid;
+    gap: 0;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 700px) {
+    .practices {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (min-width: 1400px) {
+    .practices {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+  .practice {
+    padding: 1.75rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    border-top: 1px solid var(--color-line);
+  }
+  @media (min-width: 700px) {
+    .practice {
+      padding: 1.75rem 1.75rem 1.75rem 0;
+    }
+  }
+  .practice-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    font-stretch: 106%;
+    letter-spacing: -0.012em;
+    line-height: 1.25;
+    text-wrap: balance;
+  }
+  .practice-body {
+    margin: 0;
+    font-size: 0.92rem;
+    line-height: 1.6;
+    color: var(--color-ink-muted);
+  }
+
+  /* --- Timeline --------------------------------------------------------- */
+  .timeline {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0;
+  }
+  .milestone {
+    display: grid;
+    gap: 0.5rem 2rem;
+    padding: 1.5rem 0;
+    border-top: 1px solid var(--color-line);
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 800px) {
+    .milestone {
+      grid-template-columns: 10rem minmax(0, 1fr);
+      align-items: baseline;
+    }
+  }
+  .milestone-when {
+    font-family: var(--font-label);
+    font-size: 0.75rem;
+    letter-spacing: 0.015em;
+    color: var(--color-accent);
+  }
+  .milestone-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    font-weight: 700;
+    font-stretch: 106%;
+    letter-spacing: -0.015em;
+  }
+  .milestone-body {
+    margin: 0.4rem 0 0;
+    max-width: 60ch;
+    font-size: 0.94rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+    grid-column: -2 / -1;
+  }
+
+  /* --- Team ------------------------------------------------------------- */
+  .team-intro {
+    max-width: 62ch;
+    margin: 0 0 clamp(2rem, 4vw, 3rem);
+    font-size: clamp(1rem, 1.5vw, 1.08rem);
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+
+  /* Three across on a desktop, matching the reference. Explicit breakpoints
+     rather than auto-fit: these cards hold a photo, a two-clause role line
+     and a three-sentence bio, and auto-fit will happily drop them to a width
+     where the role line wraps four times. */
+  .team {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 640px) {
+    .team {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (min-width: 1100px) {
+    .team {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  .member {
+    display: flex;
+    flex-direction: column;
+    /* The photo is inset rather than bleeding to the card edge — it is what
+       gives the reference cards their framed, catalogue feel. */
+    padding: 0.6rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 0.9rem;
+    transition:
+      border-color 0.25s ease,
+      transform 0.25s ease;
+  }
+  .member:hover {
+    border-color: var(--color-line-strong);
+    transform: translateY(-2px);
+  }
+
+  .member-shot {
+    display: block;
+    overflow: hidden;
+    border-radius: 0.6rem;
+    background: var(--color-surface-2);
+  }
+  .member-photo {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    /* Faces sit high in a portrait crop; centring lops off foreheads. */
+    object-position: center 25%;
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .member:hover .member-photo {
+    transform: scale(1.04);
+  }
+  .member-photo--fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-size: 2.75rem;
+    font-weight: 750;
+    font-stretch: 108%;
+    letter-spacing: -0.02em;
+    color: var(--color-ink-faint);
+    transform: none;
+  }
+  .member:hover .member-photo--fallback {
+    transform: none;
+  }
+
+  .member-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1.15rem 0.9rem 1rem;
+  }
+
+  .member-name {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 800;
+    font-stretch: 110%;
+    letter-spacing: 0.01em;
+    line-height: 1.2;
+    /* Set in caps, as the reference does. Done in CSS rather than typed into
+       the config so a name keeps its real casing everywhere else it is used. */
+    text-transform: uppercase;
+    color: var(--color-ink);
+  }
+
+  .member-role-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .member-role {
+    margin: 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.45;
+    color: var(--color-ink);
+  }
+
+  .member-link {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.65rem;
+    height: 1.65rem;
+    margin-top: 0.1rem;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 100px;
+    color: var(--color-ink-muted);
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      color 0.2s ease;
+  }
+  .member-link svg {
+    width: 0.8rem;
+    height: 0.8rem;
+  }
+  .member-link:hover {
+    background: var(--color-cta);
+    border-color: var(--color-cta);
+    color: var(--color-cta-ink);
+  }
+
+  .member-bio {
+    margin: 0;
+    font-size: 0.86rem;
+    line-height: 1.6;
+    color: var(--color-ink-muted);
+  }
+
+  /* --- Pipeline --------------------------------------------------------- */
+  .tools {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+  .tool {
+    padding: 0.6rem 1.1rem;
+    border: 1px solid var(--color-line);
+    border-radius: 100px;
+    font-family: var(--font-label);
+    font-size: 0.78rem;
+    color: var(--color-ink-muted);
+  }
+
+  /* --- Careers ---------------------------------------------------------- */
+  .careers-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 2rem;
+  }
+  .careers-body {
+    margin: 1.25rem 0 0;
+    max-width: 54ch;
+    color: var(--color-ink-muted);
+    line-height: 1.65;
+  }
+  .careers-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.9rem 1.5rem;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 100px;
+    font-family: var(--font-label);
+    font-size: 0.75rem;
+    letter-spacing: 0.015em;
+    color: var(--color-ink);
+    text-decoration: none;
+    white-space: nowrap;
+    transition:
+      background-color 0.25s ease,
+      border-color 0.25s ease,
+      color 0.25s ease;
+  }
+  .careers-cta:hover {
+    background: var(--color-cta);
+    border-color: var(--color-cta);
+    color: var(--color-cta-ink);
+  }
+  .careers-cta span {
+    display: inline-block;
+    transition: transform 0.25s ease;
+  }
+  .careers-cta:hover span {
+    transform: translateX(4px);
+  }
+</style>

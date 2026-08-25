@@ -12,6 +12,7 @@ import {
 } from '../config/site';
 
 import { supabaseConfigured } from '../lib/supabase';
+import { email } from '../config/contact';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config/site';
 
 const configured = supabaseConfigured;
@@ -225,6 +226,8 @@ const initials = bookingHost.name
       studioTz: studioTimezone,
       closedDays,
       windowDays: bookingWindowDays,
+      // The inline script cannot import, so the address is passed through.
+      email,
     },
   }}
 >
@@ -561,8 +564,8 @@ const initials = bookingHost.name
       } catch (err) {
         fail(
           err instanceof Error && err.message
-            ? `Could not send that — ${err.message}. Email hello@aniwala.com instead.`
-            : 'Could not reach the server. Email hello@aniwala.com instead.'
+            ? `Could not send that — ${err.message}. Email ${cfg.email} instead.`
+            : `Could not reach the server. Email ${cfg.email} instead.`
         );
       } finally {
         if (submit.isConnected) {
@@ -820,9 +823,9 @@ const initials = bookingHost.name
   }
   .bk-dow span {
     text-align: center;
-    font-family: var(--font-mono);
-    font-size: 0.6rem;
-    letter-spacing: 0.08em;
+    font-family: var(--font-label);
+    font-size: 0.72rem;
+    letter-spacing: 0.015em;
     color: var(--color-ink-faint);
   }
 
@@ -937,8 +940,8 @@ const initials = bookingHost.name
     background: none;
     border: 0;
     border-radius: 0.25rem;
-    font-family: var(--font-mono);
-    font-size: 0.7rem;
+    font-family: var(--font-label);
+    font-size: 0.72rem;
     color: var(--color-ink-muted);
     cursor: pointer;
   }
@@ -1165,7 +1168,7 @@ const initials = bookingHost.name
     color: var(--color-ink-muted);
   }
   .bk-warn code {
-    font-family: var(--font-mono);
+    font-family: var(--font-label);
     font-size: 0.76rem;
     color: var(--color-accent);
   }

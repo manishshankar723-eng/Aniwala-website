@@ -35,7 +35,7 @@ export interface Service {
   /** Short name — used in nav, cards and cross-links. */
   label: string;
   /**
-   * The service's name as it appears mid-sentence ("a VFX brief", "a 3D art
+   * The service\'s name as it appears mid-sentence ("a VFX brief", "a 3D art
    * job"). Written out rather than lower-cased from `label`, because
    * toLowerCase() turns VFX into "vfx" and 3D into "3d".
    */
@@ -55,7 +55,7 @@ export interface Service {
   tagline: string;
   /** Two or three sentences of real positioning. */
   intro: string;
-  /** HSL triple driving the page's placeholder art. */
+  /** HSL triple driving the page\'s placeholder art. */
   tint: string;
   /** The work itself, broken into the pieces a client actually orders. */
   offerings: Offering[];
@@ -63,7 +63,7 @@ export interface Service {
   pipeline: PipelineStep[];
   /** Software. Order is roughly pipeline order, not preference. */
   tools: string[];
-  /** What lands in the client's folder at the end. */
+  /** What lands in the client\'s folder at the end. */
   deliverables: string[];
   /** Answers to what people ask before they commission. */
   faqs: Faq[];
@@ -79,11 +79,11 @@ export interface Service {
 const commonFaqs: Faq[] = [
   {
     q: 'How do we start?',
-    a: 'Send the brief, or just the problem — a script, a deck, a level, a rough idea and a date. We come back within two working days with a shot or asset count, a crew, a price and a schedule. If the date is not achievable we say so then, not in week six.',
+    a: 'Send the brief, or just the problem — a script, a deck, a level, a rough idea and a date. We come back within two working days with a shot or asset count, a crew, a price and a schedule. If the date isn\'t achievable we say so then, not in week six.',
   },
   {
     q: 'Can you match an existing style?',
-    a: 'Yes, and it is most of what studio work is. Send the style guide, the shipped assets, or even a screenshot. We produce one paid test piece first so you can judge the match on your own asset before committing to the batch.',
+    a: 'Yes, and it\'s most of what studio work is. Send the style guide, the shipped assets, or even a screenshot. We produce one paid test piece first so you can judge the match on your own asset before committing to the batch.',
   },
   {
     q: 'How does review work?',
@@ -183,7 +183,7 @@ export const services: Service[] = [
     faqs: [
       {
         q: 'Will the assets match our existing art?',
-        a: 'That is what the paid test piece is for. We build one asset to your bible, you compare it side by side with your own, and the batch only starts once it holds up. If it does not match, you have spent one asset finding that out instead of thirty.',
+        a: 'That\'s what the paid test piece is for. We build one asset to your bible, you compare it side by side with your own, and the batch only starts once it holds up. If it doesn\'t match, you have spent one asset finding that out instead of thirty.',
       },
       {
         q: 'Can you hit a specific performance budget?',
@@ -216,7 +216,7 @@ export const services: Service[] = [
       },
       {
         title: 'Character design',
-        body: 'Turnarounds, expression sheets and orthographics built to production standard, so the 3D team is not guessing at the back of the head.',
+        body: 'Turnarounds, expression sheets and orthographics built to production standard, so the 3D team isn\'t guessing at the back of the head.',
       },
       {
         title: 'Environment and prop concepts',
@@ -243,7 +243,7 @@ export const services: Service[] = [
       },
       {
         title: 'Thumbnails and silhouettes',
-        body: 'Many small, fast options. The point is to kill directions cheaply, so you see the ones that did not work as well as the one that did.',
+        body: 'Many small, fast options. The point is to kill directions cheaply, so you see the ones that didn\'t work as well as the one that did.',
         tools: 'Photoshop, Procreate',
       },
       {
@@ -253,7 +253,7 @@ export const services: Service[] = [
       },
       {
         title: 'Final render',
-        body: 'Finish, detail and polish on an approved rough — the only stage where we are not asking you to imagine anything.',
+        body: 'Finish, detail and polish on an approved rough — the only stage where we\'re not asking you to imagine anything.',
         tools: 'Photoshop, Procreate',
       },
       {
@@ -287,11 +287,11 @@ export const services: Service[] = [
       },
       {
         q: 'Can the concepts actually be built?',
-        a: 'That is the difference between concept art and illustration, and we treat it as a requirement. If a design cannot be modelled inside your budget we will say so at the rough stage, when the drawing can still change.',
+        a: 'That\'s the difference between concept art and illustration, and we treat it as a requirement. If a design can\'t be modelled inside your budget we\'ll say so at the rough stage, when the drawing can still change.',
       },
       {
         q: 'Do you use AI in the process?',
-        a: 'Not in delivered artwork, and not without telling you. Where it genuinely helps — early ideation boards, upscaling our own work, background cleanup — we will say exactly where it was used, and every delivered file is drawn by an artist.',
+        a: 'Not in delivered artwork, and not without telling you. Where it genuinely helps — early ideation boards, upscaling our own work, background cleanup — we\'ll say exactly where it was used, and every delivered file is drawn by an artist.',
       },
       ...commonFaqs,
     ],
@@ -384,11 +384,11 @@ export const services: Service[] = [
     faqs: [
       {
         q: 'Can you animate on rigs we already have?',
-        a: 'Yes, and it is usually cheaper than rebuilding. Send the rig and one test shot; we come back with a short animated pass and an honest note on anything in the rig that will slow the work down or limit the performance.',
+        a: 'Yes, and it\'s usually cheaper than rebuilding. Send the rig and one test shot; we come back with a short animated pass and an honest note on anything in the rig that will slow the work down or limit the performance.',
       },
       {
         q: '2D or 3D — which suits our project?',
-        a: 'It is a question about volume and revision more than taste. High volume that will be revised often favours 3D or 2D rigs; a small number of hero moments where the performance is the product favours frame-by-frame. We will tell you which your budget actually buys.',
+        a: 'It\'s a question about volume and revision more than taste. High volume that will be revised often favours 3D or 2D rigs; a small number of hero moments where the performance is the product favours frame-by-frame. We\'ll tell you which your budget actually buys.',
       },
       {
         q: 'How do you handle motion capture?',
@@ -408,7 +408,7 @@ export const services: Service[] = [
     title: 'VFX',
     tagline: 'Simulation, compositing and the finishing that sells the shot.',
     intro:
-      'Effects that serve the shot rather than announce themselves. Smoke, fire, water and destruction — plus the invisible work, cleanup, roto and integration, that decides whether an audience believes what it is looking at.',
+      'Effects that serve the shot rather than announce themselves. Smoke, fire, water and destruction — plus the invisible work, cleanup, roto and integration, that decides whether an audience believes what it\'s looking at.',
     tint: '280 50% 26%',
     offerings: [
       {
@@ -449,12 +449,12 @@ export const services: Service[] = [
       },
       {
         title: 'Look development',
-        body: 'One representative shot taken to near-final, so the effect is agreed on screen before it is multiplied across a sequence.',
+        body: 'One representative shot taken to near-final, so the effect is agreed on screen before it\'s multiplied across a sequence.',
         tools: 'Houdini, Nuke',
       },
       {
         title: 'Simulation and render',
-        body: 'Sims run at final resolution with cached versions kept, so a note on shot 12 does not force a re-run of the entire sequence.',
+        body: 'Sims run at final resolution with cached versions kept, so a note on shot 12 doesn\'t force a re-run of the entire sequence.',
         tools: 'Houdini, Karma, Redshift',
       },
       {
@@ -489,11 +489,11 @@ export const services: Service[] = [
       },
       {
         q: 'What do you need from the shoot?',
-        a: 'Ideally a clean plate, an HDRI or a chrome and grey ball, lens and height data, and a tracking pass. Realistically we often get none of it and solve from the plate instead. Tell us early and we will send a one-page on-set list — it costs nothing on the day and saves a great deal afterwards.',
+        a: 'Ideally a clean plate, an HDRI or a chrome and grey ball, lens and height data, and a tracking pass. Realistically we often get none of it and solve from the plate instead. Tell us early and we\'ll send a one-page on-set list — it costs nothing on the day and saves a great deal afterwards.',
       },
       {
         q: 'Can you take over a sequence another vendor started?',
-        a: 'Yes. Send the scripts and caches. We audit them first and tell you plainly whether continuing is cheaper than rebuilding — sometimes it is not, and you should hear that before you pay for it.',
+        a: 'Yes. Send the scripts and caches. We audit them first and tell you plainly whether continuing is cheaper than rebuilding — sometimes it\'s not, and you should hear that before you pay for it.',
       },
       ...commonFaqs,
     ],
@@ -587,15 +587,15 @@ export const services: Service[] = [
     faqs: [
       {
         q: 'We have artists but no technical artist. Is that the gap you fill?',
-        a: 'Usually, yes — it is the most common version of this brief. Good art that nobody has budgeted, wired up or profiled is the single most common reason a build looks worse than the portfolio it came from.',
+        a: 'Usually, yes — it\'s the most common version of this brief. Good art that nobody has budgeted, wired up or profiled is the single most common reason a build looks worse than the portfolio it came from.',
       },
       {
         q: 'Can you integrate assets we bought or made elsewhere?',
-        a: 'Yes, and we will audit them first. Sometimes bought assets need more work to bring inside a budget than they saved by being bought, and you should hear that before we start rather than in the invoice.',
+        a: 'Yes, and we\'ll audit them first. Sometimes bought assets need more work to bring inside a budget than they saved by being bought, and you should hear that before we start rather than in the invoice.',
       },
       {
         q: 'Do you need access to our repository?',
-        a: 'It is faster, but not required. We can work in a branch of your Perforce or Git repo, or take a packaged export and hand back a drop with written integration notes. Whichever your security review is happier with.',
+        a: 'It\'s faster, but not required. We can work in a branch of your Perforce or Git repo, or take a packaged export and hand back a drop with written integration notes. Whichever your security review is happier with.',
       },
       ...commonFaqs,
     ],
@@ -662,7 +662,7 @@ export const services: Service[] = [
       },
       {
         title: 'Versioning and delivery',
-        body: 'Every ratio, duration, language and codec exported from one master project, checked against your delivery spec before it is sent.',
+        body: 'Every ratio, duration, language and codec exported from one master project, checked against your delivery spec before it\'s sent.',
         tools: 'Media Encoder, DaVinci Resolve',
       },
     ],
@@ -686,11 +686,11 @@ export const services: Service[] = [
     faqs: [
       {
         q: 'Can you cut from footage we already have?',
-        a: 'Yes, and that is most of this work. Send everything, including the material you think is unusable — the shot that saves an edit is very often one someone had already discarded.',
+        a: 'Yes, and that\'s most of this work. Send everything, including the material you think is unusable — the shot that saves an edit is very often one someone had already discarded.',
       },
       {
         q: 'Do you capture gameplay, or do we?',
-        a: 'Either. If you capture, we will send a short spec first — resolution, HUD state, frame rate, what to record and what to avoid. Five minutes of direction there prevents a recapture later.',
+        a: 'Either. If you capture, we\'ll send a short spec first — resolution, HUD state, frame rate, what to record and what to avoid. Five minutes of direction there prevents a recapture later.',
       },
       {
         q: 'How many versions are included?',

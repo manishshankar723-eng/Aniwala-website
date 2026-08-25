@@ -1,0 +1,242 @@
+---
+import type { Piece } from '../config/portfolio';
+import { categoryBySlug } from '../config/portfolio';
+
+/**
+ * One portfolio tile.
+ *
+ * Image-led rather than text-led: a portfolio is scanned, not read, so the
+ * art gets the whole tile and the metadata sits on a scrim over the bottom
+ * of it. The card that reads the work back to you in a paragraph is
+ * `CaseCard` — this one's job is to make you want to click.
+ *
+ * A piece with a case study is a link. A piece without one is deliberately
+ * NOT a link and NOT hoverable: a tile that lifts under the cursor and then
+ * goes nowhere is worse than a tile that never invited the click.
+ */
+interface Props {
+  piece: Piece;
+  /** Hide the discipline chip on pages that are already one discipline. */
+  showCategory?: boolean;
+}
+
+const { piece, showCategory = true } = Astro.props;
+const { title, blurb, kind, client, year, tools, tint, caseStudy } = piece;
+
+const category = categoryBySlug(piece.category);
+const href = caseStudy ? `/case-studies/${caseStudy}/` : undefined;
+
+/* Same rule the case study cards follow: a self-directed piece must never be
+   read as commissioned work, so the client line only appears when there is a
+   client distinct from us. */
+const isStudioProject = kind === 'Studio project';
+
+const Tag = href ? 'a' : 'div';
+---
+
+<article
+  class:list={['piece', piece.wide && 'piece--wide', href && 'piece--linked']}
+  style={`--tint:${tint}`}
+  data-reveal
+>
+  <Tag class="piece-inner" href={href}>
+    {/* Placeholder art. Swap for <Image /> via astro:assets once stills exist. */}
+    <span class="piece-art" aria-hidden="true"></span>
+    <span class="piece-scrim" aria-hidden="true"></span>
+
+    <span class="piece-top">
+      <span class:list={['piece-kind', isStudioProject && 'piece-kind--own']}>{kind}</span>
+      {
+        showCategory && category && (
+          <span class="piece-cat">{category.title}</span>
+        )
+      }
+    </span>
+
+    <span class="piece-body">
+      <span class="piece-meta">
+        {!isStudioProject && <span>{client}</span>}
+        <span>{year}</span>
+      </span>
+
+      <h3 class="piece-title">{title}</h3>
+      <p class="piece-blurb">{blurb}</p>
+
+      {
+        tools.length > 0 && (
+          <span class="piece-tools">{tools.join(' · ')}</span>
+        )
+      }
+
+      {
+        href && (
+          <span class="piece-more">
+            Read the case study <span aria-hidden="true">&rarr;</span>
+          </span>
+        )
+      }
+    </span>
+  </Tag>
+</article>
+
+<style>
+  .piece {
+    position: relative;
+    isolation: isolate;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    transition:
+      border-color 0.25s ease,
+      transform 0.25s ease;
+  }
+  .piece--linked:hover {
+    border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-line));
+    transform: translateY(-2px);
+  }
+
+  .piece-inner {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-height: 20rem;
+    height: 100%;
+    padding: 1.5rem;
+    text-decoration: none;
+    color: inherit;
+  }
+  @media (min-width: 700px) {
+    .piece-inner {
+      min-height: 24rem;
+    }
+    .piece--wide {
+      grid-column: span 2;
+    }
+    .piece--wide .piece-inner {
+      min-height: 28rem;
+      padding: clamp(1.75rem, 3vw, 2.75rem);
+    }
+  }
+
+  /* --- Art ------------------------------------------------------------- */
+  .piece-art {
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    background:
+      radial-gradient(ellipse 90% 70% at 30% 20%, hsl(var(--tint) / 0.85), transparent 70%),
+      linear-gradient(160deg, hsl(var(--tint) / 0.55), #0b0c10 75%);
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .piece--linked:hover .piece-art {
+    transform: scale(1.06);
+  }
+  /* The scrim is what makes white type legible over art we do not control.
+     It is a separate element rather than a ::after on the tile so it can sit
+     between the art and the text in the stacking order. */
+  .piece-scrim {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(to top, rgb(0 0 0 / 0.82), rgb(0 0 0 / 0.25) 55%, transparent 80%);
+  }
+
+  /* --- Badges (top) ----------------------------------------------------- */
+  .piece-top {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    right: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    font-family: var(--font-label);
+    font-size: 0.72rem;
+    letter-spacing: 0.015em;
+  }
+  .piece-kind,
+  .piece-cat {
+    padding: 0.3rem 0.6rem;
+    border-radius: 100px;
+    /* Pinned light-on-dark: these sit on the art, which is dark in both
+       themes, so they must not follow the theme tokens. */
+    border: 1px solid rgb(255 255 255 / 0.28);
+    background: rgb(0 0 0 / 0.35);
+    color: rgb(255 255 255 / 0.85);
+    backdrop-filter: blur(6px);
+  }
+  .piece-kind--own {
+    border-color: color-mix(in srgb, #e4c24c 55%, transparent);
+    color: #e4c24c;
+  }
+
+  /* --- Body ------------------------------------------------------------- */
+  .piece-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .piece-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.8rem;
+    font-family: var(--font-label);
+    font-size: 0.72rem;
+    letter-spacing: 0.015em;
+    color: rgb(255 255 255 / 0.6);
+  }
+
+  .piece-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 760;
+    font-stretch: 108%;
+    letter-spacing: -0.024em;
+    line-height: 1.1;
+    font-size: clamp(1.35rem, 2.6vw, 1.75rem);
+    text-wrap: balance;
+    color: #f4f4f2;
+    transition: color 0.2s ease;
+  }
+  @media (min-width: 700px) {
+    .piece--wide .piece-title {
+      font-size: clamp(1.75rem, 3.2vw, 2.5rem);
+    }
+  }
+  .piece--linked:hover .piece-title {
+    color: #e4c24c;
+  }
+
+  .piece-blurb {
+    margin: 0;
+    max-width: 46ch;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: rgb(255 255 255 / 0.74);
+  }
+
+  .piece-tools {
+    font-family: var(--font-label);
+    font-size: 0.72rem;
+    letter-spacing: 0.015em;
+    color: rgb(255 255 255 / 0.5);
+  }
+
+  .piece-more {
+    margin-top: 0.35rem;
+    font-family: var(--font-label);
+    font-size: 0.72rem;
+    letter-spacing: 0.015em;
+    color: #e4c24c;
+  }
+  .piece-more span {
+    display: inline-block;
+    transition: transform 0.25s ease;
+  }
+  .piece--linked:hover .piece-more span {
+    transform: translateX(4px);
+  }
+</style>

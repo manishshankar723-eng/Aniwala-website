@@ -90,8 +90,8 @@ export const cta = { label: 'Book Appointment', href: '/contact/' };
  *
  * Blog posts are NOT listed here — Search.astro reads the blog collection at
  * build time and merges them in, so publishing a post makes it searchable
- * without anyone remembering to edit this array. Portfolio pages should be
- * folded in the same way once they exist.
+ * without anyone remembering to edit this array. Services, case studies and
+ * the portfolio disciplines are folded in the same way.
  */
 export interface SearchDoc {
   title: string;

@@ -1,0 +1,254 @@
+---
+import type { GetStaticPaths } from 'astro';
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import DisciplineBar from '../../components/DisciplineBar.astro';
+import PieceCard from '../../components/PieceCard.astro';
+import CtaBand from '../../components/CtaBand.astro';
+import Footer from '../../components/Footer.astro';
+import { workCategories, piecesIn, type WorkCategory } from '../../config/portfolio';
+import { serviceBySlug, type Service } from '../../config/services';
+
+/**
+ * One page per discipline.
+ *
+ * These routes are not optional extras: the homepage work tiles have linked
+ * straight at them since the site went up, so every category in the config
+ * gets a page whether or not there is anything in it yet. A category with an
+ * empty gallery says so and offers the next useful thing, rather than 404ing
+ * a link the homepage is still advertising.
+ */
+export const getStaticPaths = (() =>
+  workCategories.map((category) => ({
+    params: { category: category.slug },
+    props: { category },
+  }))) satisfies GetStaticPaths;
+
+interface Props {
+  category: WorkCategory;
+}
+
+const { category } = Astro.props;
+const pieces = piecesIn(category.slug);
+
+/* Filtered rather than mapped straight through, so a typo in the config drops
+   the cross-link instead of rendering `undefined` into the page. */
+const related: Service[] = category.services
+  .map(serviceBySlug)
+  .filter((s): s is Service => Boolean(s));
+
+const ownCount = pieces.filter((p) => p.kind === 'Studio project').length;
+const allOwn = pieces.length > 0 && ownCount === pieces.length;
+---
+
+<Base title={`${category.title} — Portfolio — Aniwala Studios`} description={category.intro}>
+  <main id="main">
+    <PageHero
+      eyebrow="Portfolio"
+      title={category.title}
+      lead={category.intro}
+      crumbs={[
+        { label: 'Home', href: '/' },
+        { label: 'Portfolio', href: '/portfolio/' },
+        { label: category.title },
+      ]}
+      tint={category.tint}
+      compact
+    />
+
+    <section class="section" id="work">
+      <DisciplineBar active={category.slug} />
+
+      {
+        pieces.length === 0 ? (
+          <div class="empty" data-reveal>
+            <p class="empty-title">No {category.shortName} published yet.</p>
+            <p class="empty-body">
+              We take this work on — it is simply not up here yet. Most of what a
+              studio makes never clears for public use, and we would rather show
+              you nothing than show you work that is not ours.
+            </p>
+            <p class="empty-body">
+              Ask and we will send relevant work directly, along with an honest
+              read on whether it is the right fit for your brief.
+            </p>
+            <a href="/contact/" class="empty-cta">
+              Ask to see {category.shortName} <span aria-hidden="true">&rarr;</span>
+            </a>
+          </div>
+        ) : (
+          <>
+            {allOwn && (
+              <p class="note" data-reveal>
+                Self-directed studio work — pieces we set ourselves to test a
+                pipeline claim before making it to a client. Commissioned
+                projects appear here as they clear approval.
+              </p>
+            )}
+
+            <h2 class="visually-hidden">{category.title} work</h2>
+
+            <div class="grid">
+              {pieces.map((piece) => (
+                <PieceCard piece={piece} showCategory={false} />
+              ))}
+            </div>
+          </>
+        )
+      }
+    </section>
+
+    {/* A craft and a service are not the same thing — you hire 3D art and
+        animation to get a character. This is the bridge from liking a tile to
+        knowing what you would actually be commissioning. */}
+    {
+      related.length > 0 && (
+        <section class="section section--bordered" id="services">
+          <div class="section-head" data-reveal>
+            <p class="section-eyebrow">What you would be hiring</p>
+            <h2 class="section-title">The services behind this work</h2>
+            <a href="/services/" class="section-link">
+              All services <span aria-hidden="true">&rarr;</span>
+            </a>
+          </div>
+
+          <div class="svc-grid">
+            {related.map((s) => (
+              <a href={`/services/${s.slug}/`} class="svc" data-reveal>
+                <h3 class="svc-name">{s.title}</h3>
+                <p class="svc-blurb">{s.tagline}</p>
+                <span class="svc-arrow" aria-hidden="true">
+                  &rarr;
+                </span>
+              </a>
+            ))}
+          </div>
+        </section>
+      )
+    }
+
+    <CtaBand
+      eyebrow="Start a project"
+      title={`Have ${category.shortName} on your brief?`}
+      body="Send the brief, the asset list or just the problem. You get a shot or asset count, the decisions that will cost money, and a date we believe — within two working days."
+    />
+  </main>
+
+  <Footer />
+</Base>
+
+<style>
+  .note {
+    max-width: 62ch;
+    margin: 0 0 clamp(2rem, 4vw, 3rem);
+    padding-left: 1rem;
+    border-left: 2px solid var(--color-accent);
+    font-size: 0.95rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+
+  .grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 700px) {
+    .grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (min-width: 1600px) {
+    .grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  /* --- Related services -------------------------------------------------- */
+  .svc-grid {
+    display: grid;
+    gap: 1px;
+    background: var(--color-line);
+    border: 1px solid var(--color-line);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 700px) {
+    .svc-grid {
+      grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    }
+  }
+  .svc {
+    background: var(--color-ground);
+    padding: 2rem 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    text-decoration: none;
+    color: inherit;
+    transition: background-color 0.25s ease;
+  }
+  .svc:hover {
+    background: var(--color-surface);
+  }
+  .svc-name {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    font-weight: 700;
+    font-stretch: 108%;
+    letter-spacing: -0.01em;
+  }
+  .svc-blurb {
+    margin: 0;
+    font-size: 0.93rem;
+    line-height: 1.55;
+    color: var(--color-ink-muted);
+  }
+  .svc-arrow {
+    margin-top: auto;
+    padding-top: 1.25rem;
+    font-size: 1.2rem;
+    color: var(--color-accent);
+    display: inline-block;
+    transition: transform 0.25s ease;
+  }
+  .svc:hover .svc-arrow {
+    transform: translateX(4px);
+  }
+
+  /* --- Empty state ------------------------------------------------------ */
+  .empty {
+    padding: clamp(3rem, 8vw, 6rem) 1.5rem;
+    text-align: center;
+    border: 1px dashed var(--color-line-strong);
+    border-radius: 0.75rem;
+  }
+  .empty-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.4rem, 3vw, 2rem);
+    font-weight: 750;
+    font-stretch: 108%;
+    letter-spacing: -0.022em;
+    text-wrap: balance;
+  }
+  .empty-body {
+    margin: 1rem auto 0;
+    max-width: 48ch;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+  .empty-cta {
+    display: inline-block;
+    margin-top: 1.75rem;
+    font-family: var(--font-label);
+    font-size: 0.75rem;
+    letter-spacing: 0.015em;
+    color: var(--color-accent);
+    text-decoration: none;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid currentColor;
+  }
+</style>

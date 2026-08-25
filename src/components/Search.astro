@@ -3,6 +3,7 @@ import { searchIndex } from '../config/nav';
 import { getPosts } from '../lib/posts';
 import { getCaseStudies } from '../lib/caseStudies';
 import { services } from '../config/services';
+import { workCategories, categoryHref } from '../config/portfolio';
 
 /**
  * Blog posts are folded into the index at build time rather than being listed
@@ -43,7 +44,20 @@ const caseDocs = studies.map((c) => ({
     .toLowerCase(),
 }));
 
-const docs = [...searchIndex, ...serviceDocs, ...caseDocs, ...postDocs];
+/* The portfolio disciplines, on the same rule as the services above: derived
+   from the config so adding a craft makes it findable without a second edit.
+
+   Individual pieces are deliberately NOT folded in. The ones worth finding
+   already have a case study, which `caseDocs` covers — listing both would put
+   two "Kite" rows in the results, pointing at the same place. */
+const portfolioDocs = workCategories.map((c) => ({
+  title: c.title,
+  href: categoryHref(c.slug),
+  section: 'Portfolio',
+  keywords: [c.blurb, c.intro].join(' ').toLowerCase(),
+}));
+
+const docs = [...searchIndex, ...serviceDocs, ...portfolioDocs, ...caseDocs, ...postDocs];
 ---
 
 <div id="search-overlay" class="search" role="dialog" aria-modal="true" aria-label="Search">
@@ -379,10 +393,9 @@ const docs = [...searchIndex, ...serviceDocs, ...caseDocs, ...postDocs];
     color: var(--color-ink);
   }
   .search-results :global(.search-result-section) {
-    font-family: var(--font-mono);
-    font-size: 0.62rem;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+    font-family: var(--font-label);
+    font-size: 0.72rem;
+    letter-spacing: 0.015em;
     color: var(--color-ink-faint);
   }
 

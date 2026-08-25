@@ -1,0 +1,213 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from '../components/PageHero.astro';
+import Footer from '../components/Footer.astro';
+import { email, office, legalName } from '../config/contact';
+
+/**
+ * Privacy policy.
+ *
+ * Written against what this codebase actually does rather than from a
+ * template, because a generic policy would be wrong in both directions: it
+ * would claim cookie categories this site does not have, and it would miss
+ * the two things it genuinely should disclose — that form submissions go to
+ * Supabase, and that the webfont request reaches Google.
+ *
+ * KEEP THIS IN STEP WITH THE CODE. If you add analytics, a pixel, a chat
+ * widget or a new form, this page is part of that change, not a follow-up.
+ * The specific claims it makes today:
+ *   - no analytics, no advertising, no third-party tracking of any kind
+ *   - localStorage holds exactly two functional keys, both listed below
+ *   - visitor-submitted data lives in Supabase (see supabase/schema.sql)
+ *   - fonts are served by Google, which sees the visitor's IP
+ *
+ * NOT LEGAL ADVICE. This is an honest description of the site's behaviour
+ * written by the people who built it. Have a solicitor read it before you
+ * rely on it, particularly if you take work from the EU or UK.
+ */
+
+/* Kept as a constant so the "last updated" line cannot drift from reality by
+   being hand-typed and then forgotten at the next edit. */
+const lastUpdated = new Date('2026-08-25');
+const formatted = lastUpdated.toLocaleDateString('en-GB', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
+---
+
+<Base
+  title="Privacy policy — Aniwala Studios"
+  description="What Aniwala Studios collects when you use this website, where it is stored, who can see it, and how to have it deleted."
+>
+  <main id="main">
+    <PageHero
+      eyebrow="Legal"
+      title="Privacy policy"
+      lead="What this site collects, where it goes, and how to get it deleted. Written to be read, not to be survived."
+      crumbs={[{ label: 'Home', href: '/' }, { label: 'Privacy policy' }]}
+      tint="210 70% 22%"
+      meta={[`Last updated ${formatted}`]}
+      compact
+    />
+
+    <section class="section">
+      <div class="prose" data-reveal>
+        <p>
+          This policy covers <strong>{legalName}</strong> and the people behind
+          it. It describes the website only. Anything agreed separately in a
+          contract with a client takes precedence over what is written here.
+        </p>
+
+        <h2>The short version</h2>
+        <p>
+          We run no analytics, no advertising, no tracking pixels and no
+          third-party scripts that follow you. Nothing on this site tries to
+          work out who you are. The only personal data we hold is what you
+          typed into a form and sent us on purpose.
+        </p>
+
+        <h2>What you send us on purpose</h2>
+        <p>
+          Two forms on this site collect information, and both only run when
+          you submit them.
+        </p>
+
+        <h3>Enquiries and call bookings</h3>
+        <p>
+          The contact and booking forms collect your name, email address, and
+          optionally your company, the kind of work you are asking about, your
+          message, and — for a booking — the slot you picked, its length, your
+          timezone, and which page you sent it from. We use it to reply to you
+          and to schedule the call. Nothing else.
+        </p>
+
+        <h3>Blog comments</h3>
+        <p>
+          If you comment on an article, we store the name you gave, your
+          comment, and your email address if you supplied one. Your name and
+          comment are published once approved. <strong
+            >Your email address is never published and is never sent to a
+            browser</strong
+          > — the database is configured so the website itself cannot read that
+          column back. We use it only to reply to you.
+        </p>
+        <p>
+          No comment appears on the site until a person approves it by hand.
+        </p>
+
+        <h2>Where it is stored, and who else touches it</h2>
+        <p>
+          Form submissions are stored in a <a
+            href="https://supabase.com/privacy"
+            rel="noopener">Supabase</a
+          > project that we control. Access is restricted by row-level security
+          policies: an anonymous visitor can submit a form and read approved
+          comments, and can do nothing else — enquiries cannot be read back by
+          anyone but us.
+        </p>
+        <p>These are the only third parties involved in running this site:</p>
+        <ul>
+          <li>
+            <strong>Supabase</strong> — the database that holds enquiries and
+            comments.
+          </li>
+          <li>
+            <strong>Resend</strong> — if enabled, forwards a copy of a new
+            enquiry or comment to our inbox so we notice it.
+          </li>
+          <li>
+            <strong>Hostinger</strong> — hosts the site. Like any web server it
+            keeps standard access logs, which include IP addresses.
+          </li>
+          <li>
+            <strong>Google Fonts</strong> — the site loads its typefaces from
+            Google's servers, so a request from your browser reaches Google and
+            it can see your IP address. We do not receive anything from that
+            request. We intend to self-host the fonts, which will remove this.
+          </li>
+        </ul>
+        <p>
+          We do not sell your data, and we do not share it with anyone beyond
+          the services listed above.
+        </p>
+
+        <h2>Cookies</h2>
+        <p>
+          This site sets <strong>no cookies at all</strong>. It stores exactly
+          two values in your browser's local storage, both of which exist to
+          stop the site being annoying:
+        </p>
+        <ul>
+          <li>
+            <code>aniwala-theme</code> — remembers whether you chose the light
+            or dark theme.
+          </li>
+          <li>
+            <code>aniwala-announce-dismissed</code> — remembers that you closed
+            the notice at the top of the page, so it stays closed.
+          </li>
+        </ul>
+        <p>
+          Neither identifies you, neither leaves your device, and clearing your
+          browser data removes both. There is no consent banner because there
+          is nothing to consent to.
+        </p>
+
+        <h2>How long we keep things</h2>
+        <p>
+          Enquiries are kept while there is a live conversation and for as long
+          as we may need the commercial record afterwards. Comments stay for as
+          long as the article is published. Ask us to delete either and we
+          will.
+        </p>
+
+        <h2>Your rights</h2>
+        <p>
+          You can ask us what we hold about you, ask for it to be corrected,
+          or ask for it to be deleted. Email <a href={`mailto:${email}`}
+            >{email}</a
+          > and we will action it and confirm when it is done. You do not need to
+          give a reason.
+        </p>
+        <p>
+          If you are in the EU or UK, the GDPR gives you these rights formally,
+          along with the right to complain to your data protection authority.
+          In India, the Digital Personal Data Protection Act 2023 gives you
+          equivalent rights.
+        </p>
+
+        <h2>Changes</h2>
+        <p>
+          If this policy changes, the date at the top of the page changes with
+          it. We will not quietly start collecting something new and leave this
+          page saying otherwise.
+        </p>
+
+        <h2>Contact</h2>
+        <p>
+          Questions about any of this go to <a href={`mailto:${email}`}
+            >{email}</a
+          >, or by post to:
+        </p>
+        <p>
+          <address class="addr">
+            {office.lines.map((line) => <span>{line}</span>)}
+            <span>{office.country}</span>
+          </address>
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <Footer />
+</Base>
+
+<style>
+  .addr {
+    display: grid;
+    gap: 0.15rem;
+    font-style: normal;
+    color: var(--color-ink-muted);
+  }
+</style>

@@ -1,0 +1,89 @@
+---
+import type { SocialIcon } from '../config/contact';
+
+/**
+ * Brand glyphs for the social row.
+ *
+ * Inline SVG rather than an icon font or a sprite sheet: there are six of
+ * them, they are tiny, and both alternatives cost a network request on a site
+ * whose whole point is being static and fast.
+ *
+ * All six are drawn on a 24×24 box and use `fill="currentColor"` so they take
+ * the colour of whatever they sit in and follow the theme with no extra rules.
+ *
+ * SIZING LIVES HERE, NOT IN THE PARENT. Astro scopes a component's styles to
+ * that component, so a `.footer-social-icon { width: 1rem }` rule written in
+ * Footer.astro compiles to `.footer-social-icon[data-astro-cid-<footer>]` and
+ * never matches this svg — which carries SocialIcon's id, not Footer's. An
+ * unsized svg falls back to the browser default for a replaced element, which
+ * is enormous, and the row it sits in collapses.
+ *
+ * Parents that want a different size set `--social-icon-size` on any ancestor.
+ * Custom properties inherit through the DOM, so they cross the component
+ * boundary that a class selector cannot.
+ *
+ * The glyphs are decorative: every one is rendered beside its own text label,
+ * so the svg is aria-hidden and adds nothing for a screen reader.
+ */
+interface Props {
+  icon: SocialIcon;
+  class?: string;
+}
+
+const { icon, class: className } = Astro.props;
+---
+
+<svg
+  class={className}
+  viewBox="0 0 24 24"
+  fill="currentColor"
+  aria-hidden="true"
+  focusable="false"
+>
+  {
+    icon === 'whatsapp' && (
+      <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm0 18.15h-.01a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.21 8.21 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24a8.2 8.2 0 0 1 5.83 2.42 8.19 8.19 0 0 1 2.41 5.83c0 4.54-3.7 8.23-8.24 8.23Zm4.52-6.16c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.13-.16.24-.64.8-.78.97-.15.16-.29.18-.53.06-.25-.13-1.05-.39-1.99-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.01-.38.11-.5.11-.11.25-.29.37-.44.13-.15.17-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.4-.42-.56-.43l-.47-.01c-.16 0-.43.06-.65.31-.22.25-.85.84-.85 2.04 0 1.2.87 2.36.99 2.53.12.16 1.71 2.61 4.14 3.66.58.25 1.03.4 1.38.51.58.19 1.11.16 1.53.1.47-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.06-.11-.22-.17-.47-.29Z" />
+    )
+  }
+
+  {
+    icon === 'linkedin' && (
+      <path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.42v1.56h.05c.47-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28ZM5.34 7.43a2.07 2.07 0 1 1 0-4.13 2.07 2.07 0 0 1 0 4.13Zm1.78 13.02H3.55V9h3.57v11.45ZM22.22 0H1.77C.79 0 0 .77 0 1.72v20.55C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.72C24 .77 23.2 0 22.22 0Z" />
+    )
+  }
+
+  {
+    icon === 'x' && (
+      <path d="M18.9 1.15h3.68l-8.04 9.19L24 22.85h-7.41l-5.8-7.58-6.64 7.58H.46l8.6-9.83L0 1.15h7.59l5.24 6.93 6.07-6.93Zm-1.29 19.5h2.04L6.49 3.24H4.3l13.31 17.41Z" />
+    )
+  }
+
+  {
+    icon === 'youtube' && (
+      <path d="M23.5 6.19a3.02 3.02 0 0 0-2.12-2.14C19.5 3.55 12 3.55 12 3.55s-7.5 0-9.38.5A3.02 3.02 0 0 0 .5 6.19C0 8.08 0 12 0 12s0 3.92.5 5.81a3.02 3.02 0 0 0 2.12 2.14c1.88.5 9.38.5 9.38.5s7.5 0 9.38-.5a3.02 3.02 0 0 0 2.12-2.14C24 15.92 24 12 24 12s0-3.92-.5-5.81ZM9.55 15.57V8.43L15.82 12l-6.27 3.57Z" />
+    )
+  }
+
+  {
+    icon === 'facebook' && (
+      <path d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.96.93-1.96 1.89v2.25h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07Z" />
+    )
+  }
+
+  {
+    icon === 'artstation' && (
+      <path d="M0 17.72l2.06 3.57c.42.75 1.22 1.22 2.11 1.22h13.24l-2.76-4.79H0Zm24 .87c0-.48-.15-.92-.4-1.29L15.35 3.04a2.41 2.41 0 0 0-2.08-1.22H9.14l11.5 19.92 2.71-4.7c.5-.87.65-1.09.65-2.45ZM14.68 14.4L8.9 4.39l-5.8 10.01h11.58Z" />
+    )
+  }
+</svg>
+
+<style>
+  svg {
+    width: var(--social-icon-size, 1.05rem);
+    height: var(--social-icon-size, 1.05rem);
+    flex-shrink: 0;
+    /* Inline svg sits on the text baseline and leaves a few px of descender
+       gap under it; block removes that without needing a line-height fix. */
+    display: block;
+  }
+</style>

@@ -107,10 +107,9 @@ const { eyebrow, headline, sub, src, poster } = Astro.props;
      type is pinned to light-on-dark rather than following the theme tokens.
      Using --color-ink here would render near-black on the scrim in light mode. */
   .hero-eyebrow {
-    font-family: var(--font-mono);
-    font-size: 0.7rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
+    font-family: var(--font-label);
+    font-size: 0.72rem;
+    letter-spacing: 0.015em;
     color: #e4c24c;
     margin: 0 0 1.25rem;
   }
@@ -153,10 +152,9 @@ const { eyebrow, headline, sub, src, poster } = Astro.props;
     }
   }
   .hero-scroll-label {
-    font-family: var(--font-mono);
-    font-size: 0.6rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
+    font-family: var(--font-label);
+    font-size: 0.72rem;
+    letter-spacing: 0.015em;
     writing-mode: vertical-rl;
   }
   .hero-scroll-line {

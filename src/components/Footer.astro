@@ -1,27 +1,41 @@
 ---
 import { nav, cta } from '../config/nav';
+import { email, office, legalName, legalLinks, publishedSocials } from '../config/contact';
+import SocialIcon from './SocialIcon.astro';
 
 const year = new Date().getFullYear();
 
 const serviceParent = nav.find((i) => i.children);
 
-const social = [
-  { label: 'ArtStation', href: '#' },
-  { label: 'Instagram', href: '#' },
-  { label: 'LinkedIn', href: '#' },
-  { label: 'Vimeo', href: '#' },
-];
+/* Accounts with no URL yet render under `astro dev` so the row can be laid
+   out, and are dropped from the production build. See config/contact.ts. */
+const social = publishedSocials();
 ---
 
 <footer class="footer">
   <div class="footer-inner">
     <div class="footer-lead">
       <p class="footer-eyebrow">Start a project</p>
-      <a href="mailto:hello@aniwala.com" class="footer-mail">hello@aniwala.com</a>
+      <a href={`mailto:${email}`} class="footer-mail">{email}</a>
       <p class="footer-note">
-        Tell us the deadline first. We will tell you honestly whether we can hit it.
+        Tell us the deadline first. We'll tell you honestly whether we can hit it.
       </p>
       <a href={cta.href} class="footer-cta">{cta.label}</a>
+
+      {/*
+        The postal address, which is doing more work here than it looks. For a
+        studio nobody has heard of, a real street address is one of the few
+        cheap signals that there is a building and people in it.
+      */}
+      <address class="footer-address">
+        <span class="footer-address-label">Office</span>
+        <a href={office.mapsUrl} rel="noopener">
+          {office.lines.map((line) => (
+            <span class="footer-address-line">{line}</span>
+          ))}
+          <span class="footer-address-line">{office.country}</span>
+        </a>
+      </address>
     </div>
 
     <nav class="footer-cols" aria-label="Footer">
@@ -60,24 +74,42 @@ const social = [
         </ul>
       </div>
 
-      <div class="footer-col">
-        <h2 class="footer-col-title">Follow</h2>
-        <ul>
-          {
-            social.map((s) => (
-              <li>
-                <a href={s.href}>{s.label}</a>
-              </li>
-            ))
-          }
-        </ul>
-      </div>
+      {
+        social.length > 0 && (
+          <div class="footer-col">
+            <h2 class="footer-col-title">Follow</h2>
+            <ul class="footer-social">
+              {social.map((s) =>
+                s.href ? (
+                  <li>
+                    <a href={s.href} rel="noopener">
+                      <SocialIcon icon={s.icon} class="footer-social-icon" />
+                      {s.label}
+                    </a>
+                  </li>
+                ) : (
+                  /* Dev only — no account yet. Shown so the row can be laid
+                     out, never built into the live site. */
+                  <li>
+                    <span class="footer-social-todo" title="No URL set in config/contact.ts">
+                      <SocialIcon icon={s.icon} class="footer-social-icon" />
+                      {s.label}
+                    </span>
+                  </li>
+                )
+              )}
+            </ul>
+          </div>
+        )
+      }
     </nav>
   </div>
 
   <div class="footer-base">
-    <span>© {year} Aniwala Studios</span>
-    <span>Animation &amp; game art · India</span>
+    <span>© {year} {legalName}. All rights reserved.</span>
+    <nav class="footer-legal" aria-label="Legal">
+      {legalLinks.map((l) => <a href={l.href}>{l.label}</a>)}
+    </nav>
   </div>
 </footer>
 
@@ -102,10 +134,9 @@ const social = [
   }
 
   .footer-eyebrow {
-    font-family: var(--font-mono);
-    font-size: 0.7rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
+    font-family: var(--font-label);
+    font-size: 0.72rem;
+    letter-spacing: 0.015em;
     color: var(--color-accent);
     margin: 0 0 1.25rem;
   }
@@ -137,15 +168,48 @@ const social = [
     border-radius: 0.3rem;
     background: var(--color-cta);
     color: var(--color-cta-ink);
-    font-size: 0.78rem;
+    font-family: var(--font-label);
+    font-size: 0.92rem;
     font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    letter-spacing: 0.005em;
     text-decoration: none;
     transition: background-color 0.2s ease;
   }
   .footer-cta:hover {
     background: var(--color-cta-hover);
+  }
+
+  /* --- Office address --------------------------------------------------- */
+  .footer-address {
+    display: block;
+    margin-top: clamp(2rem, 4vw, 2.75rem);
+    font-style: normal;
+  }
+  .footer-address-label {
+    display: block;
+    margin-bottom: 0.7rem;
+    font-family: var(--font-label);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.015em;
+    color: var(--color-ink-faint);
+  }
+  .footer-address a {
+    display: block;
+    max-width: 34ch;
+    color: var(--color-ink-muted);
+    font-size: 0.92rem;
+    line-height: 1.6;
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+  .footer-address a:hover {
+    color: var(--color-accent);
+  }
+  /* Each line breaks where the address should break, rather than wherever
+     the column width happens to land. */
+  .footer-address-line {
+    display: block;
   }
 
   .footer-cols {
@@ -155,11 +219,10 @@ const social = [
     align-content: start;
   }
   .footer-col-title {
-    font-family: var(--font-mono);
-    font-size: 0.65rem;
+    font-family: var(--font-label);
+    font-size: 0.72rem;
     font-weight: 700;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
+    letter-spacing: 0.015em;
     color: var(--color-ink-faint);
     margin: 0 0 1rem;
   }
@@ -181,6 +244,22 @@ const social = [
     color: var(--color-accent);
   }
 
+  /* --- Social ----------------------------------------------------------- */
+  .footer-social a,
+  .footer-social-todo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.92rem;
+  }
+  /* Only ever visible under `astro dev`: an account with no URL yet. Dimmed
+     and plainly not a link, so it cannot be mistaken for a working one. */
+  .footer-social-todo {
+    color: var(--color-ink-faint);
+    opacity: 0.45;
+    cursor: help;
+  }
+
   .footer-base {
     max-width: var(--shell-max);
     margin: 0 auto;
@@ -188,10 +267,24 @@ const social = [
     border-top: 1px solid var(--color-line);
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     justify-content: space-between;
-    gap: 0.75rem;
-    font-family: var(--font-mono);
-    font-size: 0.68rem;
+    gap: 0.75rem 1.5rem;
+    font-family: var(--font-label);
+    font-size: 0.72rem;
     color: var(--color-ink-faint);
+  }
+  .footer-legal {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+  }
+  .footer-legal a {
+    color: var(--color-ink-faint);
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+  .footer-legal a:hover {
+    color: var(--color-accent);
   }
 </style>

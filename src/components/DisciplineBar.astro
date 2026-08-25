@@ -1,0 +1,133 @@
+---
+import { workCategories, categoryHref, pieceCounts } from '../config/portfolio';
+
+/**
+ * The discipline filter on the portfolio.
+ *
+ * Real links to real pages rather than a JavaScript filter — the same choice
+ * `CategoryBar` makes on the blog, and for the same reasons: every discipline
+ * stays crawlable, linkable and working before the bundle loads. It also
+ * matters here specifically, because the homepage work tiles already point
+ * straight at these URLs.
+ */
+interface Props {
+  /** Category slug currently being viewed, or undefined on the index. */
+  active?: string;
+}
+
+const { active } = Astro.props;
+
+const counts = pieceCounts();
+const total = Object.values(counts).reduce((n, c) => n + c, 0);
+---
+
+<nav class="disciplines" aria-label="Filter by discipline" data-reveal>
+  <a
+    href="/portfolio/"
+    class:list={['disc', !active && 'is-active']}
+    aria-current={!active ? 'page' : undefined}
+  >
+    All work <span class="disc-n">{total}</span>
+  </a>
+
+  {
+    workCategories.map((c) => {
+      const n = counts[c.slug] ?? 0;
+      const isActive = active === c.slug;
+
+      /*
+        An empty discipline still renders, as a plain non-link. Hiding it
+        would make the row change shape as pieces get published, and would
+        hide a craft we genuinely offer just because the gallery for it is
+        not filled in yet. The category page itself still exists and says so.
+      */
+      return n === 0 && !isActive ? (
+        <span class="disc is-empty" aria-disabled="true">
+          {c.title} <span class="disc-n">0</span>
+        </span>
+      ) : (
+        <a
+          href={isActive ? '/portfolio/' : categoryHref(c.slug)}
+          class:list={['disc', isActive && 'is-active']}
+          aria-current={isActive ? 'page' : undefined}
+          title={isActive ? 'Clear this filter' : undefined}
+        >
+          {c.title} <span class="disc-n">{n}</span>
+          {isActive && <span class="disc-clear" aria-hidden="true" />}
+        </a>
+      );
+    })
+  }
+</nav>
+
+<style>
+  .disciplines {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: clamp(2rem, 4vw, 3rem);
+  }
+
+  .disc {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1.05rem;
+    border: 1px solid var(--color-line);
+    border-radius: 100px;
+    font-family: var(--font-label);
+    font-size: 0.73rem;
+    letter-spacing: 0.015em;
+    color: var(--color-ink-muted);
+    text-decoration: none;
+    white-space: nowrap;
+    transition:
+      border-color 0.2s ease,
+      color 0.2s ease,
+      background-color 0.2s ease;
+  }
+  .disc:hover {
+    border-color: var(--color-line-strong);
+    color: var(--color-ink);
+  }
+  .disc.is-active {
+    background: var(--color-cta);
+    border-color: var(--color-cta);
+    color: var(--color-cta-ink);
+  }
+  .disc.is-empty {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .disc-n {
+    font-size: 0.62rem;
+    opacity: 0.7;
+  }
+  .disc.is-active .disc-n {
+    opacity: 0.8;
+  }
+
+  /* The selected chip links back to /portfolio/, so clicking it again clears
+     the filter. This × says so. */
+  .disc-clear {
+    position: relative;
+    width: 0.65rem;
+    height: 0.65rem;
+    margin-left: 0.1rem;
+  }
+  .disc-clear::before,
+  .disc-clear::after {
+    content: '';
+    position: absolute;
+    inset: 50% 0 auto 0;
+    height: 1.5px;
+    background: currentColor;
+  }
+  .disc-clear::before {
+    transform: rotate(45deg);
+  }
+  .disc-clear::after {
+    transform: rotate(-45deg);
+  }
+</style>

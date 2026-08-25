@@ -53,6 +53,14 @@
   --gutter: clamp(1.25rem, 1rem + 1.8vw, 4.5rem);
   --shell-max: 2240px;
 
+  /* Radius scale. Before this, almost every surface on the site was a 1px
+     border at 0.75rem radius on --color-surface, which flattened the page
+     into one repeating rectangle. Big media objects can carry more curve
+     than a chip can; informational panels often want none at all. */
+  --radius-sm: 0.4rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1.1rem;
+
   --header-h: 5rem;
   /* Height of the announcement strip above the header. Everything fixed to
      the top offsets by this, so dismissing it collapses the layout cleanly. */
@@ -108,8 +116,28 @@ body {
 }
 
 @theme {
-  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  /* Display: Bricolage Grotesque. A variable grotesque with real character —
+     odd, slightly awkward terminals and a genuine width axis — chosen over
+     the neutral geometric sans that every template ships with. Its axes
+     (wght 200..800, wdth 75..100) map onto the same font-weight and
+     font-stretch the headings already use, so it is a true drop-in. */
+  --font-display: "Bricolage Grotesque", "Archivo", "Helvetica Neue", Arial, sans-serif;
+  /* NOTE: headings carry `font-stretch` values of 104-118% from when the
+     display face was Archivo (wdth 100..125). Bricolage's width axis tops out
+     at 100, so those clamp to normal width and are inert rather than broken.
+     They are left in place so the intent survives a future font swap. */
   --font-body: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+
+  /* Small labels: eyebrows, chips, badges, meta rows.
+     This used to be --font-mono, and that was the single most recognisable
+     tell on the site: tiny monospace, uppercased, tracked out to 0.18em, above
+     every section on every page. It reads as a terminal readout, and it is on
+     roughly every AI-generated and template landing page of the last two
+     years. Pointing labels at their own token means the whole system moves
+     from one line here rather than from 76 edits across 26 files. */
+  --font-label: "Bricolage Grotesque", "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+
+  /* Mono is now reserved for things that are actually code. */
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 
@@ -245,13 +273,17 @@ section[id] {
   gap: 1rem 2rem;
   margin-bottom: clamp(2rem, 4vw, 3.25rem);
 }
+/* Sentence case, near-normal tracking, and enough weight to hold its own at
+   a small size. The old version was 0.7rem monospace, uppercased, tracked to
+   0.18em — legible, but it read as a system readout rather than as a piece of
+   editorial furniture, and it was the loudest template signal on the site. */
 .section-eyebrow {
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  font-family: var(--font-label);
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.005em;
   color: var(--color-accent);
-  margin: 0 0 0.75rem;
+  margin: 0 0 0.9rem;
   flex-basis: 100%;
 }
 .section-title {
@@ -266,10 +298,10 @@ section[id] {
   flex: 1 1 20ch;
 }
 .section-link {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-family: var(--font-label);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.005em;
   color: var(--color-accent);
   text-decoration: none;
   white-space: nowrap;
@@ -518,11 +550,10 @@ section[id] {
   vertical-align: top;
 }
 .prose th {
-  font-family: var(--font-mono);
-  font-size: 0.66rem;
+  font-family: var(--font-label);
+  font-size: 0.72rem;
   font-weight: 500;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  letter-spacing: 0.015em;
   color: var(--color-ink-faint);
   border-bottom-color: var(--color-line-strong);
   white-space: nowrap;
@@ -545,8 +576,8 @@ section[id] {
 }
 .prose figcaption {
   margin-top: 0.75rem;
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-family: var(--font-label);
+  font-size: 0.72rem;
   line-height: 1.5;
   color: var(--color-ink-faint);
 }

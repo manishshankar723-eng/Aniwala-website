@@ -1,5 +1,6 @@
 ---
 import { cta } from '../config/nav';
+import { email } from '../config/contact';
 
 /**
  * The closing panel every inner page ends on. One primary action, one quiet
@@ -17,9 +18,9 @@ interface Props {
 const {
   eyebrow = 'Next step',
   title = 'Tell us the deadline first.',
-  body = 'We will tell you honestly whether we can hit it — and what it would take if we can. No deck, no discovery phase, just a straight answer within two working days.',
+  body = 'We\'ll tell you straight whether we can hit it, and what it would take if we can. No deck, no discovery phase. Just an answer within two working days.',
   primary = cta,
-  secondary = { label: 'Email the studio', href: 'mailto:hello@aniwala.com' },
+  secondary = { label: 'Email the studio', href: `mailto:${email}` },
 } = Astro.props;
 ---
 
@@ -104,10 +105,10 @@ const {
     border-radius: 0.3rem;
     background: var(--color-cta);
     color: var(--color-cta-ink);
-    font-size: 0.8rem;
+    font-family: var(--font-label);
+    font-size: 0.95rem;
     font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    letter-spacing: 0.005em;
     text-decoration: none;
     white-space: nowrap;
     transition: background-color 0.2s ease;
@@ -117,10 +118,9 @@ const {
   }
 
   .cta-band-secondary {
-    font-family: var(--font-mono);
+    font-family: var(--font-label);
     font-size: 0.75rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    letter-spacing: 0.015em;
     color: var(--color-ink-muted);
     text-decoration: none;
     padding-bottom: 0.3rem;
