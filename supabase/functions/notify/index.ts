@@ -1,10 +1,15 @@
 /**
  * notify — turns a new database row into an email.
  *
- * Fired by a Supabase Database Webhook on INSERT into `comments` or
- * `enquiries`. Enquiries are routed to whoever handles that service and are
- * purely a notification. Comments arrive with Approve and Reject buttons, so
- * moderation happens from the inbox rather than the Supabase dashboard.
+ * Fired by a Supabase Database Webhook on INSERT into `comments`,
+ * `enquiries` or `applications`. Enquiries are routed to whoever handles that
+ * service and are purely a notification. Applications go to MAIL_CAREERS if it
+ * is set, with the portfolio link as a one-click open. Comments arrive with
+ * Approve and Reject buttons, so moderation happens from the inbox rather
+ * than the Supabase dashboard.
+ *
+ * Each table needs its own webhook in Database → Webhooks. Adding the
+ * `applications` branch here does nothing until that third hook exists.
  *
  * Deploy:  supabase functions deploy notify --no-verify-jwt
  *
@@ -88,6 +93,66 @@ Deno.serve(async (req) => {
            }
            <p style="margin:24px 0 0;font-size:13px;color:#83879a">
              Reply to this email to answer them directly.
+           </p>`
+        ),
+      };
+
+      /* ---------------------------------------------------------------- */
+    } else if (payload.table === 'applications') {
+      /*
+       * Applications go to their own address where one is configured. A CV
+       * filed in among the client briefs is a CV that gets missed, and the
+       * person who reads briefs is rarely the person who should be watching
+       * a reel. Falls back to the default inbox rather than failing.
+       */
+      const careers = Deno.env.get('MAIL_CAREERS');
+      const open = record.kind === 'open';
+      const what = open
+        ? (record.desired_role as string) || 'an unlisted role'
+        : (record.role_title as string) || 'a role';
+
+      const link = (url: unknown, label: string) =>
+        url
+          ? `<a href="${esc(String(url))}" style="color:#8a6a10">${label}</a>`
+          : '';
+
+      mail = {
+        to: careers ? [careers] : recipientFor(null),
+        // The kind is in the subject line so the two queues are filterable
+        // from the inbox without opening anything.
+        subject: `${open ? 'Open application' : 'Application'} — ${what} — ${record.name}`,
+        // So hitting Reply writes to the applicant.
+        replyTo: record.email as string,
+        html: layout(
+          open ? 'Open application from the website' : 'New application from the website',
+          `<table style="border-collapse:collapse;width:100%">
+             ${row('Name', record.name)}
+             ${row('Email', record.email)}
+             ${row('Phone', record.phone)}
+             ${row('Based in', record.location)}
+             ${open ? row('Area', record.discipline) : row('Role', record.role_title)}
+             ${open ? row('Role wanted', record.desired_role) : ''}
+             ${row('Experience', record.experience)}
+             ${row('Available', record.availability)}
+             ${row('From page', record.source_path)}
+           </table>
+
+           <p style="margin:20px 0 0;font-size:15px">
+             ${link(record.portfolio_url, 'Open the portfolio / reel')}
+             ${record.cv_url ? ' &middot; ' : ''}
+             ${link(record.cv_url, 'Open the CV')}
+           </p>
+
+           ${
+             record.message
+               ? `<div style="margin-top:20px;padding:16px;background:#f5f5f3;border-radius:8px;
+                             font-size:14px;line-height:1.6;white-space:pre-wrap">${esc(String(record.message))}</div>`
+               : ''
+           }
+
+           <p style="margin:24px 0 0;font-size:13px;color:#83879a">
+             We promise an answer within five working days on the careers page.
+             Reply to this email to give them one.
            </p>`
         ),
       };

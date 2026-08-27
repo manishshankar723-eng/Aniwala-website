@@ -64,6 +64,10 @@ export const nav: NavItem[] = [
   },
   { label: 'About Us', href: '/about/' },
   { label: 'Blog', href: '/blog/' },
+  /* Footer and search only. Careers earns a route and a link, but not one of
+     the six header slots — a header carrying seven items starts to read as a
+     directory, and the people looking for this page look in the footer. */
+  { label: 'Careers', href: '/careers/', hiddenInHeader: true },
   { label: 'Contact', href: '/contact/' },
 ];
 
@@ -127,5 +131,15 @@ export const searchIndex: SearchDoc[] = [
     href: '/services/',
     section: 'Pages',
     keywords: 'disciplines pipeline engagement outsourcing capabilities what we do',
+  },
+  {
+    /* Only the landing page is listed here. The individual openings are
+       derived from config/careers.ts inside Search.astro, so a filled role
+       leaves search on the same day it leaves the page. */
+    title: 'Careers',
+    href: '/careers/',
+    section: 'Pages',
+    keywords:
+      'jobs hiring vacancies openings apply application internship intern recruitment work with us animator artist vfx editor pune',
   },
 ];

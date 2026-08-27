@@ -53,6 +53,7 @@ src/
 │   ├── nav.ts           Header, footer and search links. One source.
 │   ├── site.ts          Homepage content
 │   ├── services.ts      One record per service = one service page
+│   ├── careers.ts       One record per opening = one careers page
 │   └── categories.ts    Journal categories, shared by schema and UI
 ├── content/
 │   ├── blog/            Blog posts, one Markdown file each
@@ -92,6 +93,35 @@ Note `shortName` and `article`. They exist because the page writes sentences
 like "Have **an** integration brief?" and "Have **a** VFX brief?" — the article
 follows the spoken sound, not the first letter, so it is stored rather than
 guessed.
+
+### Posting or closing a job
+
+Add an object to `openRoles` in `src/config/careers.ts`.
+`src/pages/careers/[slug].astro` builds the page, `/careers/` lists it, search
+indexes it and the JobPosting structured data is emitted from the same record —
+there is nothing else to touch.
+
+**Closing a role means deleting its object, not annotating it.** Its page stops
+being built, it drops out of the listing and it leaves search the same day. A
+listing still live three months after the seat was filled costs you the next
+good applicant.
+
+Two fields carry more weight than they look:
+
+- `posted` is emitted as `datePosted` in the structured data. Google drops
+  stale postings from its jobs index on its own, so a date left at last
+  quarter quietly removes the role from the biggest source of applicants.
+- `reelNote` is the "what to send" panel — the single most useful line on a
+  creative job ad, and the one almost nobody writes. An animator and a
+  character artist are judged on different things; saying which saves a round.
+
+Set `hiringOpen = false` to take everything down at once. The page keeps its
+open application and explains itself rather than going blank.
+
+Applications land in the `applications` table, both kinds in one place:
+`kind = 'role'` for an application against a listing, `kind = 'open'` for
+somebody who wants a seat that is not posted yet. Sort by that column in the
+Table Editor and you have two working queues.
 
 ### Adding a blog post
 
@@ -150,7 +180,7 @@ Two places, on purpose.
 | What | Where |
 | --- | --- |
 | Posts, case studies, services, nav | This repo. Plain files, diffable, in git. |
-| Enquiries, bookings, comments | One Supabase project. |
+| Enquiries, bookings, applications, comments | One Supabase project. |
 
 Everything a visitor submits goes into a single Supabase database, so there is
 one dashboard to check and one export to take — not a form service plus a
@@ -198,7 +228,7 @@ submit delay only stop naive bots.
 
 Commenter email addresses are stored so you can reply, but are **absent from
 anon's SELECT grant** — the website can never read one back. Row policies
-control which rows are visible; the column grants in section 3 of the schema
+control which rows are visible; the column grants in section 4 of the schema
 control which columns. Both matter.
 
 ### Getting it all by email, and approving from there
@@ -225,10 +255,13 @@ are writing to the person who asked. Comments arrive with two buttons.
 3. Set the function secrets:
 
    ```bash
-   supabase secrets set      RESEND_API_KEY=re_xxx      MAIL_FROM="Aniwala <notifications@aniwala.com>"      MAIL_DEFAULT=hello@aniwala.com      MAIL_ROUTES='{"3D Art":"art@aniwala.com","VFX":"vfx@aniwala.com"}'      MODERATION_SECRET=<the string from step 2>      NOTIFY_SECRET=<another random string>      FUNCTIONS_BASE_URL=https://<project-ref>.supabase.co/functions/v1      SITE_URL=https://aniwala.com
+   supabase secrets set      RESEND_API_KEY=re_xxx      MAIL_FROM="Aniwala <notifications@aniwala.com>"      MAIL_DEFAULT=hello@aniwala.com      MAIL_CAREERS=careers@aniwala.com      MAIL_ROUTES='{"3D Art":"art@aniwala.com","VFX":"vfx@aniwala.com"}'      MODERATION_SECRET=<the string from step 2>      NOTIFY_SECRET=<another random string>      FUNCTIONS_BASE_URL=https://<project-ref>.supabase.co/functions/v1      SITE_URL=https://aniwala.com
    ```
 
    `MAIL_ROUTES` is optional — anything unmatched goes to `MAIL_DEFAULT`.
+   `MAIL_CAREERS` is optional too, and worth setting: job applications go
+   there instead of the general inbox. A CV filed in among the client
+   briefs is a CV that gets missed.
 
 4. Deploy both functions:
 
@@ -243,8 +276,9 @@ are writing to the person who asked. Comments arrive with two buttons.
    checks an HMAC over the row id **and** the action, so an approve link
    cannot be edited into a reject link or reused on another comment.
 
-5. Dashboard → **Database → Webhooks → Create**, twice — once for `comments`,
-   once for `enquiries`. Both: event `INSERT`, type **HTTP Request**, method
+5. Dashboard → **Database → Webhooks → Create**, three times — once for
+   `comments`, once for `enquiries`, once for `applications`. All three: event
+   `INSERT`, type **HTTP Request**, method
    `POST`, URL `https://<project-ref>.supabase.co/functions/v1/notify`, and
    add the HTTP header `x-notify-secret` with the value from step 3.
 

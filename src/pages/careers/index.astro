@@ -1,0 +1,885 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import ApplyForm from '../../components/ApplyForm.astro';
+import Faq from '../../components/Faq.astro';
+import CtaBand from '../../components/CtaBand.astro';
+import Footer from '../../components/Footer.astro';
+import {
+  openRoles,
+  values,
+  hiringSteps,
+  careerFaqs,
+  careersEmail,
+  hiringOpen,
+  employmentTypeSchema,
+} from '../../config/careers';
+import { office } from '../../config/contact';
+
+/**
+ * Careers.
+ *
+ * The page is built around one belief: the person worth hiring is usually not
+ * looking at the moment your listing goes up. So the open application is not a
+ * footnote at the bottom — it is one of two equal doors in the same form, and
+ * the page says as much in the hero.
+ *
+ * Order is deliberate. Roles first, because somebody who arrived from a job
+ * board wants the list and nothing else. Then how the studio actually runs,
+ * because that is what decides whether a good applicant bothers. Then the
+ * process with real timings, so nobody has to ask. Then the form.
+ */
+const roles = hiringOpen ? openRoles : [];
+const totalSeats = roles.reduce((n, r) => n + r.openings, 0);
+
+/* Filter chips. Built from the listings rather than typed out, so a chip can
+   never survive the role that justified it. */
+const disciplineFilters = [...new Set(roles.map((r) => r.discipline))];
+
+const fmtDate = (iso: string) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+
+/* "New" is 21 days. Long enough to still be true when somebody finds the page
+   a fortnight after it was posted, short enough that the badge means something. */
+const isNew = (iso: string) =>
+  Date.now() - new Date(`${iso}T00:00:00Z`).getTime() < 21 * 864e5;
+
+/**
+ * JobPosting structured data, one per listing.
+ *
+ * This is what puts an opening into Google's job results, which for a studio
+ * nobody has heard of is a materially bigger source of applicants than the
+ * page itself. It emits only fields we can state truthfully — no salary
+ * range, because inventing one to satisfy a schema validator is exactly the
+ * kind of thing the honesty rule in config/careers.ts exists to prevent.
+ */
+const jobSchema = roles.map((r) => ({
+  '@context': 'https://schema.org',
+  '@type': 'JobPosting',
+  title: r.title,
+  description: `${r.summary} ${r.about}`,
+  datePosted: r.posted,
+  ...(r.closes ? { validThrough: r.closes } : {}),
+  employmentType: employmentTypeSchema[r.kind],
+  hiringOrganization: {
+    '@type': 'Organization',
+    name: 'Aniwala Studios',
+    sameAs: 'https://aniwala.com',
+  },
+  jobLocation: {
+    '@type': 'Place',
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: office.lines.slice(0, 2).join(', '),
+      addressLocality: 'Pimpri-Chinchwad',
+      addressRegion: 'Maharashtra',
+      postalCode: '411057',
+      addressCountry: 'IN',
+    },
+  },
+  totalJobOpenings: r.openings,
+  url: `https://aniwala.com/careers/${r.slug}/`,
+}));
+---
+
+<Base
+  title="Careers — Aniwala Studios"
+  description="Animation, game art and VFX jobs in Pune. Open roles at Aniwala Studios, plus an open application for the seat that is not listed yet. Every application gets an answer within five working days."
+>
+  <main id="main">
+    <PageHero
+      eyebrow="Careers"
+      title="We hire off the reel."
+      lead="No four-round culture interview, no take-home that quietly ships. Send the work, and somebody who does the job will tell you within five working days whether there is a seat — and if there isn't one right now, we'll tell you that too."
+      crumbs={[{ label: 'Home', href: '/' }, { label: 'Careers' }]}
+      tint="265 60% 28%"
+    >
+      <div class="hero-stats" data-reveal data-reveal-delay="0.22">
+        <div class="hero-stat">
+          <span class="hero-stat-n">{String(totalSeats).padStart(2, '0')}</span>
+          <span class="hero-stat-l">{totalSeats === 1 ? 'seat open' : 'seats open'}</span>
+        </div>
+        <div class="hero-stat">
+          <span class="hero-stat-n">05</span>
+          <span class="hero-stat-l">working days to an answer</span>
+        </div>
+        <div class="hero-stat">
+          <span class="hero-stat-n">12</span>
+          <span class="hero-stat-l">months we keep open applications</span>
+        </div>
+      </div>
+
+      <div class="hero-acts" data-reveal data-reveal-delay="0.28">
+        <a href="#roles" class="hero-act hero-act--primary">See the open roles</a>
+        <a href="#apply" class="hero-act" data-open-application>Nothing listed fits me</a>
+      </div>
+    </PageHero>
+
+    <!-- ── Open roles ─────────────────────────────────────────────────
+         First, and not below a culture section, because somebody who came
+         from a job board is here for the list and will leave if they have to
+         scroll past a manifesto to find it. -->
+    <section class="section" id="roles">
+      <div class="section-head" data-reveal>
+        <p class="section-eyebrow">Open roles</p>
+        <h2 class="section-title">
+          {roles.length > 0 ? 'What we are hiring for' : 'Nothing open this month'}
+        </h2>
+        {
+          roles.length > 0 && (
+            <a href={`mailto:${careersEmail}`} class="section-link">
+              Ask about a role <span aria-hidden="true">&rarr;</span>
+            </a>
+          )
+        }
+      </div>
+
+      {
+        /* Filters only earn their place once there is more than one thing to
+           filter. Below three listings the chips are noise. */
+        disciplineFilters.length > 1 && roles.length > 2 && (
+          <div class="filters" role="group" aria-label="Filter roles by discipline" data-reveal>
+            <button type="button" class="filter is-on" data-filter="all">
+              All <span class="filter-n">{roles.length}</span>
+            </button>
+            {disciplineFilters.map((d) => (
+              <button type="button" class="filter" data-filter={d}>
+                {d} <span class="filter-n">{roles.filter((r) => r.discipline === d).length}</span>
+              </button>
+            ))}
+          </div>
+        )
+      }
+
+      {
+        roles.length > 0 ? (
+          <ol class="jobs" id="jobs">
+            {roles.map((r) => (
+              <li class="job" style={`--tint:${r.tint}`} data-discipline={r.discipline} data-reveal>
+                <span class="job-wash" aria-hidden="true" />
+
+                <div class="job-head">
+                  <div class="job-title-row">
+                    <h3 class="job-title">
+                      <a href={`/careers/${r.slug}/`}>{r.title}</a>
+                    </h3>
+                    {isNew(r.posted) && <span class="job-new">New</span>}
+                  </div>
+                  <p class="job-summary">{r.summary}</p>
+                </div>
+
+                <ul class="job-meta">
+                  <li class="job-tag job-tag--kind">{r.kind}</li>
+                  <li class="job-tag">{r.location}</li>
+                  <li class="job-tag">{r.experience}</li>
+                  <li class="job-tag">
+                    {r.openings === 1 ? '1 opening' : `${r.openings} openings`}
+                  </li>
+                </ul>
+
+                <div class="job-foot">
+                  <p class="job-posted">
+                    Posted {fmtDate(r.posted)}
+                    {r.closes && <span> · closes {fmtDate(r.closes)}</span>}
+                  </p>
+                  <div class="job-acts">
+                    <a href={`/careers/${r.slug}/`} class="job-read">
+                      Read the role <span aria-hidden="true">&rarr;</span>
+                    </a>
+                    <a href="#apply" class="job-apply" data-apply={r.slug}>
+                      Apply
+                    </a>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          /* The honest empty state. A careers page with no listings is not a
+             dead page — it is the one moment where the open application is
+             unambiguously the right thing to show, so it says so plainly
+             instead of apologising. */
+          <div class="empty" data-reveal>
+            <p class="empty-lead">
+              {hiringOpen
+                ? 'Every seat is filled at the moment, which is a good problem and a temporary one.'
+                : 'Hiring is paused while we finish the projects on the floor.'}
+            </p>
+            <p class="empty-body">
+              Seats here open because a project lands, not because a plan said one
+              should — so the list is usually behind where the studio is going. Send
+              an open application and you are read first when the next one opens. We
+              keep them for twelve months.
+            </p>
+            <a href="#apply" class="empty-act" data-open-application>Send an open application</a>
+          </div>
+        )
+      }
+
+      {
+        /* The speculative door, given the same weight as the listings rather
+           than a line of small print underneath them. */
+        roles.length > 0 && (
+          <div class="spec" data-reveal>
+            <div class="spec-copy">
+              <p class="spec-eyebrow">Not on the list?</p>
+              <h3 class="spec-title">The seat you want probably isn't posted yet.</h3>
+              <p class="spec-body">
+                Lighting, rigging, pipeline, production, business — a studio this size
+                opens a seat when a project lands, not when a plan says it should. Tell
+                us what you would want to be doing and we read it first when that
+                happens. Twelve months on file, and a real answer either way.
+              </p>
+            </div>
+            <a href="#apply" class="spec-act" data-open-application>
+              Register your interest <span aria-hidden="true">&rarr;</span>
+            </a>
+          </div>
+        )
+      }
+    </section>
+
+    <!-- ── Why the seat is worth taking ──────────────────────────────── -->
+    <section class="section section--bordered" id="studio">
+      <div class="section-head" data-reveal>
+        <p class="section-eyebrow">Working here</p>
+        <h2 class="section-title">What we can actually offer</h2>
+        <a href="/about/" class="section-link">
+          More about the studio <span aria-hidden="true">&rarr;</span>
+        </a>
+      </div>
+
+      <p class="studio-note" data-reveal>
+        We are a small studio and we will not out-bid a large one on salary. Pretending
+        otherwise wastes your first round and ours, so here is what is true instead.
+      </p>
+
+      <div class="values">
+        {
+          values.map((v) => (
+            <div class="value" data-reveal>
+              <h3 class="value-title">{v.title}</h3>
+              <p class="value-body">{v.body}</p>
+            </div>
+          ))
+        }
+      </div>
+    </section>
+
+    <!-- ── How hiring runs ───────────────────────────────────────────── -->
+    <section class="section section--bordered" id="process">
+      <div class="section-head" data-reveal>
+        <p class="section-eyebrow">The process</p>
+        <h2 class="section-title">Three weeks, five steps, no ghosting</h2>
+      </div>
+
+      <ol class="hire">
+        {
+          hiringSteps.map((s, i) => (
+            <li class="hire-step" data-reveal>
+              <span class="hire-n">{String(i + 1).padStart(2, '0')}</span>
+              <div class="hire-body">
+                <div class="hire-head">
+                  <h3 class="hire-title">{s.title}</h3>
+                  <span class="hire-when">{s.when}</span>
+                </div>
+                <p class="hire-text">{s.body}</p>
+              </div>
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+
+    <ApplyForm />
+
+    <Faq items={careerFaqs} eyebrow="Questions" title="Before you apply" name="careers-faq" />
+
+    <CtaBand
+      eyebrow="Not job hunting?"
+      title="Then brief us instead."
+      body="If you landed here looking for a studio rather than a seat, the other half of the site is the one you want. Tell us the deadline first — we'll tell you straight whether we can hit it."
+      primary={{ label: 'Start a project', href: '/contact/' }}
+      secondary={{ label: 'See the work', href: '/portfolio/' }}
+    />
+  </main>
+
+  <Footer />
+
+  {
+    jobSchema.map((j) => (
+      <script type="application/ld+json" set:html={JSON.stringify(j)} is:inline />
+    ))
+  }
+</Base>
+
+<script>
+  /**
+   * Two small jobs, both about not making somebody do work the page can do:
+   *
+   *  1. The discipline chips filter the list in place. No route, no reload —
+   *     six listings is not enough to justify a page per filter.
+   *  2. Every Apply button pre-selects its role in the form below, and the
+   *     "nothing fits me" links flip the form to the open-application mode.
+   *     Scrolling somebody to a form and leaving them to re-find the role they
+   *     just clicked is how an application becomes a maybe-later.
+   */
+  function initCareers() {
+    const list = document.getElementById('jobs');
+
+    /* ---------- filters ---------- */
+    const chips = document.querySelectorAll<HTMLButtonElement>('.filter');
+    if (list && chips.length) {
+      chips.forEach((chip) => {
+        chip.addEventListener('click', () => {
+          const want = chip.dataset.filter;
+          chips.forEach((c) => c.classList.toggle('is-on', c === chip));
+          list.querySelectorAll<HTMLLIElement>('.job').forEach((job) => {
+            const show = want === 'all' || job.dataset.discipline === want;
+            job.hidden = !show;
+          });
+        });
+      });
+    }
+
+    /* ---------- apply buttons ---------- */
+    const roleSel = () => document.getElementById('ap-role') as HTMLSelectElement | null;
+
+    document.querySelectorAll<HTMLAnchorElement>('[data-apply]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        // Make sure the role half of the form is the visible one first, or the
+        // select we are about to set is sitting inside a hidden block.
+        (document.getElementById('ap-mode-role') as HTMLButtonElement | null)?.click();
+        const sel = roleSel();
+        if (sel && btn.dataset.apply) {
+          sel.value = btn.dataset.apply;
+          sel.dispatchEvent(new Event('change'));
+        }
+      });
+    });
+
+    document.querySelectorAll<HTMLAnchorElement>('[data-open-application]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        (document.getElementById('ap-mode-open') as HTMLButtonElement | null)?.click();
+      });
+    });
+  }
+
+  document.addEventListener('astro:page-load', initCareers);
+</script>
+
+<style>
+  /* --- Hero extras ------------------------------------------------------ */
+  .hero-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem 2.75rem;
+    margin-top: 2.5rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--color-line);
+  }
+  .hero-stat {
+    display: grid;
+    gap: 0.3rem;
+  }
+  .hero-stat-n {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-stretch: 112%;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    font-size: clamp(2rem, 4vw, 2.9rem);
+    color: var(--color-accent);
+  }
+  .hero-stat-l {
+    max-width: 16ch;
+    font-family: var(--font-label);
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: var(--color-ink-faint);
+  }
+
+  .hero-acts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 2rem;
+  }
+  .hero-act {
+    padding: 0.8rem 1.6rem;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 100px;
+    font-family: var(--font-label);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-ink);
+    text-decoration: none;
+    transition:
+      border-color 0.18s ease,
+      background 0.18s ease,
+      transform 0.18s ease;
+  }
+  .hero-act:hover {
+    border-color: var(--color-accent);
+    transform: translateY(-1px);
+  }
+  .hero-act--primary {
+    background: var(--color-cta);
+    border-color: var(--color-cta);
+    color: var(--color-cta-ink);
+    font-weight: 700;
+  }
+  .hero-act--primary:hover {
+    background: var(--color-cta-hover);
+    border-color: var(--color-cta-hover);
+  }
+
+  /* --- Filters ---------------------------------------------------------- */
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+  }
+  .filter {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1.05rem;
+    background: transparent;
+    border: 1px solid var(--color-line);
+    border-radius: 100px;
+    font-family: var(--font-label);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-ink-muted);
+    cursor: pointer;
+    transition:
+      border-color 0.18s ease,
+      color 0.18s ease,
+      background 0.18s ease;
+  }
+  .filter:hover {
+    border-color: var(--color-line-strong);
+    color: var(--color-ink);
+  }
+  .filter.is-on {
+    background: var(--color-ink);
+    border-color: var(--color-ink);
+    color: var(--color-ground);
+  }
+  .filter-n {
+    font-size: 0.72rem;
+    opacity: 0.6;
+  }
+
+  /* --- Job rows ---------------------------------------------------------
+     Rows, not cards. A card grid forces every listing into the same height
+     and truncates the one thing a listing is for — the description. */
+  .jobs {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 1rem;
+  }
+  .job {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    display: grid;
+    gap: 1.25rem;
+    padding: clamp(1.5rem, 3vw, 2.25rem);
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 0.9rem;
+    transition:
+      border-color 0.25s ease,
+      transform 0.25s ease;
+  }
+  .job[hidden] {
+    display: none;
+  }
+  .job:hover {
+    border-color: var(--color-line-strong);
+    transform: translateY(-2px);
+  }
+
+  /* The tint only shows on hover, so a list of six does not read as six
+     competing colour fields. */
+  .job-wash {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    opacity: 0;
+    background: radial-gradient(ellipse 60% 140% at 100% 0%, hsl(var(--tint) / 0.5), transparent 70%);
+    transition: opacity 0.35s ease;
+  }
+  .job:hover .job-wash {
+    opacity: 1;
+  }
+  :global(:root[data-theme='light']) .job-wash {
+    background: radial-gradient(ellipse 60% 140% at 100% 0%, hsl(var(--tint) / 0.14), transparent 70%);
+  }
+
+  .job-head {
+    display: grid;
+    gap: 0.6rem;
+  }
+  .job-title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .job-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 750;
+    font-stretch: 108%;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+    font-size: clamp(1.3rem, 2.6vw, 1.85rem);
+    color: var(--color-ink);
+  }
+  .job-title a {
+    color: inherit;
+    text-decoration: none;
+  }
+  /* Stretched link: the whole row is clickable, but the Apply button and the
+     read link below sit above it on the z-axis and still work on their own. */
+  .job-title a::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+  .job:hover .job-title a {
+    color: var(--color-accent);
+  }
+
+  .job-new {
+    padding: 0.25rem 0.6rem;
+    border-radius: 100px;
+    background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
+    font-family: var(--font-label);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--color-accent);
+  }
+
+  .job-summary {
+    margin: 0;
+    max-width: 62ch;
+    font-size: 0.97rem;
+    line-height: 1.6;
+    color: var(--color-ink-muted);
+  }
+
+  .job-meta {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+  .job-tag {
+    padding: 0.35rem 0.8rem;
+    border: 1px solid var(--color-line);
+    border-radius: 100px;
+    font-family: var(--font-label);
+    font-size: 0.75rem;
+    color: var(--color-ink-faint);
+  }
+  .job-tag--kind {
+    border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+    color: var(--color-accent);
+  }
+
+  .job-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--color-line);
+  }
+  .job-posted {
+    margin: 0;
+    font-family: var(--font-label);
+    font-size: 0.76rem;
+    color: var(--color-ink-faint);
+  }
+  .job-acts {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1.25rem;
+  }
+  .job-read {
+    font-family: var(--font-label);
+    font-size: 0.83rem;
+    font-weight: 600;
+    color: var(--color-accent);
+    text-decoration: none;
+  }
+  .job-read span {
+    display: inline-block;
+    transition: transform 0.25s ease;
+  }
+  .job-read:hover span {
+    transform: translateX(4px);
+  }
+  .job-apply {
+    padding: 0.55rem 1.4rem;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 100px;
+    font-family: var(--font-label);
+    font-size: 0.83rem;
+    font-weight: 700;
+    color: var(--color-ink);
+    text-decoration: none;
+    transition:
+      background 0.18s ease,
+      border-color 0.18s ease,
+      color 0.18s ease;
+  }
+  .job-apply:hover {
+    background: var(--color-cta);
+    border-color: var(--color-cta);
+    color: var(--color-cta-ink);
+  }
+
+  /* --- Empty state ------------------------------------------------------ */
+  .empty {
+    padding: clamp(2rem, 5vw, 3.5rem);
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 0.9rem;
+    text-align: center;
+  }
+  .empty-lead {
+    margin: 0 auto;
+    max-width: 34ch;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-stretch: 106%;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+    font-size: clamp(1.35rem, 3vw, 2rem);
+    color: var(--color-ink);
+    text-wrap: balance;
+  }
+  .empty-body {
+    margin: 1.25rem auto 0;
+    max-width: 54ch;
+    font-size: 0.97rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+  .empty-act {
+    display: inline-block;
+    margin-top: 1.75rem;
+    padding: 0.85rem 1.9rem;
+    background: var(--color-cta);
+    border-radius: 100px;
+    font-family: var(--font-label);
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--color-cta-ink);
+    text-decoration: none;
+    transition: background 0.18s ease;
+  }
+  .empty-act:hover {
+    background: var(--color-cta-hover);
+  }
+
+  /* --- Speculative panel ------------------------------------------------ */
+  .spec {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem 2.5rem;
+    margin-top: 1rem;
+    padding: clamp(1.75rem, 3.5vw, 2.5rem);
+    border: 1px dashed var(--color-line-strong);
+    border-radius: 0.9rem;
+    background: color-mix(in srgb, var(--color-accent) 4%, transparent);
+  }
+  .spec-copy {
+    flex: 1 1 34ch;
+  }
+  .spec-eyebrow {
+    margin: 0 0 0.6rem;
+    font-family: var(--font-label);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.015em;
+    color: var(--color-accent);
+  }
+  .spec-title {
+    margin: 0 0 0.85rem;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-stretch: 106%;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+    font-size: clamp(1.2rem, 2.4vw, 1.6rem);
+    color: var(--color-ink);
+    text-wrap: balance;
+  }
+  .spec-body {
+    margin: 0;
+    max-width: 58ch;
+    font-size: 0.93rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+  .spec-act {
+    flex: 0 0 auto;
+    padding: 0.8rem 1.7rem;
+    border: 1px solid var(--color-accent);
+    border-radius: 100px;
+    font-family: var(--font-label);
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--color-accent);
+    text-decoration: none;
+    white-space: nowrap;
+    transition:
+      background 0.18s ease,
+      color 0.18s ease;
+  }
+  .spec-act:hover {
+    background: var(--color-accent);
+    color: var(--color-ground);
+  }
+  .spec-act span {
+    display: inline-block;
+    transition: transform 0.25s ease;
+  }
+  .spec-act:hover span {
+    transform: translateX(4px);
+  }
+
+  /* --- Values ------------------------------------------------------------ */
+  .studio-note {
+    margin: -1rem 0 2.5rem;
+    max-width: 60ch;
+    font-size: 1rem;
+    line-height: 1.7;
+    color: var(--color-ink-muted);
+  }
+  .values {
+    display: grid;
+    gap: 1px;
+    grid-template-columns: 1fr;
+    background: var(--color-line);
+    border: 1px solid var(--color-line);
+    border-radius: 0.9rem;
+    overflow: hidden;
+  }
+  @media (min-width: 700px) {
+    .values {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (min-width: 1100px) {
+    .values {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+  .value {
+    padding: clamp(1.5rem, 2.8vw, 2.25rem);
+    background: var(--color-surface);
+  }
+  .value-title {
+    margin: 0 0 0.75rem;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-stretch: 106%;
+    letter-spacing: -0.02em;
+    font-size: 1.12rem;
+    color: var(--color-ink);
+  }
+  .value-body {
+    margin: 0;
+    font-size: 0.92rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+
+  /* --- Hiring steps ------------------------------------------------------ */
+  .hire {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--color-line);
+  }
+  .hire-step {
+    display: grid;
+    gap: 0.75rem 1.75rem;
+    grid-template-columns: 1fr;
+    padding: clamp(1.5rem, 3vw, 2.25rem) 0;
+    border-bottom: 1px solid var(--color-line);
+  }
+  @media (min-width: 760px) {
+    .hire-step {
+      grid-template-columns: 5rem minmax(0, 1fr);
+    }
+  }
+  .hire-n {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-stretch: 112%;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    font-size: 2.25rem;
+    color: var(--color-line-strong);
+  }
+  .hire-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.6rem 1rem;
+    margin-bottom: 0.6rem;
+  }
+  .hire-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-stretch: 106%;
+    letter-spacing: -0.02em;
+    font-size: clamp(1.1rem, 2.2vw, 1.4rem);
+    color: var(--color-ink);
+  }
+  .hire-when {
+    padding: 0.25rem 0.7rem;
+    border: 1px solid var(--color-line);
+    border-radius: 100px;
+    font-family: var(--font-label);
+    font-size: 0.72rem;
+    color: var(--color-accent);
+    white-space: nowrap;
+  }
+  .hire-text {
+    margin: 0;
+    max-width: 68ch;
+    font-size: 0.95rem;
+    line-height: 1.7;
+    color: var(--color-ink-muted);
+  }
+</style>

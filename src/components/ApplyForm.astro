@@ -1,0 +1,1062 @@
+---
+import {
+  openRoles,
+  disciplines,
+  experienceBands,
+  availabilityOptions,
+  careersEmail,
+  type Role,
+} from '../config/careers';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config/site';
+import { supabaseConfigured } from '../lib/supabase';
+
+/**
+ * The application form. One form, two jobs.
+ *
+ * Most studio sites make you choose between an "Apply" button bolted to each
+ * listing and a separate "we're not hiring but send something anyway" mailto.
+ * The second one always looks like an afterthought, which is a shame, because
+ * a speculative application from the right person is worth more than ten
+ * against a listing — a seat here opens when a project lands, not when a plan
+ * says it should, so the good ones nearly always arrive before the listing.
+ *
+ * So this is a single form with a mode switch. The fields that differ are the
+ * ones that genuinely differ: applying to a listing needs to know WHICH
+ * listing; applying without one needs to know what you would want to be doing
+ * instead. Everything else — who you are, the link to the work, when you are
+ * free — is identical and is asked once.
+ *
+ * Both modes land in the same `applications` table with a `kind` column, so
+ * there is one place to read and one export to take.
+ *
+ * NO FILE UPLOAD, deliberately. Accepting a CV would mean a public-insert
+ * Storage bucket sitting behind an anon key that ships in the bundle, which is
+ * an open door for anyone who finds it. Links cost the applicant nothing —
+ * everyone in this industry already keeps a reel on a URL — and the offer to
+ * email an attachment is right there for anyone who would rather.
+ */
+interface Props {
+  /**
+   * Set on a role page: locks the form to that role, drops the mode switch
+   * and skips straight to the details. On the listing page it is left off and
+   * the applicant chooses.
+   */
+  role?: Role;
+  /** Overrides the section heading. */
+  eyebrow?: string;
+  title?: string;
+  lead?: string;
+}
+
+const { role, eyebrow = 'Apply', title, lead } = Astro.props;
+
+const locked = Boolean(role);
+const configured = supabaseConfigured;
+
+const heading = title ?? (locked ? `Apply for ${role!.title}` : 'Send us your work');
+const intro =
+  lead ??
+  (locked
+    ? 'One form, and a link to the work. We reply to every application within five working days, including the ones we turn down.'
+    : 'Pick a listing, or tell us what you would want to be doing if none of them fit. Both routes reach the same people and get the same answer within five working days.');
+
+/* Per-role portfolio guidance, keyed by slug so the client script can swap
+   the hint under the portfolio field the moment a role is chosen. It is the
+   most useful sentence on any of these listings, and it should not be
+   something you only find by opening the full page. */
+const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]));
+---
+
+<section class="section section--bordered" id="apply">
+  <div class="section-head" data-reveal>
+    <p class="section-eyebrow">{eyebrow}</p>
+    <h2 class="section-title">{heading}</h2>
+  </div>
+
+  <div class="ap" id="ap" data-reveal data-locked={locked ? 'true' : 'false'}>
+    <!-- ── Left rail: what happens after you press send ──────────── -->
+    <aside class="ap-side">
+      <p class="ap-lead">{intro}</p>
+
+      <ul class="ap-promise">
+        <li>
+          <span class="ap-promise-k">Read by</span>
+          <span class="ap-promise-v">Someone who does the job, not a keyword filter.</span>
+        </li>
+        <li>
+          <span class="ap-promise-k">Reply</span>
+          <span class="ap-promise-v">Within five working days, yes or no.</span>
+        </li>
+        <li>
+          <span class="ap-promise-k">Kept</span>
+          <span class="ap-promise-v">Twelve months, then deleted. See the <a href="/privacy/#applications">privacy note</a>.</span>
+        </li>
+        <li>
+          <span class="ap-promise-k">Tests</span>
+          <span class="ap-promise-v">Paid, under a day, and never shipped.</span>
+        </li>
+      </ul>
+
+      <p class="ap-alt">
+        Would rather attach a PDF? Email
+        <a href={`mailto:${careersEmail}`}>{careersEmail}</a> instead — it reaches
+        the same inbox.
+      </p>
+    </aside>
+
+    <!-- ── The form ──────────────────────────────────────────────── -->
+    <div class="ap-main" id="ap-main">
+      {
+        /* The mode switch. Hidden on a role page, where the answer is already
+           known — asking somebody who clicked "Apply for 3D Animator" which
+           role they want is the kind of question that loses applicants. */
+        !locked && (
+          /* Deliberately NOT role="tablist". Tab semantics promise a
+             tabpanel, and what changes here is two fields inside a form whose
+             other fifteen stay put — announcing that as a panel swap would
+             describe something that is not happening. Two pressed-state
+             buttons say exactly what this is. */
+          <div class="ap-modes" role="group" aria-label="What kind of application">
+            <button
+              type="button"
+              class="ap-mode is-on"
+              id="ap-mode-role"
+              aria-pressed="true"
+              data-mode="role"
+            >
+              <span class="ap-mode-t">Apply for an open role</span>
+              <span class="ap-mode-s">
+                {openRoles.length === 1 ? '1 listed right now' : `${openRoles.length} listed right now`}
+              </span>
+            </button>
+            <button
+              type="button"
+              class="ap-mode"
+              id="ap-mode-open"
+              aria-pressed="false"
+              data-mode="open"
+            >
+              <span class="ap-mode-t">Nothing listed fits me</span>
+              <span class="ap-mode-s">Register interest for later</span>
+            </button>
+          </div>
+        )
+      }
+
+      <form class="ap-form" id="ap-form" novalidate>
+        {
+          /* Mode A — which listing. */
+          !locked && (
+            <div class="ap-block" id="ap-block-role">
+              <label class="ap-field ap-field--wide">
+                <span class="ap-label">
+                  Which role <em>*</em>
+                </span>
+                <select name="role_slug" id="ap-role" required>
+                  <option value="">Choose a role…</option>
+                  {openRoles.map((r) => (
+                    <option value={r.slug} data-title={r.title}>
+                      {r.title} — {r.kind}
+                    </option>
+                  ))}
+                </select>
+                <span class="ap-hint" id="ap-role-hint" hidden />
+              </label>
+            </div>
+          )
+        }
+
+        {
+          /* Mode B — no listing fits. Two questions, because "what would you
+             want to do" and "what area is it in" are not the same answer, and
+             a filing system needs the second while a human wants the first. */
+          !locked && (
+            <div class="ap-block" id="ap-block-open" hidden>
+              <div class="ap-pair">
+                <label class="ap-field">
+                  <span class="ap-label">
+                    Which area <em>*</em>
+                  </span>
+                  <select name="discipline" id="ap-discipline">
+                    <option value="">Choose an area…</option>
+                    {disciplines.map((d) => (
+                      <option value={d}>{d}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label class="ap-field">
+                  <span class="ap-label">
+                    The role you want <em>*</em>
+                  </span>
+                  <input
+                    type="text"
+                    name="desired_role"
+                    id="ap-desired"
+                    placeholder="e.g. Lighting Artist, Rigger, Producer"
+                  />
+                </label>
+              </div>
+              <p class="ap-note">
+                We keep these for twelve months and read them first when a seat opens.
+                Be specific about the job you want — "any opening" is the one thing we
+                cannot match against anything.
+              </p>
+            </div>
+          )
+        }
+
+        {
+          /* Locked mode: the role is stated as a fact rather than as a field,
+             so it is visible in the form without being a question. */
+          locked && (
+            <div class="ap-locked">
+              <span class="ap-locked-k">Applying for</span>
+              <span class="ap-locked-v">{role!.title}</span>
+              <span class="ap-locked-m">
+                {role!.kind} · {role!.location}
+              </span>
+            </div>
+          )
+        }
+
+        <!-- ── Who you are ──────────────────────────────────────── -->
+        <div class="ap-pair">
+          <label class="ap-field">
+            <span class="ap-label">Your name <em>*</em></span>
+            <input type="text" name="name" id="ap-name" required autocomplete="name" placeholder="First and last" />
+          </label>
+
+          <label class="ap-field">
+            <span class="ap-label">Email <em>*</em></span>
+            <input type="email" name="email" id="ap-email" required autocomplete="email" placeholder="you@example.com" />
+          </label>
+        </div>
+
+        <div class="ap-pair">
+          <label class="ap-field">
+            <span class="ap-label">Phone</span>
+            <input type="tel" name="phone" id="ap-phone" autocomplete="tel" placeholder="Optional" />
+          </label>
+
+          <label class="ap-field">
+            <span class="ap-label">Where you are <em>*</em></span>
+            <input
+              type="text"
+              name="location"
+              id="ap-location"
+              required
+              autocomplete="address-level2"
+              placeholder="City, and country if outside India"
+            />
+          </label>
+        </div>
+
+        <div class="ap-pair">
+          <label class="ap-field">
+            <span class="ap-label">Experience <em>*</em></span>
+            <select name="experience" id="ap-experience" required>
+              <option value="">Choose…</option>
+              {experienceBands.map((b) => <option value={b}>{b}</option>)}
+            </select>
+          </label>
+
+          <label class="ap-field">
+            <span class="ap-label">Available from</span>
+            <select name="availability" id="ap-availability">
+              <option value="">Choose…</option>
+              {availabilityOptions.map((a) => <option value={a}>{a}</option>)}
+            </select>
+          </label>
+        </div>
+
+        <!-- ── The work. The only part we genuinely cannot do without. ── -->
+        <label class="ap-field ap-field--wide">
+          <span class="ap-label">Portfolio or reel link <em>*</em></span>
+          <input
+            type="url"
+            name="portfolio_url"
+            id="ap-portfolio"
+            required
+            inputmode="url"
+            placeholder="https://artstation.com/… · vimeo.com/… · your site"
+          />
+          <span class="ap-hint" id="ap-portfolio-hint">
+            Check the sharing permission before you send it. A link we cannot open is
+            the most common reason a good application stalls.
+          </span>
+        </label>
+
+        <label class="ap-field ap-field--wide">
+          <span class="ap-label">CV link</span>
+          <input
+            type="url"
+            name="cv_url"
+            id="ap-cv"
+            inputmode="url"
+            placeholder="Optional — Drive, Dropbox or a PDF link"
+          />
+        </label>
+
+        <label class="ap-field ap-field--wide">
+          <span class="ap-label" id="ap-message-label">Anything we should know <em>*</em></span>
+          <textarea
+            name="message"
+            id="ap-message"
+            rows="5"
+            required
+            placeholder="Which piece in your portfolio we should look at first, and why you want this seat in particular. Three sentences is plenty."></textarea>
+          <span class="ap-hint">
+            Written by you, not by a model. We can tell, and we would rather read
+            three honest sentences than three polished paragraphs.
+          </span>
+        </label>
+
+        <!-- Bots fill hidden fields; humans never see this one. -->
+        <input type="checkbox" name="botcheck" class="ap-hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+
+        <p class="ap-msg" id="ap-msg" role="status" aria-live="polite"></p>
+
+        <div class="ap-actions">
+          <button type="submit" class="ap-submit" id="ap-submit">
+            {locked ? 'Send application' : 'Send it'}
+          </button>
+          <p class="ap-consent">
+            Sending this stores your name, contact details and links so we can reply.
+            Nothing is shared outside the studio.
+          </p>
+        </div>
+
+        {
+          !configured && (
+            <p class="ap-warn">
+              <strong>Not connected yet.</strong> Add your Supabase project URL and anon
+              key to <code>src/config/site.ts</code>, and run <code>supabase/schema.sql</code>{' '}
+              in the Supabase SQL editor so the <code>applications</code> table exists.
+              Until then this will refuse to submit rather than dropping somebody's
+              application into a void.
+            </p>
+          )
+        }
+      </form>
+    </div>
+  </div>
+</section>
+
+<script
+  define:vars={{
+    apCfg: {
+      configured,
+      /* Passed through rather than imported: define:vars makes this script
+         inline, and inline scripts are not bundled, so `import` would not
+         resolve at runtime. The anon key is public by design — see
+         supabase/schema.sql for why that is safe. */
+      supabaseUrl: SUPABASE_URL,
+      supabaseKey: SUPABASE_ANON_KEY,
+      careersEmail,
+      locked,
+      lockedSlug: role?.slug ?? null,
+      lockedTitle: role?.title ?? null,
+      lockedDiscipline: role?.discipline ?? null,
+      reelNotes,
+    },
+  }}
+>
+  window.__aniwalaApply = apCfg;
+</script>
+
+<script>
+  function initApply() {
+    const root = document.getElementById('ap');
+    if (!root) return;
+    const cfg = (window as any).__aniwalaApply;
+
+    const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+
+    const form = $<HTMLFormElement>('ap-form');
+    const main = $('ap-main');
+    const msg = $('ap-msg');
+    const submit = $<HTMLButtonElement>('ap-submit');
+
+    /* Loaded-at time. Anything submitted inside three seconds of the page
+       painting was not typed by a person — nobody fills six fields that fast.
+       A speed bump, not a security control; the real one is that anon can
+       only INSERT into this table and can never read it back. */
+    const openedAt = Date.now();
+
+    /* ---------- mode switching ---------- */
+    let mode: 'role' | 'open' = 'role';
+
+    const roleBlock = document.getElementById('ap-block-role');
+    const openBlock = document.getElementById('ap-block-open');
+    const roleSel = document.getElementById('ap-role') as HTMLSelectElement | null;
+    const discSel = document.getElementById('ap-discipline') as HTMLSelectElement | null;
+    const desired = document.getElementById('ap-desired') as HTMLInputElement | null;
+    const roleHint = document.getElementById('ap-role-hint');
+    const messageLabel = document.getElementById('ap-message-label');
+
+    const setMode = (next: 'role' | 'open') => {
+      mode = next;
+      if (roleBlock) roleBlock.hidden = next !== 'role';
+      if (openBlock) openBlock.hidden = next !== 'open';
+
+      /* `required` is moved rather than left on both blocks. A required field
+         inside a hidden block blocks submission with a validation bubble the
+         browser cannot point at, which reads to the applicant as a form that
+         is simply broken. */
+      if (roleSel) roleSel.required = next === 'role';
+      if (discSel) discSel.required = next === 'open';
+      if (desired) desired.required = next === 'open';
+
+      /* The message field is asking for two different things depending on the
+         mode, so it says so. */
+      if (messageLabel) {
+        messageLabel.innerHTML =
+          next === 'open'
+            ? 'What you want to be doing here <em>*</em>'
+            : 'Anything we should know <em>*</em>';
+      }
+
+      document.querySelectorAll<HTMLButtonElement>('.ap-mode').forEach((b) => {
+        const on = b.dataset.mode === next;
+        b.classList.toggle('is-on', on);
+        b.setAttribute('aria-pressed', String(on));
+      });
+
+      clearError();
+    };
+
+    document.querySelectorAll<HTMLButtonElement>('.ap-mode').forEach((b) => {
+      b.addEventListener('click', () => setMode((b.dataset.mode as 'role' | 'open') ?? 'role'));
+    });
+
+    /* Deep link: /careers/#apply?role=3d-animator, and the Apply button on
+       every listing row uses it. Landing on a form with your role already
+       chosen is the difference between applying now and applying later. */
+    if (roleSel) {
+      const wanted = new URLSearchParams(location.search).get('role');
+      if (wanted && roleSel.querySelector(`option[value="${CSS.escape(wanted)}"]`)) {
+        roleSel.value = wanted;
+      }
+      roleSel.addEventListener('change', showReelNote);
+      showReelNote();
+    }
+
+    function showReelNote() {
+      if (!roleSel || !roleHint) return;
+      const note = cfg.reelNotes[roleSel.value];
+      if (note) {
+        roleHint.textContent = `For this role: ${note}`;
+        roleHint.hidden = false;
+      } else {
+        roleHint.hidden = true;
+      }
+    }
+
+    /* ---------- validation ---------- */
+    const clearError = () => {
+      msg.textContent = '';
+      msg.className = 'ap-msg';
+      form.querySelectorAll('.is-invalid').forEach((el) => {
+        el.classList.remove('is-invalid');
+        el.removeAttribute('aria-invalid');
+      });
+    };
+
+    const fail = (text: string, field?: HTMLElement | null) => {
+      msg.textContent = text;
+      msg.className = 'ap-msg is-error';
+      if (field) {
+        field.classList.add('is-invalid');
+        field.setAttribute('aria-invalid', 'true');
+        field.focus({ preventScroll: true });
+        field.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+      return false;
+    };
+
+    const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+
+    /* Accepts a bare domain and repairs it. Half of all portfolio links are
+       typed as "artstation.com/name", and rejecting those on a technicality
+       would lose real applicants over a missing "https://". */
+    const tidyUrl = (raw: string) => {
+      const v = raw.trim();
+      if (!v) return '';
+      if (/^https?:\/\//i.test(v)) return v;
+      if (/^[\w.-]+\.[a-z]{2,}(\/|$)/i.test(v)) return `https://${v}`;
+      return v;
+    };
+    const isUrl = (v: string) => {
+      try {
+        const u = new URL(v);
+        return (u.protocol === 'http:' || u.protocol === 'https:') && u.hostname.includes('.');
+      } catch {
+        return false;
+      }
+    };
+
+    /* ---------- submit ---------- */
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearError();
+
+      const val = (id: string) => ($<HTMLInputElement>(id)?.value ?? '').trim();
+
+      const name = val('ap-name');
+      const email = val('ap-email');
+      const location_ = val('ap-location');
+      const experience = val('ap-experience');
+      const message = val('ap-message');
+
+      const portfolioEl = $<HTMLInputElement>('ap-portfolio');
+      const cvEl = $<HTMLInputElement>('ap-cv');
+      portfolioEl.value = tidyUrl(portfolioEl.value);
+      cvEl.value = tidyUrl(cvEl.value);
+      const portfolio = portfolioEl.value;
+      const cv = cvEl.value;
+
+      /* Mode-specific fields first: they are at the top of the form, so an
+         error there should be the one reported. */
+      let roleSlug: string | null = cfg.lockedSlug;
+      let roleTitle: string | null = cfg.lockedTitle;
+      let discipline: string | null = cfg.lockedDiscipline;
+      let desiredRole: string | null = null;
+
+      if (!cfg.locked) {
+        if (mode === 'role') {
+          if (!roleSel?.value) return fail('Pick which role you are applying for.', roleSel);
+          roleSlug = roleSel.value;
+          roleTitle = roleSel.selectedOptions[0]?.dataset.title ?? roleSel.value;
+          discipline = null;
+        } else {
+          if (!discSel?.value) return fail('Choose the area you would want to work in.', discSel);
+          if (!desired?.value.trim())
+            return fail('Name the role you are after — it is what we match against.', desired);
+          discipline = discSel.value;
+          desiredRole = desired.value.trim();
+          roleSlug = null;
+          roleTitle = null;
+        }
+      }
+
+      if (!name) return fail('Add your name.', $('ap-name'));
+      if (!isEmail(email)) return fail('That email address does not look right.', $('ap-email'));
+      if (!location_) return fail('Tell us which city you are in — some of these seats are on-site.', $('ap-location'));
+      if (!experience) return fail('Pick the experience band that fits you best.', $('ap-experience'));
+      if (!portfolio) return fail('A link to the work is the one thing we cannot read you without.', portfolioEl);
+      if (!isUrl(portfolio)) return fail('That portfolio link does not look like a URL we can open.', portfolioEl);
+      if (cv && !isUrl(cv)) return fail('That CV link does not look like a URL we can open.', cvEl);
+      if (message.length < 20)
+        return fail('Write us a couple of sentences — this is the part a person actually reads.', $('ap-message'));
+
+      /* Bot gates. Both fail silently-ish: a real person never sees either. */
+      const hp = form.querySelector<HTMLInputElement>('.ap-hp');
+      if (hp?.checked) return fail('Something went wrong with that submission.');
+      if (Date.now() - openedAt < 3000)
+        return fail('That was quick — give it a moment and press send again.');
+
+      if (!cfg.configured)
+        return fail(
+          `Applications are not connected yet — nothing would reach the studio. Email ${cfg.careersEmail} instead.`
+        );
+
+      submit.disabled = true;
+      submit.textContent = 'Sending…';
+
+      try {
+        const res = await fetch(`${cfg.supabaseUrl.replace(/\/$/, '')}/rest/v1/applications`, {
+          method: 'POST',
+          headers: {
+            apikey: cfg.supabaseKey,
+            Authorization: `Bearer ${cfg.supabaseKey}`,
+            'Content-Type': 'application/json',
+            /* Anon has no SELECT policy on applications, so asking PostgREST
+               to echo the row back would fail the request after a perfectly
+               good insert. Minimal returns nothing but the status. */
+            Prefer: 'return=minimal',
+          },
+          body: JSON.stringify({
+            kind: cfg.locked ? 'role' : mode,
+            role_slug: roleSlug,
+            role_title: roleTitle,
+            discipline,
+            desired_role: desiredRole,
+            name,
+            email,
+            phone: val('ap-phone') || null,
+            location: location_,
+            experience,
+            availability: val('ap-availability') || null,
+            portfolio_url: portfolio,
+            cv_url: cv || null,
+            message,
+            source_path: location.pathname,
+          }),
+        });
+
+        if (!res.ok) {
+          let detail = `HTTP ${res.status}`;
+          try {
+            const j = await res.json();
+            if (j?.message) detail = j.message;
+          } catch {
+            /* non-JSON error body — the status is all we have */
+          }
+          throw new Error(detail);
+        }
+
+        const safeName = name.replace(/[<>&]/g, '').split(' ')[0];
+        const what =
+          cfg.locked || mode === 'role'
+            ? `your application for <strong>${(roleTitle ?? '').replace(/[<>&]/g, '')}</strong>`
+            : `your open application for <strong>${(desiredRole ?? '').replace(/[<>&]/g, '')}</strong>`;
+
+        main.innerHTML = `<div class="ap-done">
+            <p class="ap-done-mark" aria-hidden="true">✓</p>
+            <h3>That's in, ${safeName}.</h3>
+            <p>We have ${what}, and the link to your work. Somebody who does the
+               job will watch it and write back within five working days —
+               including if the answer is no.</p>
+            <p class="ap-done-note">Nothing else to do. If you want to add something,
+               reply to the confirmation or write to
+               <a href="mailto:${cfg.careersEmail}">${cfg.careersEmail}</a>.</p>
+          </div>`;
+        main.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      } catch (err) {
+        fail(
+          err instanceof Error && err.message
+            ? `Could not send that — ${err.message}. Email ${cfg.careersEmail} instead.`
+            : `Could not reach the server. Email ${cfg.careersEmail} instead.`
+        );
+      } finally {
+        if (submit.isConnected) {
+          submit.disabled = false;
+          submit.textContent = cfg.locked ? 'Send application' : 'Send it';
+        }
+      }
+    });
+
+    /* Clearing the error the moment somebody starts fixing it, rather than
+       leaving a red line sitting under a field they have already corrected. */
+    form.addEventListener('input', (e) => {
+      const t = e.target as HTMLElement;
+      if (t.classList?.contains('is-invalid')) {
+        t.classList.remove('is-invalid');
+        t.removeAttribute('aria-invalid');
+        msg.textContent = '';
+        msg.className = 'ap-msg';
+      }
+    });
+
+    if (!cfg.locked) setMode('role');
+  }
+
+  document.addEventListener('astro:page-load', initApply);
+</script>
+
+<style>
+  .ap {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+  @media (min-width: 1000px) {
+    .ap {
+      grid-template-columns: 20rem minmax(0, 1fr);
+      gap: 2rem;
+    }
+  }
+
+  /* --- Left rail -------------------------------------------------------- */
+  .ap-side {
+    position: relative;
+  }
+  @media (min-width: 1000px) {
+    .ap-side {
+      position: sticky;
+      top: calc(var(--announce-h) + var(--header-h) + 2rem);
+    }
+  }
+
+  .ap-lead {
+    margin: 0 0 1.75rem;
+    font-size: 1rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+
+  .ap-promise {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0;
+    border-top: 1px solid var(--color-line);
+  }
+  .ap-promise li {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.85rem 0;
+    border-bottom: 1px solid var(--color-line);
+  }
+  .ap-promise-k {
+    font-family: var(--font-label);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.015em;
+    color: var(--color-accent);
+  }
+  .ap-promise-v {
+    font-size: 0.88rem;
+    line-height: 1.55;
+    color: var(--color-ink-muted);
+  }
+  .ap-promise a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .ap-promise a:hover {
+    color: var(--color-accent);
+  }
+
+  .ap-alt {
+    margin: 1.5rem 0 0;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--color-ink-faint);
+  }
+  .ap-alt a {
+    color: var(--color-accent);
+    text-decoration: none;
+    border-bottom: 1px solid currentColor;
+  }
+
+  /* --- Card ------------------------------------------------------------- */
+  .ap-main {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 0.9rem;
+    overflow: hidden;
+  }
+
+  /* --- Mode switch ------------------------------------------------------ */
+  .ap-modes {
+    display: grid;
+    grid-template-columns: 1fr;
+    border-bottom: 1px solid var(--color-line);
+  }
+  @media (min-width: 620px) {
+    .ap-modes {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  .ap-mode {
+    appearance: none;
+    display: grid;
+    gap: 0.25rem;
+    text-align: left;
+    padding: 1.1rem clamp(1.25rem, 2.5vw, 1.75rem);
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--color-line);
+    cursor: pointer;
+    /* The active mode is marked with a bar along the top edge rather than a
+       fill, so the switch does not read as two competing buttons. */
+    box-shadow: inset 0 3px 0 transparent;
+    transition:
+      background 0.18s ease,
+      box-shadow 0.18s ease;
+  }
+  @media (min-width: 620px) {
+    .ap-mode {
+      border-bottom: 0;
+    }
+    .ap-mode + .ap-mode {
+      border-left: 1px solid var(--color-line);
+    }
+  }
+  .ap-mode:hover {
+    background: var(--color-surface-2);
+  }
+  .ap-mode.is-on {
+    background: var(--color-surface-2);
+    box-shadow: inset 0 3px 0 var(--color-accent);
+  }
+  .ap-mode:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: -2px;
+  }
+  .ap-mode-t {
+    font-family: var(--font-label);
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--color-ink-muted);
+    transition: color 0.18s ease;
+  }
+  .ap-mode.is-on .ap-mode-t {
+    color: var(--color-ink);
+  }
+  .ap-mode-s {
+    font-size: 0.78rem;
+    color: var(--color-ink-faint);
+  }
+
+  /* --- Form ------------------------------------------------------------- */
+  .ap-form {
+    display: grid;
+    gap: 1.1rem;
+    padding: clamp(1.5rem, 3vw, 2.25rem);
+  }
+
+  .ap-block {
+    display: grid;
+    gap: 1.1rem;
+  }
+  .ap-block[hidden] {
+    display: none;
+  }
+
+  .ap-pair {
+    display: grid;
+    gap: 1.1rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 620px) {
+    .ap-pair {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  .ap-field {
+    display: grid;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
+  .ap-label {
+    font-family: var(--font-label);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--color-ink);
+  }
+  /* The asterisk is the accent colour and nothing else is, so "required"
+     reads at a glance without the word appearing eight times. */
+  .ap-label :global(em) {
+    font-style: normal;
+    color: var(--color-accent);
+  }
+
+  .ap-form input,
+  .ap-form select,
+  .ap-form textarea {
+    width: 100%;
+    padding: 0.75rem 0.9rem;
+    font-family: inherit;
+    font-size: 0.95rem;
+    color: var(--color-ink);
+    background: var(--color-ground);
+    border: 1px solid var(--color-line);
+    border-radius: 0.5rem;
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+  .ap-form textarea {
+    resize: vertical;
+    min-height: 7rem;
+    line-height: 1.6;
+  }
+  .ap-form input::placeholder,
+  .ap-form textarea::placeholder {
+    color: var(--color-ink-faint);
+  }
+  .ap-form input:focus,
+  .ap-form select:focus,
+  .ap-form textarea:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
+  }
+  .ap-form .is-invalid {
+    border-color: #e2626b;
+    box-shadow: 0 0 0 3px color-mix(in srgb, #e2626b 20%, transparent);
+  }
+
+  .ap-hint {
+    font-size: 0.8rem;
+    line-height: 1.55;
+    color: var(--color-ink-faint);
+  }
+  .ap-hint[hidden] {
+    display: none;
+  }
+
+  .ap-note {
+    margin: 0;
+    padding: 0.85rem 1rem;
+    border-left: 2px solid var(--color-accent);
+    background: var(--color-surface-2);
+    border-radius: 0 0.4rem 0.4rem 0;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--color-ink-muted);
+  }
+
+  /* --- Locked role banner ---------------------------------------------- */
+  .ap-locked {
+    display: grid;
+    gap: 0.2rem;
+    padding: 1rem 1.15rem;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-line);
+    border-left: 3px solid var(--color-accent);
+    border-radius: 0.5rem;
+  }
+  .ap-locked-k {
+    font-family: var(--font-label);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.015em;
+    color: var(--color-accent);
+  }
+  .ap-locked-v {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-stretch: 108%;
+    letter-spacing: -0.02em;
+    font-size: 1.15rem;
+    color: var(--color-ink);
+  }
+  .ap-locked-m {
+    font-size: 0.83rem;
+    color: var(--color-ink-faint);
+  }
+
+  /* --- Honeypot --------------------------------------------------------- */
+  .ap-hp {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+
+  /* --- Status and actions ---------------------------------------------- */
+  .ap-msg {
+    margin: 0;
+    font-size: 0.88rem;
+    line-height: 1.55;
+    color: var(--color-ink-muted);
+  }
+  .ap-msg:empty {
+    display: none;
+  }
+  .ap-msg.is-error {
+    padding: 0.75rem 0.9rem;
+    border-radius: 0.45rem;
+    background: color-mix(in srgb, #e2626b 12%, transparent);
+    border: 1px solid color-mix(in srgb, #e2626b 40%, transparent);
+    color: var(--color-ink);
+  }
+
+  .ap-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.85rem 1.25rem;
+    margin-top: 0.25rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--color-line);
+  }
+  .ap-submit {
+    appearance: none;
+    padding: 0.85rem 1.9rem;
+    font-family: var(--font-label);
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: var(--color-cta-ink);
+    background: var(--color-cta);
+    border: 0;
+    border-radius: 100px;
+    cursor: pointer;
+    transition:
+      background 0.18s ease,
+      transform 0.18s ease;
+  }
+  .ap-submit:hover:not(:disabled) {
+    background: var(--color-cta-hover);
+    transform: translateY(-1px);
+  }
+  .ap-submit:disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
+  .ap-consent {
+    flex: 1 1 18ch;
+    margin: 0;
+    font-size: 0.76rem;
+    line-height: 1.5;
+    color: var(--color-ink-faint);
+  }
+
+  .ap-warn {
+    margin: 0;
+    padding: 0.9rem 1rem;
+    border: 1px dashed var(--color-line-strong);
+    border-radius: 0.5rem;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    color: var(--color-ink-muted);
+  }
+  .ap-warn code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    color: var(--color-ink);
+  }
+
+  /* --- Sent ------------------------------------------------------------- */
+  .ap-main :global(.ap-done) {
+    padding: clamp(2rem, 5vw, 3.5rem);
+    text-align: center;
+  }
+  .ap-main :global(.ap-done-mark) {
+    display: grid;
+    place-items: center;
+    width: 3rem;
+    height: 3rem;
+    margin: 0 auto 1.25rem;
+    border-radius: 100px;
+    background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+    color: var(--color-accent);
+    font-size: 1.4rem;
+  }
+  .ap-main :global(.ap-done h3) {
+    margin: 0 0 0.9rem;
+    font-family: var(--font-display);
+    font-weight: 750;
+    font-stretch: 108%;
+    letter-spacing: -0.025em;
+    font-size: clamp(1.4rem, 3vw, 2rem);
+    color: var(--color-ink);
+  }
+  .ap-main :global(.ap-done p) {
+    margin: 0 auto;
+    max-width: 48ch;
+    font-size: 0.97rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+  .ap-main :global(.ap-done-note) {
+    margin-top: 1.25rem !important;
+    font-size: 0.85rem !important;
+    color: var(--color-ink-faint) !important;
+  }
+  .ap-main :global(.ap-done a) {
+    color: var(--color-accent);
+  }
+</style>

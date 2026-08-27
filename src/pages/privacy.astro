@@ -10,8 +10,9 @@ import { email, office, legalName } from '../config/contact';
  * Written against what this codebase actually does rather than from a
  * template, because a generic policy would be wrong in both directions: it
  * would claim cookie categories this site does not have, and it would miss
- * the two things it genuinely should disclose — that form submissions go to
- * Supabase, and that the webfont request reaches Google.
+ * the things it genuinely should disclose — that form submissions go to
+ * Supabase, that a job application is personal data held for twelve months,
+ * and that the webfont request reaches Google.
  *
  * KEEP THIS IN STEP WITH THE CODE. If you add analytics, a pixel, a chat
  * widget or a new form, this page is part of that change, not a follow-up.
@@ -19,6 +20,7 @@ import { email, office, legalName } from '../config/contact';
  *   - no analytics, no advertising, no third-party tracking of any kind
  *   - localStorage holds exactly two functional keys, both listed below
  *   - visitor-submitted data lives in Supabase (see supabase/schema.sql)
+ *   - three forms collect data: enquiry/booking, job application, comment
  *   - fonts are served by Google, which sees the visitor's IP
  *
  * NOT LEGAL ADVICE. This is an honest description of the site's behaviour
@@ -28,7 +30,7 @@ import { email, office, legalName } from '../config/contact';
 
 /* Kept as a constant so the "last updated" line cannot drift from reality by
    being hand-typed and then forgotten at the next edit. */
-const lastUpdated = new Date('2026-08-25');
+const lastUpdated = new Date('2026-08-27');
 const formatted = lastUpdated.toLocaleDateString('en-GB', {
   day: 'numeric',
   month: 'long',
@@ -69,8 +71,8 @@ const formatted = lastUpdated.toLocaleDateString('en-GB', {
 
         <h2>What you send us on purpose</h2>
         <p>
-          Two forms on this site collect information, and both only run when
-          you submit them.
+          Three forms on this site collect information, and each only runs when
+          you submit it.
         </p>
 
         <h3>Enquiries and call bookings</h3>
@@ -80,6 +82,29 @@ const formatted = lastUpdated.toLocaleDateString('en-GB', {
           message, and — for a booking — the slot you picked, its length, your
           timezone, and which page you sent it from. We use it to reply to you
           and to schedule the call. Nothing else.
+        </p>
+
+        <h3 id="applications">Job applications</h3>
+        <p>
+          The form on the <a href="/careers/">careers page</a> collects your
+          name, email address, the city you are in, your experience band, a link
+          to your portfolio or reel, and your message — plus, if you give them,
+          your phone number, a CV link, your availability, and which role or
+          area you are interested in. We use it to assess your application and
+          to reply to you. It is not used for anything else, and it is never
+          shared outside the studio.
+        </p>
+        <p>
+          <strong>We do not accept file uploads.</strong> The form asks for links
+          rather than attachments, so your CV stays on your own storage where you
+          control who can see it and can revoke our access at any time. If you
+          would rather send a file, email it and it lives in our inbox under the
+          same terms as everything else here.
+        </p>
+        <p>
+          Applications are held in the same database as enquiries, configured so
+          that the website can write a row and can never read one back. Nobody
+          outside the studio sees an application.
         </p>
 
         <h3>Blog comments</h3>
@@ -103,18 +128,18 @@ const formatted = lastUpdated.toLocaleDateString('en-GB', {
             rel="noopener">Supabase</a
           > project that we control. Access is restricted by row-level security
           policies: an anonymous visitor can submit a form and read approved
-          comments, and can do nothing else — enquiries cannot be read back by
-          anyone but us.
+          comments, and can do nothing else — enquiries and job applications
+          cannot be read back by anyone but us.
         </p>
         <p>These are the only third parties involved in running this site:</p>
         <ul>
           <li>
-            <strong>Supabase</strong> — the database that holds enquiries and
-            comments.
+            <strong>Supabase</strong> — the database that holds enquiries,
+            job applications and comments.
           </li>
           <li>
             <strong>Resend</strong> — if enabled, forwards a copy of a new
-            enquiry or comment to our inbox so we notice it.
+            enquiry, application or comment to our inbox so we notice it.
           </li>
           <li>
             <strong>Hostinger</strong> — hosts the site. Like any web server it
@@ -160,6 +185,13 @@ const formatted = lastUpdated.toLocaleDateString('en-GB', {
           as we may need the commercial record afterwards. Comments stay for as
           long as the article is published. Ask us to delete either and we
           will.
+        </p>
+        <p>
+          Job applications are kept for <strong>twelve months</strong> from the
+          day you send them, so that we can come back to you when a seat opens
+          that fits — which is the whole point of an open application. After
+          that they are deleted. Ask us to delete yours sooner and we will do it
+          on the day you ask, whatever stage the process is at.
         </p>
 
         <h2>Your rights</h2>
