@@ -6,36 +6,95 @@
  * motion. That is an accessibility requirement, not a nicety — smooth-scroll
  * sites genuinely make some people motion sick.
  */
-import Lenis from 'lenis';
-import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import type LenisType from 'lenis';
+import type { gsap as GsapType } from 'gsap';
 
-gsap.registerPlugin(ScrollTrigger);
+/**
+ * GSAP, ScrollTrigger and Lenis are ~130KB of JavaScript, and a visitor who
+ * has asked their OS for reduced motion runs none of it. They used to
+ * download all of it anyway, because a static `import` is fetched and parsed
+ * before the first line of this module executes — the reduced-motion check
+ * happened far too late to save anybody anything.
+ *
+ * Importing them dynamically moves the check in front of the download. It
+ * also gets the animation layer out of the critical path for everybody else:
+ * the chunk is now requested after the page is interactive rather than as
+ * part of the initial module graph.
+ *
+ * The cost is that everything below has to cope with `gsap` being null until
+ * the import lands, which is why the reveal fallback exists.
+ */
+type Gsap = typeof GsapType;
+type ScrollTriggerType = typeof import('gsap/ScrollTrigger')['ScrollTrigger'];
 
-let lenis: Lenis | null = null;
+let gsap: Gsap | null = null;
+let ScrollTrigger: ScrollTriggerType | null = null;
+let lenis: LenisType | null = null;
+
+/**
+ * Set by teardownMotion, cleared by initMotion. A view transition can swap the
+ * document while the dynamic import is still in flight; without this the
+ * resolved import would wire a Lenis instance and a RAF ticker to a page that
+ * no longer exists.
+ */
+let stale = false;
 
 export const prefersReducedMotion = () =>
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+async function loadEngine() {
+  if (gsap && ScrollTrigger) return;
+  const [gsapMod, stMod] = await Promise.all([import('gsap'), import('gsap/ScrollTrigger')]);
+  gsap = gsapMod.gsap;
+  ScrollTrigger = stMod.ScrollTrigger;
+  gsap.registerPlugin(ScrollTrigger);
+}
+
 export function initMotion() {
   // Re-running on every view transition would stack RAF loops.
   teardownMotion();
+  stale = false;
 
   if (prefersReducedMotion()) {
-    // Reveal everything immediately and skip the whole animation layer.
-    gsap.set('[data-reveal]', { opacity: 1, y: 0, clearProps: 'all' });
+    // Reveal everything immediately and skip the whole animation layer —
+    // without loading it. Plain DOM, because gsap is not here and must not be
+    // fetched just to set two properties.
+    revealAllImmediately();
+    initAnchors();
     return;
   }
 
-  lenis = new Lenis({ lerp: 0.08, wheelMultiplier: 1 });
-  lenis.on('scroll', ScrollTrigger.update);
+  void (async () => {
+    await loadEngine();
+    const { default: Lenis } = await import('lenis');
 
-  gsap.ticker.add((time) => lenis?.raf(time * 1000));
-  gsap.ticker.lagSmoothing(0);
+    // A view transition may have fired teardown while we were importing. If
+    // it did, this init is stale and must not start a RAF loop nobody owns.
+    if (stale) return;
 
-  initReveals();
-  initAnchors();
-  ScrollTrigger.refresh();
+    lenis = new Lenis({ lerp: 0.08, wheelMultiplier: 1 });
+    lenis.on('scroll', ScrollTrigger!.update);
+
+    gsap!.ticker.add((time) => lenis?.raf(time * 1000));
+    gsap!.ticker.lagSmoothing(0);
+
+    initReveals();
+    initAnchors();
+    ScrollTrigger!.refresh();
+  })();
+}
+
+/**
+ * `[data-reveal]` elements are visible by default in CSS — GSAP animates them
+ * *from* transparent rather than *to* opaque. So for reduced motion there is
+ * nothing to undo; this only clears anything a previous non-reduced init left
+ * behind, which can happen when the OS setting changes mid-session.
+ */
+function revealAllImmediately() {
+  document.querySelectorAll<HTMLElement>('[data-reveal]').forEach((el) => {
+    el.style.opacity = '';
+    el.style.transform = '';
+  });
 }
 
 /**
@@ -88,10 +147,12 @@ function initAnchors() {
  * page that fits the viewport, because no scroll ever happens to fire it.
  */
 function initReveals() {
+  if (!gsap) return;
+  const g = gsap;
   const vh = window.innerHeight;
 
-  gsap.utils.toArray<HTMLElement>('[data-reveal]').forEach((el) => {
-    const vars: gsap.TweenVars = {
+  g.utils.toArray<HTMLElement>('[data-reveal]').forEach((el) => {
+    const vars: GSAPTweenVars = {
       opacity: 0,
       y: 24,
       duration: 0.9,
@@ -100,9 +161,9 @@ function initReveals() {
     };
 
     if (el.getBoundingClientRect().top < vh) {
-      gsap.from(el, vars);
+      g.from(el, vars);
     } else {
-      gsap.from(el, {
+      g.from(el, {
         ...vars,
         scrollTrigger: {
           trigger: el,
@@ -136,9 +197,12 @@ export function unlockScroll() {
 }
 
 export function teardownMotion() {
-  ScrollTrigger.getAll().forEach((t) => t.kill());
+  // Any init still waiting on its import must abandon itself when it lands.
+  stale = true;
+
+  // Null before the engine has ever loaded — on a reduced-motion visit it
+  // never loads at all, and teardown still runs on every navigation.
+  ScrollTrigger?.getAll().forEach((t) => t.kill());
   lenis?.destroy();
   lenis = null;
 }
-
-export { lenis, gsap, ScrollTrigger };

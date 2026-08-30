@@ -1,4 +1,280 @@
-@import "tailwindcss";
+/* ---------------------------------------------------------------
+   Fonts, self-hosted.
+
+   These used to come from a Google Fonts <link> in Base.astro, which cost
+   a DNS lookup, a TLS handshake and a render-blocking stylesheet to a
+   third party before a single glyph could paint — and handed every
+   visitor's IP address to Google, which the privacy policy had to
+   disclose. Serving them from our own origin removes all four.
+
+   All three families are VARIABLE fonts, so one file covers the whole
+   weight range rather than one file per weight. That is why the ranges
+   below are ranges: the browser interpolates, and asking for weight 750
+   gets you weight 750 rather than the nearest of 400/700.
+
+   Only latin and latin-ext are shipped. The site is in English; Google's
+   cyrillic, greek and vietnamese subsets were being offered to every
+   visitor and downloaded by none of them. `unicode-range` means a browser
+   fetches latin-ext only if the page actually contains a character in it.
+
+   TO UPDATE A FAMILY: fetch the woff2 from Google's css2 endpoint with a
+   modern browser User-Agent (an old one gets you .ttf), drop the file in
+   public/fonts/, and change the src below. Do not re-add the <link>.
+   --------------------------------------------------------------- */
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 200 800;
+  font-stretch: 75% 100%;
+  font-display: swap;
+  src: url('/fonts/bricolage-grotesque-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 200 800;
+  font-stretch: 75% 100%;
+  font-display: swap;
+  src: url('/fonts/bricolage-grotesque-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/instrument-sans-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/instrument-sans-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* ---------------------------------------------------------------
+   Reset.
+
+   This used to be `@import "tailwindcss"`, which pulled in a whole
+   framework so that one page (404) could use a dozen utility classes and
+   every other page could use its preflight. Two things made that a bad
+   trade:
+
+   1. Tailwind generates a utility for any word in a scanned file that
+      looks like a class name — including words inside our own CSS. It was
+      emitting `.grid`, `.block`, `.filter`, `.sticky` and `.hidden` as
+      real rules, unscoped, which then landed on our own elements that
+      happened to share those names. `.filter` on the careers chips and
+      `.block` on the role page were both being silently restyled by a
+      framework nobody meant to be using there.
+   2. Astro scopes our component styles with a [data-astro-cid] attribute.
+      Tailwind's output is not scoped, so those collisions were invisible
+      in the source and only existed in the built CSS.
+
+   What follows reproduces the parts of Tailwind's preflight the site
+   actually depends on, and nothing else. It is deliberately close to the
+   original: the whole codebase is written on the assumption that margins,
+   padding and heading sizes start at zero, and that form controls inherit
+   their font. Changing that here would move every page at once.
+   --------------------------------------------------------------- */
+*,
+*::before,
+*::after,
+::backdrop {
+  box-sizing: border-box;
+  border: 0 solid;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  tab-size: 4;
+  line-height: 1.5;
+}
+
+/* Headings are sized by the component that owns them, never by the
+   browser. Every h1-h6 on this site sets its own type. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+/* Links carry the colour of whatever they sit in unless told otherwise.
+   Roughly half the anchors on the site rely on this. */
+a {
+  color: inherit;
+  text-decoration: inherit;
+}
+
+b,
+strong {
+  font-weight: bolder;
+}
+
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--font-mono);
+  font-size: 1em;
+}
+
+small {
+  font-size: 80%;
+}
+
+sub,
+sup {
+  position: relative;
+  font-size: 75%;
+  line-height: 0;
+  vertical-align: baseline;
+}
+sub {
+  bottom: -0.25em;
+}
+sup {
+  top: -0.5em;
+}
+
+abbr:where([title]) {
+  text-decoration: underline dotted;
+}
+
+/* Bullets and numbers are opt-in. `.prose` turns them back on for article
+   bodies further down — everywhere else a list is a layout device. */
+ol,
+ul,
+menu {
+  list-style: none;
+}
+
+/* Media behaves like a block and never overflows its column. */
+img,
+svg,
+video,
+canvas,
+audio,
+iframe,
+embed,
+object {
+  display: block;
+  vertical-align: middle;
+}
+img,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+table {
+  text-indent: 0;
+  border-color: inherit;
+  border-collapse: collapse;
+}
+
+/* Form controls inherit type instead of falling back to the OS widget
+   font. Every form on the site is styled on this assumption. */
+button,
+input,
+select,
+optgroup,
+textarea,
+::file-selector-button {
+  font: inherit;
+  font-feature-settings: inherit;
+  font-variation-settings: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  opacity: 1;
+  background-color: transparent;
+  border-radius: 0;
+}
+button,
+input:where([type='button'], [type='reset'], [type='submit']),
+::file-selector-button {
+  appearance: button;
+}
+textarea {
+  resize: vertical;
+}
+::placeholder {
+  opacity: 1;
+  color: currentColor;
+}
+::-webkit-search-decoration {
+  -webkit-appearance: none;
+}
+::-webkit-inner-spin-button,
+::-webkit-outer-spin-button {
+  height: auto;
+}
+:-moz-focusring {
+  outline: auto;
+}
+:-moz-ui-invalid {
+  box-shadow: none;
+}
+:where(select:is([multiple], [size])) optgroup {
+  font-weight: bolder;
+}
+progress {
+  vertical-align: baseline;
+}
+
+hr {
+  height: 0;
+  color: inherit;
+  border-top-width: 1px;
+}
+
+summary {
+  display: list-item;
+}
+
+/* `hidden` has to beat a component's own `display`, or a JS filter that
+   sets el.hidden silently does nothing. */
+[hidden]:where(:not([hidden='until-found'])) {
+  display: none !important;
+}
 
 /* ---------------------------------------------------------------
    Design tokens.
@@ -115,7 +391,11 @@ body {
     color 0.3s ease;
 }
 
-@theme {
+/* Type tokens. These were a Tailwind `@theme` block, which is just a
+   sugared `:root` — the utilities it generated (font-display, font-mono)
+   were only ever used by the 404 page, which now styles itself like every
+   other page on the site. */
+:root {
   /* Display: Bricolage Grotesque. A variable grotesque with real character —
      odd, slightly awkward terminals and a genuine width axis — chosen over
      the neutral geometric sans that every template ships with. Its axes
@@ -464,9 +744,19 @@ section[id] {
 }
 
 /* --- Lists ---------------------------------------------------------- */
+/* Article bodies are the one place a list is prose rather than layout, so
+   the markers come back on.
+
+   `.prose ul` had no `list-style` of its own and was inheriting the global
+   `none` from the reset, so bulleted lists in blog posts and case studies
+   rendered with no bullets at all — while `.prose li::marker` sat below
+   colouring a marker that was never drawn. Stated explicitly now. */
 .prose ul,
 .prose ol {
   padding-left: 1.35rem;
+}
+.prose ul {
+  list-style: disc;
 }
 .prose li + li {
   margin-top: 0.55em;

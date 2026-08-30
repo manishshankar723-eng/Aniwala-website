@@ -30,8 +30,60 @@ ErrorDocument 404 /404.html
     Header set Cache-Control "public, max-age=0, must-revalidate"
   </FilesMatch>
 
+  # --- Security headers ------------------------------------------
   Header set X-Content-Type-Options "nosniff"
   Header set Referrer-Policy "strict-origin-when-cross-origin"
+
+  # Tells browsers to reach this host over HTTPS for the next two years,
+  # so the http:// redirect above is never used a second time — and a
+  # first-request downgrade attack has nothing to work with.
+  #
+  # NOTE: `preload` is deliberately ABSENT. Adding it and submitting to
+  # hstspreload.org is effectively irreversible for months and would take
+  # every subdomain with it. Add it only once you are certain nothing on
+  # aniwala.com will ever need plain HTTP.
+  Header always set Strict-Transport-Security "max-age=63072000; includeSubDomains"
+
+  # Nothing on this site is meant to be framed. Blocks clickjacking, in
+  # both the modern (CSP) and legacy (XFO) spelling.
+  Header always set X-Frame-Options "DENY"
+
+  # No page here uses a camera, a microphone, a location or a payment API.
+  # Saying so removes them from any embedded context too.
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+
+  # Content Security Policy.
+  #
+  # The site is static files plus one API: Supabase, which every form posts
+  # to directly from the browser. That is the whole network surface, and
+  # `connect-src` names it explicitly — so even if something managed to
+  # inject a script, it could not exfiltrate a form to anywhere else.
+  #
+  # 'unsafe-inline' on script-src is load bearing and cannot currently be
+  # removed: Astro emits inline <script> for the pre-paint theme switch
+  # (which must be inline, or the page flashes dark before correcting) and
+  # for every `define:vars` block. Hashes would change on every build and
+  # nonces need a server, which shared static hosting does not give us.
+  # It still blocks the thing that matters most on a static site — loading
+  # an attacker-controlled script from another origin.
+  #
+  # style-src needs it too: components set CSS custom properties through
+  # inline style attributes (--tint on the job and service rows).
+  #
+  # Fonts are self-hosted, so there is no font CDN in here. If you ever
+  # re-add a third-party origin — an embed, a font host, an analytics
+  # script — it has to be named here or the browser will silently drop it.
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://*.supabase.co; media-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests"
+</IfModule>
+
+# --- Fonts need CORS to be preloaded -----------------------------
+# A <link rel="preload" as="font"> is fetched in anonymous CORS mode even
+# from the same origin. Without an ACAO header the browser downloads the
+# file, throws the response away and downloads it a second time.
+<IfModule mod_headers.c>
+  <FilesMatch "\.(woff2?|ttf|otf)$">
+    Header set Access-Control-Allow-Origin "*"
+  </FilesMatch>
 </IfModule>
 
 # --- Compression -------------------------------------------------

@@ -3,6 +3,8 @@ name: Deploy to Hostinger
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch: # lets you re-deploy by hand from the Actions tab
 
 concurrency:
@@ -10,18 +12,64 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
+  # ------------------------------------------------------------------
+  # Gate. Runs on pull requests too, so a broken build is caught before
+  # it can reach main — where the deploy job below would push it straight
+  # into public_html with nothing in between.
+  # ------------------------------------------------------------------
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Must satisfy the `engines` field in package.json. This said 20
+          # while package.json asked for >=22.12.0, so CI was building on a
+          # runtime the project does not claim to support.
+          node-version: 22
           cache: npm
 
       - run: npm ci
-      - run: npm run build # outputs ./dist
+
+      # Type and template errors that `astro build` happily ignores: a bad
+      # prop type, a missing import, a component called with the wrong shape.
+      # This is the check that makes the build gate worth having.
+      - name: Type check
+        run: npm run check
+
+      - name: Build
+        run: npm run build # outputs ./dist
+
+      # Every one of these has been a real bug on this site. The announcement
+      # bar pointed at a page that did not exist for weeks, and og:image
+      # pointed at a missing file on all 64 pages, because a static build
+      # cheerfully emits both.
+      - name: Check for broken internal links and missing assets
+        run: node scripts/check-links.mjs
+
+      - name: Keep the build for the deploy job
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 1
+
+  # ------------------------------------------------------------------
+  # Deploy. Only from main, and only if verify passed.
+  # ------------------------------------------------------------------
+  deploy:
+    needs: verify
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch the verified build
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
 
       - name: Upload to public_html
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5

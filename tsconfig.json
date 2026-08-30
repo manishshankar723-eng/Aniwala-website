@@ -1,5 +1,12 @@
 {
   "extends": "astro/tsconfigs/strict",
   "include": [".astro/types.d.ts", "**/*"],
-  "exclude": ["dist"]
+  "exclude": [
+    "dist",
+    // Deno, not Node — `Deno.serve`, `Deno.env` and the URL imports are all
+    // provided by the Supabase Edge runtime and are invisible to tsc. These
+    // are type-checked by `deno check` / the Supabase CLI at deploy time, not
+    // by `astro check`, which only knows about the website.
+    "supabase/functions"
+  ]
 }

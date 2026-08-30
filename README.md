@@ -1,6 +1,6 @@
 # Aniwala
 
-Animation studio site. Astro (static) + Tailwind + GSAP/Lenis, deployed to
+Animation studio site. Astro (static) + GSAP/Lenis, deployed to
 Hostinger shared hosting over FTP by GitHub Actions.
 
 ## Running the site locally
@@ -61,15 +61,63 @@ src/
 ├── content.config.ts    Frontmatter schemas for both collections
 ├── layouts/Base.astro   Shell: SEO meta, fonts, view transitions, motion boot
 ├── lib/
-│   ├── motion.ts        Lenis + GSAP/ScrollTrigger, reduced-motion guarded
+│   ├── motion.ts        Lenis + GSAP/ScrollTrigger, lazily imported
 │   ├── posts.ts         Post fetching, draft rule, dates, reading time
-│   └── caseStudies.ts   Case study fetching, ordering, service cross-links
+│   ├── caseStudies.ts   Case study fetching, ordering, service cross-links
+│   └── searchDocs.ts    Builds the search index, served as /search.json
 ├── pages/               Every file here becomes a route
-└── styles/global.css    ALL design tokens — colour and type change here only
+└── styles/global.css    Reset, @font-face, and ALL design tokens
+scripts/
+├── check-links.mjs      Fails CI on a broken internal link or missing asset
+├── generate-icons.mjs   Favicon/apple-touch/PWA PNGs from the mark
+└── generate-og-image.mjs  The social card. Run by hand, output committed
 public/
-├── .htaccess            HTTPS, canonical host, cache headers, 404
+├── .htaccess            HTTPS, canonical host, caching, security headers
+├── fonts/               Self-hosted woff2 — no third-party font request
+├── og-default.jpg       Social card (generated)
+├── site.webmanifest     PWA manifest
 └── robots.txt
 ```
+
+## Checks
+
+```bash
+npm run verify      # astro check + build + link check. What CI runs.
+npm run check       # types and templates only
+npm run check:links # needs an existing dist/
+```
+
+`scripts/check-links.mjs` crawls `dist/` and fails on any internal `href`,
+`src` or `content` URL that does not resolve to a file. It exists because a
+static build will happily emit a link to a page nobody wrote: the announcement
+bar pointed at a non-existent `/ai-animation/` on all 64 pages, and `og:image`
+pointed at a missing file on all 64, and both survived a clean build.
+
+## Styling
+
+There is no CSS framework. `src/styles/global.css` carries a hand-written
+reset, the `@font-face` block and every design token; components use Astro's
+scoped `<style>`.
+
+Tailwind was removed: it was serving one page (404) and generating unscoped
+utilities from words it found inside our own CSS — `.grid`, `.block`,
+`.filter`, `.sticky` and `.hidden` were all real rules in the built stylesheet,
+silently landing on our own elements that happened to share those names.
+
+**Never hardcode a colour.** Every one resolves through a token in
+`global.css`, and a raw hex will break in one of the two themes.
+
+## Fonts
+
+Self-hosted from `public/fonts/`, declared at the top of `global.css`. All
+three families are variable, so one file covers the whole weight range, and
+only `latin` + `latin-ext` are shipped.
+
+To update one: fetch the woff2 from Google's `css2` endpoint **with a modern
+browser User-Agent** (an old one gets you `.ttf`), drop it in `public/fonts/`,
+and change the `src`. Do not re-add the stylesheet `<link>` — it cost a DNS
+lookup, a TLS handshake and a render-blocking request to a third party, and it
+put the visitor's IP in front of Google on every page load.
 
 ### Adding or renaming a service
 

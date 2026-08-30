@@ -210,6 +210,7 @@ const initials = bookingHost.name
 </section>
 
 <script
+  is:inline
   define:vars={{
     cfg: {
       configured,
@@ -236,8 +237,12 @@ const initials = bookingHost.name
 
 <script>
   function initBooking() {
-    const root = document.getElementById('bk');
-    if (!root) return;
+    const found = document.getElementById('bk');
+    if (!found) return;
+    /* Bound to its own const because the hoisted `function` declarations
+       further down defeat TypeScript's narrowing of `found` — it cannot prove
+       a hoisted function is not called before the guard above ran. */
+    const root: HTMLElement = found;
     const cfg = (window as any).__aniwalaBooking;
 
     const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;

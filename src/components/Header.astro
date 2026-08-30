@@ -22,8 +22,9 @@ const isCurrent = (href?: string) =>
   class:list={['site-header', overlay ? 'is-transparent' : 'is-solid']}
 >
   <div class="header-inner">
-    <!-- Brand. Swap the mark for the real logo file when you have it:
-         <img src="/logo.svg" alt="" class="brand-icon" /> -->
+    {/* Brand. The mark is inline SVG so it inherits currentColor and flips
+        with the theme; a real logo file would need two of them. Replace the
+        <path>s below rather than swapping in an <img>. */}
     <a href="/" class="brand" aria-label="Aniwala Studios — home">
       <svg class="brand-icon" viewBox="0 0 40 40" fill="none" aria-hidden="true">
         <path d="M20 5L30.5 32H25.2L20 17.4L14.8 32H9.5L20 5Z" fill="currentColor"></path>
@@ -190,7 +191,22 @@ const isCurrent = (href?: string) =>
         item.children ? (
           <details class="mobile-details">
             <summary class="mobile-summary">
-              {item.label}
+              {/*
+                The label is the link to the parent page and the rest of the
+                row is the toggle. This used to be plain text with an "All X"
+                row inside the sublist instead, which read as a second, oddly
+                named page rather than as the section it belongs to.
+
+                A tap on the anchor stops propagating (see initHeader), so it
+                navigates without also opening the accordion under it.
+              */}
+              {item.href ? (
+                <a href={item.href} class="mobile-summary-link">
+                  {item.label}
+                </a>
+              ) : (
+                <span>{item.label}</span>
+              )}
               <svg class="nav-caret" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                 <path
                   d="M3 4.5L6 7.5L9 4.5"
@@ -202,15 +218,6 @@ const isCurrent = (href?: string) =>
               </svg>
             </summary>
             <ul class="mobile-sublist">
-              {/* A <summary> that contained a link would navigate and toggle
-                  on the same tap, so the parent page gets its own row. */}
-              {item.href && (
-                <li>
-                  <a href={item.href} class="mobile-sublink mobile-sublink--all">
-                    All {item.label}
-                  </a>
-                </li>
-              )}
               {item.children.map((child) => (
                 <li>
                   <a href={child.href} class="mobile-sublink">
@@ -743,9 +750,14 @@ const isCurrent = (href?: string) =>
   .mobile-sublink:hover {
     color: var(--color-accent);
   }
-  .mobile-sublink--all {
-    color: var(--color-ink);
-    font-weight: 500;
+  /* The parent link sits in the summary row itself. Inherits the summary's
+     type; only the underline offset needs saying. */
+  .mobile-summary-link {
+    color: inherit;
+    text-decoration: none;
+  }
+  .mobile-summary-link:hover {
+    color: var(--color-accent);
   }
 </style>
 
@@ -753,6 +765,13 @@ const isCurrent = (href?: string) =>
   import { lockScroll, unlockScroll } from '../lib/motion';
 
   function initHeader() {
+    /* Without this, tapping the parent link inside a <summary> bubbles to the
+       summary and toggles the accordion on the way out — the drawer animates
+       open behind a page that is already navigating away. */
+    document
+      .querySelectorAll<HTMLAnchorElement>('.mobile-summary-link')
+      .forEach((a) => a.addEventListener('click', (e) => e.stopPropagation()));
+
     const header = document.getElementById('site-header');
     const toggle = document.getElementById('menu-toggle');
     const menu = document.getElementById('mobile-menu');

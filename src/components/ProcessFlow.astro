@@ -1,0 +1,424 @@
+---
+import type { PipelineStep } from '../config/services';
+
+/**
+ * The end-to-end route a job takes, drawn as a path rather than listed.
+ *
+ * The service pages already carried this content as a plain numbered list.
+ * A list is honest but it reads as a spec; the thing a client is actually
+ * asking — "what happens between me sending the brief and me getting the
+ * file?" — is a question about a *route*, and a route is easier to believe
+ * when you can see it join up.
+ *
+ * The connector is generated from the real laid-out positions of the step
+ * cards (see the script), not hardcoded, so it stays correct at any step
+ * count and any viewport width. If the script never runs, CSS draws a plain
+ * vertical rule down the same axis and every step is still readable — the
+ * curve is decoration on top of a list that works without it.
+ */
+interface Props {
+  steps: PipelineStep[];
+  eyebrow?: string;
+  title?: string;
+  /** Sentence under the title. Optional — most pages do not need one. */
+  lead?: string;
+  /** HSL triple, matching the owning page's tint. */
+  tint?: string;
+}
+
+const {
+  steps,
+  eyebrow = 'The process',
+  title = 'End-to-end, start to delivery',
+  lead,
+  tint = '210 70% 22%',
+} = Astro.props;
+---
+
+{
+  steps.length > 0 && (
+    <section class="section section--bordered" id="pipeline" style={`--tint:${tint}`}>
+      <div class="section-head" data-reveal>
+        <p class="section-eyebrow">{eyebrow}</p>
+        <h2 class="section-title">{title}</h2>
+      </div>
+
+      {lead && (
+        <p class="flow-lead" data-reveal>
+          {lead}
+        </p>
+      )}
+
+      <div class="flow" id="flow">
+        {/*
+          aria-hidden: the path is the same information the ordered list
+          already carries, drawn again. A screen reader should get the list
+          once, not a description of a decorative squiggle.
+        */}
+        <svg class="flow-line" aria-hidden="true" preserveAspectRatio="none">
+          <path class="flow-path" />
+          <path class="flow-path flow-path--ghost" />
+        </svg>
+
+        <ol class="flow-steps">
+          {steps.map((step, i) => (
+            <li class="flow-step" data-reveal>
+              <div class="flow-node" aria-hidden="true">
+                <span class="flow-dot" />
+              </div>
+              <div class="flow-card">
+                <p class="flow-n">Step {String(i + 1).padStart(2, '0')}</p>
+                <h3 class="flow-title">{step.title}</h3>
+                <p class="flow-body">{step.body}</p>
+                {step.tools && <p class="flow-tools">{step.tools}</p>}
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  )
+}
+
+<script>
+  /**
+   * Draws the connector through the middle of every step node.
+   *
+   * Measured rather than authored, because the alternating layout means the
+   * x of each node flips per row and the y depends on how tall the copy
+   * wraps — neither of which is knowable at build time, and both of which
+   * change on resize and on a font swap.
+   *
+   * The path is a series of cubic curves with vertical control handles, which
+   * gives the S-bend between columns without any trigonometry: leaving a node
+   * downward and arriving at the next one downward is exactly what a vertical
+   * handle describes.
+   */
+  function initFlow() {
+    const flow = document.getElementById('flow');
+    if (!flow) return;
+
+    const svg = flow.querySelector<SVGSVGElement>('.flow-line');
+    const paths = flow.querySelectorAll<SVGPathElement>('.flow-path');
+    const nodes = [...flow.querySelectorAll<HTMLElement>('.flow-node')];
+    if (!svg || !paths.length || nodes.length < 2) return;
+
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    /* Tracked here rather than as a class on the element, because a view
+       transition re-runs this whole function against fresh DOM. */
+    let drawn = false;
+
+    const draw = () => {
+      const box = flow.getBoundingClientRect();
+      svg.setAttribute('viewBox', `0 0 ${box.width} ${box.height}`);
+      svg.setAttribute('width', String(box.width));
+      svg.setAttribute('height', String(box.height));
+
+      const pts = nodes.map((n) => {
+        const r = n.getBoundingClientRect();
+        return {
+          x: r.left - box.left + r.width / 2,
+          y: r.top - box.top + r.height / 2,
+        };
+      });
+
+      let d = `M ${pts[0].x} ${pts[0].y}`;
+      for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1];
+        const b = pts[i];
+        // Handle length is proportional to the vertical gap, so tall rows
+        // bend gently and short ones do not overshoot into a loop.
+        const h = Math.max(28, (b.y - a.y) * 0.55);
+        d += ` C ${a.x} ${a.y + h}, ${b.x} ${b.y - h}, ${b.x} ${b.y}`;
+      }
+
+      paths.forEach((p) => p.setAttribute('d', d));
+
+      const solid = paths[0];
+      const len = solid.getTotalLength();
+      solid.style.strokeDasharray = String(len);
+      // Hidden until it is asked to draw; already drawn stays drawn, so a
+      // resize after the fact does not replay the animation.
+      solid.style.strokeDashoffset = drawn ? '0' : String(len);
+      return len;
+    };
+
+    let len = draw();
+
+    /**
+     * Runs the draw.
+     *
+     * Web Animations rather than a CSS transition between two inline styles.
+     * The transition version worked at some widths and snapped instantly at
+     * others: setting the start offset and then the end offset can land in
+     * the same style recalculation, and a transition with no previous
+     * computed value to interpolate from simply does not run. An explicit
+     * animation cannot be collapsed that way.
+     */
+    const play = () => {
+      if (drawn) return;
+      drawn = true;
+      const solid = paths[0];
+
+      if (reduced) {
+        solid.style.strokeDashoffset = '0';
+        return;
+      }
+
+      solid.animate(
+        [{ strokeDashoffset: String(len) }, { strokeDashoffset: '0' }],
+        { duration: 1600, easing: 'cubic-bezier(0.65, 0, 0.35, 1)', fill: 'forwards' }
+      );
+      solid.style.strokeDashoffset = '0';
+    };
+
+    if (reduced) {
+      play();
+    } else {
+      /* Drawn on approach rather than on scroll-scrub: a scrubbed line that
+         runs backwards when you scroll up is a toy, and this is a diagram. */
+      const io = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((e) => {
+            if (!e.isIntersecting) return;
+            play();
+            io.disconnect();
+          });
+        },
+        { rootMargin: '0px 0px -20% 0px' }
+      );
+      io.observe(flow);
+    }
+
+    /* Rows reflow when the viewport changes or a webfont lands, and a
+       connector pointing at where a node used to be is worse than none. */
+    const ro = new ResizeObserver(() => {
+      len = draw();
+    });
+    ro.observe(flow);
+    document.fonts?.ready.then(() => {
+      len = draw();
+    });
+  }
+
+  document.addEventListener('astro:page-load', initFlow);
+</script>
+
+<style>
+  .flow-lead {
+    margin: -1rem 0 clamp(2rem, 4vw, 3rem);
+    max-width: 58ch;
+    font-size: 1rem;
+    line-height: 1.7;
+    color: var(--color-ink-muted);
+  }
+
+  .flow {
+    position: relative;
+    max-width: 68rem;
+    margin-inline: auto;
+  }
+
+  /* --- The connector ---------------------------------------------------- */
+  .flow-line {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: visible;
+    /* Behind the cards, in front of the section background. */
+    z-index: 0;
+  }
+  .flow-path {
+    fill: none;
+    stroke: var(--color-accent);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+  }
+  /* A faint full-length copy underneath, so the route reads as a whole
+     before the solid one has finished travelling it. */
+  .flow-path--ghost {
+    stroke: var(--color-line-strong);
+    stroke-width: 1;
+    stroke-dasharray: 2 7;
+    opacity: 0.85;
+  }
+
+  /* --- Steps ------------------------------------------------------------ */
+  .flow-steps {
+    position: relative;
+    z-index: 1;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: clamp(1.5rem, 4vw, 3.5rem);
+  }
+
+  .flow-step {
+    display: grid;
+    grid-template-columns: 2.5rem minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+  }
+
+  /* --- Node ------------------------------------------------------------- */
+  .flow-node {
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 100px;
+    background: var(--color-ground);
+    border: 1px solid var(--color-line-strong);
+    transition:
+      border-color 0.3s ease,
+      transform 0.3s ease;
+  }
+  .flow-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 100px;
+    background: var(--color-line-strong);
+    transition: background 0.3s ease;
+  }
+  .flow-step:hover .flow-node {
+    border-color: var(--color-accent);
+    transform: scale(1.08);
+  }
+  .flow-step:hover .flow-dot {
+    background: var(--color-accent);
+  }
+
+  /* --- Card ------------------------------------------------------------- */
+  .flow-card {
+    min-width: 0;
+    padding-bottom: 0.25rem;
+  }
+  .flow-n {
+    margin: 0 0 0.4rem;
+    font-family: var(--font-label);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+  }
+  .flow-title {
+    margin: 0 0 0.6rem;
+    font-family: var(--font-display);
+    font-weight: 750;
+    font-stretch: 108%;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+    font-size: clamp(1.15rem, 2.4vw, 1.6rem);
+    color: var(--color-ink);
+  }
+  .flow-body {
+    margin: 0;
+    max-width: 46ch;
+    font-size: 0.95rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+  .flow-tools {
+    margin: 0.85rem 0 0;
+    padding-top: 0.7rem;
+    border-top: 1px solid var(--color-line);
+    max-width: 46ch;
+    font-family: var(--font-label);
+    font-size: 0.76rem;
+    letter-spacing: 0.01em;
+    color: var(--color-ink-faint);
+  }
+
+  /* ---------------------------------------------------------------------
+     Wide: alternate the cards either side of a centre axis. This is the
+     layout the connector is really for — a single column does not need a
+     drawn line to explain that one thing follows another.
+     --------------------------------------------------------------------- */
+  @media (min-width: 900px) {
+    .flow-steps {
+      gap: clamp(2rem, 3vw, 3rem);
+    }
+
+    /*
+      The middle track is the corridor the connector runs down, and it has to
+      be wide enough for the path to actually bend in. With the nodes stacked
+      on a single centre axis there is nothing to curve BETWEEN and the SVG
+      draws a straight vertical line — which is what the first version of this
+      did, at the cost of a whole measuring script to reproduce a border.
+    */
+    .flow-step {
+      grid-template-columns: minmax(0, 1fr) clamp(5rem, 18%, 11rem) minmax(0, 1fr);
+      align-items: center;
+      gap: 0;
+    }
+
+    .flow-node {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    /* Each node sits at the end of the corridor nearest its own card, so the
+       route zigzags across it and the path has a real S-bend to draw. */
+    .flow-step:nth-child(odd) .flow-node {
+      justify-self: start;
+    }
+    .flow-step:nth-child(even) .flow-node {
+      justify-self: end;
+    }
+
+    .flow-card {
+      grid-row: 1;
+    }
+
+    /* Odd steps sit left of the axis and are set flush right against it, so
+       the copy leans into the line rather than drifting off the page edge. */
+    .flow-step:nth-child(odd) .flow-card {
+      grid-column: 1;
+      text-align: right;
+      padding-right: clamp(1rem, 2vw, 1.75rem);
+      justify-items: end;
+    }
+    .flow-step:nth-child(odd) .flow-body,
+    .flow-step:nth-child(odd) .flow-tools {
+      margin-left: auto;
+    }
+
+    .flow-step:nth-child(even) .flow-card {
+      grid-column: 3;
+      padding-left: clamp(1rem, 2vw, 1.75rem);
+    }
+  }
+
+  /* ---------------------------------------------------------------------
+     Narrow, and the no-JS case at any width: one column with a plain rule
+     down the node axis. The SVG contributes nothing here, and an undrawn
+     path would leave the steps looking disconnected.
+     --------------------------------------------------------------------- */
+  @media (max-width: 899.98px) {
+    .flow-line {
+      display: none;
+    }
+    .flow-step {
+      position: relative;
+    }
+    .flow-step::before {
+      content: '';
+      position: absolute;
+      left: 1.25rem;
+      top: 2.5rem;
+      bottom: calc(-1 * clamp(1.5rem, 4vw, 3.5rem));
+      width: 1px;
+      background: var(--color-line);
+    }
+    .flow-step:last-child::before {
+      display: none;
+    }
+  }
+
+  /* Without JS the SVG never gets a `d` at all, so nothing is drawn and the
+     single-column layout above carries the section on its own. */
+</style>

@@ -11,8 +11,8 @@ import { email, office, legalName } from '../config/contact';
  * template, because a generic policy would be wrong in both directions: it
  * would claim cookie categories this site does not have, and it would miss
  * the things it genuinely should disclose — that form submissions go to
- * Supabase, that a job application is personal data held for twelve months,
- * and that the webfont request reaches Google.
+ * Supabase, and that a job application is personal data held for twelve
+ * months.
  *
  * KEEP THIS IN STEP WITH THE CODE. If you add analytics, a pixel, a chat
  * widget or a new form, this page is part of that change, not a follow-up.
@@ -21,7 +21,7 @@ import { email, office, legalName } from '../config/contact';
  *   - localStorage holds exactly two functional keys, both listed below
  *   - visitor-submitted data lives in Supabase (see supabase/schema.sql)
  *   - three forms collect data: enquiry/booking, job application, comment
- *   - fonts are served by Google, which sees the visitor's IP
+ *   - fonts are self-hosted; there is no third-party request on any page
  *
  * NOT LEGAL ADVICE. This is an honest description of the site's behaviour
  * written by the people who built it. Have a solicitor read it before you
@@ -30,7 +30,7 @@ import { email, office, legalName } from '../config/contact';
 
 /* Kept as a constant so the "last updated" line cannot drift from reality by
    being hand-typed and then forgotten at the next edit. */
-const lastUpdated = new Date('2026-08-27');
+const lastUpdated = new Date('2026-08-30');
 const formatted = lastUpdated.toLocaleDateString('en-GB', {
   day: 'numeric',
   month: 'long',
@@ -144,12 +144,6 @@ const formatted = lastUpdated.toLocaleDateString('en-GB', {
           <li>
             <strong>Hostinger</strong> — hosts the site. Like any web server it
             keeps standard access logs, which include IP addresses.
-          </li>
-          <li>
-            <strong>Google Fonts</strong> — the site loads its typefaces from
-            Google's servers, so a request from your browser reaches Google and
-            it can see your IP address. We do not receive anything from that
-            request. We intend to self-host the fonts, which will remove this.
           </li>
         </ul>
         <p>

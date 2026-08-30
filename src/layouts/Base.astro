@@ -3,6 +3,7 @@ import { ClientRouter } from 'astro:transitions';
 import Announce from '../components/Announce.astro';
 import { announce } from '../config/nav';
 import Header from '../components/Header.astro';
+import Loader from '../components/Loader.astro';
 import Search from '../components/Search.astro';
 import '../styles/global.css';
 
@@ -13,6 +14,15 @@ interface Props {
   canonical?: string;
   /** True on pages whose hero runs under a transparent header. */
   transparentHeader?: boolean;
+  /**
+   * Keep the page out of search results.
+   *
+   * Also suppresses the canonical tag, which is the point: the 404 is served
+   * by Apache at whatever URL the visitor mistyped, so a canonical built from
+   * `Astro.url.pathname` would point at /404 — a URL that does not resolve and
+   * that we would then be asking Google to index.
+   */
+  noindex?: boolean;
 }
 
 const {
@@ -20,6 +30,7 @@ const {
   description = 'Aniwala is an animation studio producing 2D, 3D, VFX and game art.',
   canonical = Astro.url.pathname,
   transparentHeader = false,
+  noindex = false,
 } = Astro.props;
 
 const canonicalURL = new URL(canonical, Astro.site);
@@ -30,25 +41,61 @@ const ogImage = new URL('/og-default.jpg', Astro.site);
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    {/*
+      Paints the browser chrome to match the page on Android and on iOS
+      Safari's address bar. Two values so a visitor in light mode does not get
+      a black bar above a cream page.
+    */}
+    <meta name="theme-color" content="#0b0c10" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#faf9f5" media="(prefers-color-scheme: light)" />
 
     <title>{title}</title>
     <meta name="description" content={description} />
-    <link rel="canonical" href={canonicalURL} />
+    {noindex ? <meta name="robots" content="noindex, follow" /> : <link rel="canonical" href={canonicalURL} />}
 
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Aniwala Studios" />
+    <meta property="og:locale" content="en_IN" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:url" content={canonicalURL} />
+    {/* Same reasoning as the canonical above: on the 404 this would name the
+        URL the visitor mistyped, which is not a page and should not be
+        advertised as one. */}
+    {!noindex && <meta property="og:url" content={canonicalURL} />}
     <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Aniwala Studios" />
     <meta name="twitter:card" content="summary_large_image" />
 
-    <!-- Phase 02: self-host these as WOFF2 and drop the third-party request. -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    {/*
+      Fonts are served from this origin — see the @font-face block at the top
+      of styles/global.css. Preloading the two latin faces that paint above the
+      fold starts them in parallel with the stylesheet instead of after it;
+      without this the browser cannot discover a font until it has parsed the
+      CSS that references it, which costs a full round trip on first paint.
+
+      Only latin, and only these two: the mono face is used for small print
+      well down the page, and latin-ext loads on demand via unicode-range.
+    */}
     <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,200..800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      href="/fonts/bricolage-grotesque-latin.woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      href="/fonts/instrument-sans-latin.woff2"
+      crossorigin
     />
 
     <ClientRouter />
@@ -73,11 +120,46 @@ const ogImage = new URL('/og-default.jpg', Astro.site);
         } catch (e) {
           /* private mode: fall through to the defaults */
         }
+
+        // ---- First-load curtain -------------------------------------
+        // Decided here, before first paint, for the same reason the theme is:
+        // anything later means the page paints and is then covered, which is
+        // a flash in the opposite direction.
+        //
+        // Shown on every FULL page load. That is not as often as it sounds:
+        // ClientRouter turns every internal link into a client-side swap, so
+        // moving around the site never triggers this. What is left is the
+        // first arrival, a refresh, and opening a link in a new tab — all
+        // moments where a page is genuinely being loaded.
+        //
+        // This was gated on sessionStorage at first, which was too clever:
+        // refreshing is exactly when someone expects to see it again, and it
+        // made the thing effectively invisible.
+        //
+        // No JavaScript never reaches this line at all, and the element stays
+        // display:none — so the default is still to skip.
+        try {
+          var reduced =
+            window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+          if (!reduced) {
+            document.documentElement.dataset.loader = 'on';
+            // Read by the motion boot below, so reveals do not play behind
+            // the curtain and finish before anyone can see them.
+            window.__aniwalaLoaderPending = true;
+          }
+        } catch (e) {
+          /* matchMedia missing: no curtain, which is the safe direction */
+        }
       })();
     </script>
   </head>
 
   <body>
+    {/* First in the body: fixed-position, so the whole document is parsed
+        and laid out behind it rather than gated by it. */}
+    <Loader />
+
     <a href="#main" class="skip-link">Skip to content</a>
     <Announce />
     <Header overlay={transparentHeader} />
@@ -87,8 +169,23 @@ const ogImage = new URL('/og-default.jpg', Astro.site);
     <script>
       import { initMotion, teardownMotion } from '../lib/motion';
 
+      /**
+       * On a first load behind the curtain, hold the reveals until it lifts.
+       * Otherwise every above-the-fold element animates in against a black
+       * screen and is already settled by the time anyone can see it — the
+       * loader would be actively destroying the entrance it exists to set up.
+       */
+      function bootMotion() {
+        if ((window as any).__aniwalaLoaderPending) {
+          (window as any).__aniwalaLoaderPending = false;
+          window.addEventListener('aniwala:loader-done', () => initMotion(), { once: true });
+          return;
+        }
+        initMotion();
+      }
+
       // Fires on first load AND after every view transition.
-      document.addEventListener('astro:page-load', initMotion);
+      document.addEventListener('astro:page-load', bootMotion);
       // Fires before Astro swaps the document out.
       document.addEventListener('astro:before-swap', teardownMotion);
 

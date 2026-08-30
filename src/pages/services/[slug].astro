@@ -2,6 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import PageHero from '../../components/PageHero.astro';
 import Faq from '../../components/Faq.astro';
+import ProcessFlow from '../../components/ProcessFlow.astro';
 import CtaBand from '../../components/CtaBand.astro';
 import Footer from '../../components/Footer.astro';
 import { services, serviceBySlug, type Service } from '../../config/services';
@@ -96,31 +97,18 @@ const serviceSchema = {
       </div>
     </section>
 
-    <!-- PIPELINE — the discipline-specific route through the studio. A real
-         sequence, so it is numbered, and each stage names its own approval. -->
-    <section class="section section--bordered" id="pipeline">
-      <div class="section-head" data-reveal>
-        <p class="section-eyebrow">Pipeline</p>
-        <h2 class="section-title">How {service.article} {service.shortName} job runs</h2>
-      </div>
-
-      <ol class="stages">
-        {
-          service.pipeline.map((step, i) => (
-            <li class="stage" data-reveal>
-              <div class="stage-marker" aria-hidden="true">
-                <span class="stage-n">{String(i + 1).padStart(2, '0')}</span>
-              </div>
-              <div class="stage-body">
-                <h3 class="stage-title">{step.title}</h3>
-                <p class="stage-text">{step.body}</p>
-                {step.tools && <p class="stage-tools">{step.tools}</p>}
-              </div>
-            </li>
-          ))
-        }
-      </ol>
-    </section>
+    {/*
+      PIPELINE — the discipline-specific route through the studio, drawn as a
+      connected flow rather than listed. Same data as before (the `pipeline`
+      array in config/services.ts); the component owns the drawing.
+    */}
+    <ProcessFlow
+      steps={service.pipeline}
+      eyebrow="The process"
+      title={`How ${service.article} ${service.shortName} job runs`}
+      lead={`Every stage names its own approval, so you always know what you are signing off and what it unlocks. Nothing moves to the next stage until the one before it is agreed.`}
+      tint={service.tint}
+    />
 
     <!-- TOOLS + DELIVERABLES — the two lists a technical director asks for
          before anyone talks about money. -->
@@ -171,7 +159,7 @@ const serviceSchema = {
             <p class="section-eyebrow">Pairs with</p>
             <h2 class="section-title">Rarely just one discipline</h2>
             <a href="/services/" class="section-link">
-              All services <span aria-hidden="true">&rarr;</span>
+              Every discipline <span aria-hidden="true">&rarr;</span>
             </a>
           </div>
 
@@ -301,85 +289,6 @@ const serviceSchema = {
     font-size: 0.92rem;
     line-height: 1.65;
     color: var(--color-ink-muted);
-  }
-
-  /* --- Pipeline stages -------------------------------------------------- */
-  .stages {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    max-width: 62rem;
-  }
-  .stage {
-    display: grid;
-    grid-template-columns: 2.75rem 1fr;
-    gap: 1.25rem;
-  }
-  @media (min-width: 700px) {
-    .stage {
-      grid-template-columns: 3.5rem 1fr;
-      gap: 2rem;
-    }
-  }
-
-  /* The connecting rule is drawn on the marker column rather than as a
-     border on the row, so it stops cleanly at the last stage. */
-  .stage-marker {
-    position: relative;
-    display: flex;
-    justify-content: center;
-    padding-top: 0.35rem;
-  }
-  .stage-marker::before {
-    content: '';
-    position: absolute;
-    top: 2.6rem;
-    bottom: -0.5rem;
-    width: 1px;
-    background: var(--color-line);
-  }
-  .stage:last-child .stage-marker::before {
-    display: none;
-  }
-  .stage-n {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2.4rem;
-    height: 2.4rem;
-    border: 1px solid var(--color-line-strong);
-    border-radius: 100px;
-    background: var(--color-ground);
-    font-family: var(--font-label);
-    font-size: 0.72rem;
-    letter-spacing: 0.015em;
-    color: var(--color-accent);
-  }
-
-  .stage-body {
-    padding-bottom: clamp(2rem, 4vw, 3rem);
-  }
-  .stage-title {
-    margin: 0.5rem 0 0.65rem;
-    font-family: var(--font-display);
-    font-size: clamp(1.15rem, 2.4vw, 1.5rem);
-    font-weight: 720;
-    font-stretch: 106%;
-    letter-spacing: -0.018em;
-  }
-  .stage-text {
-    margin: 0;
-    max-width: 60ch;
-    font-size: 0.98rem;
-    line-height: 1.7;
-    color: var(--color-ink-muted);
-  }
-  .stage-tools {
-    margin: 0.9rem 0 0;
-    font-family: var(--font-label);
-    font-size: 0.72rem;
-    letter-spacing: 0.015em;
-    color: var(--color-ink-faint);
   }
 
   /* --- Specs ------------------------------------------------------------ */

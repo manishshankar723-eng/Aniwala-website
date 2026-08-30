@@ -1,0 +1,226 @@
+---
+/**
+ * First-load screen.
+ *
+ * Just the mark, filling gold from the baseline, then the panel lifts away.
+ *
+ * It carried a frame counter and a progress hairline as well, on the theory
+ * that a film-leader readout suited an animation studio. It did not: three
+ * things competing on an otherwise empty screen made a one-second moment look
+ * busy, and a progress number that is really just a timer is a small lie.
+ * The mark alone says the same thing and says it quietly.
+ *
+ * Three rules it obeys:
+ *
+ *   1. It shows on a full page load and never on an internal link. That
+ *      distinction is free here: ClientRouter swaps pages client-side, so
+ *      moving around the site does not reload and does not see this. What is
+ *      left is arriving, refreshing, or opening a tab — a loader on every
+ *      page *view* would be a toll, but on an actual page load it is not.
+ *   2. It never outlives the page. It lifts on `load`, or on a hard 2.2s
+ *      ceiling if something on the network hangs, whichever comes first. A
+ *      loader that can strand a visitor behind a blank screen is worse than
+ *      no loader.
+ *   3. It does not exist without JavaScript, and it does not exist for anyone
+ *      who asked for reduced motion. Both cases skip it entirely rather than
+ *      degrading to a static black rectangle.
+ *
+ * MARKUP ORDER MATTERS. This renders first in <body> and is `position: fixed`,
+ * so the page underneath is fully parsed and laid out behind it. Content is
+ * never hidden from a crawler — the overlay is a paint-time cover, not a
+ * gate, and the HTML below it is complete whether or not the script runs.
+ */
+
+/* One copy of the mark, drawn twice: a ghost, and the gold fill revealed
+   behind a growing window. Held here so the two can never drift apart. */
+const MARK =
+  'M50.4 78.5a75.1 75.1 0 0 0-28.5 6.9l24.2-65.7c.7-2 1.9-3.2 3.4-3.2h29c1.5 0 2.7 1.2 3.4 3.2l24.2 65.7s-11.6-7-28.5-7L67 45.5c-.4-1.7-1.6-2.8-2.9-2.8-1.3 0-2.5 1.1-2.9 2.7L50.4 78.5Zm-1.1 28.2Zm-4.2-20.2c-2 6.6-.6 15.8 4.2 20.2a17.5 17.5 0 0 1 .2-.7 5.5 5.5 0 0 1 5.7-4.5c2.8.1 4.3 1.5 4.7 4.7.2 1.1.2 2.3.2 3.5v.4c0 2.7.7 5.2 2.2 7.4a13 13 0 0 0 5.7 4.9v-.3l-.2-.3c-1.8-5.6-.5-9.5 4.4-12.8l1.5-1a73 73 0 0 0 3.2-2.2 16 16 0 0 0 6.8-11.4c.3-2 .1-4-.6-6l-.8.6-1.6 1a37 37 0 0 1-22.4 2.7c-5-.7-9.7-2-13.2-6.2Z';
+---
+
+<div id="loader" class="ld" role="presentation" aria-hidden="true">
+  {/*
+    The gold mark is revealed by a window that grows upward from the baseline
+    — the mark resolving the way an animator watches a render come in.
+
+    A plain <span> with `overflow: hidden` and an animated height, rather than
+    an SVG <clipPath> or `clip-path: inset()`. Both of those would read more
+    elegantly, and both put the effect at the mercy of how a given engine
+    animates SVG geometry and basic shapes. Animating the height of a block
+    box is the dullest possible construction and the one with no edge cases.
+  */}
+  <div class="ld-mark">
+    <svg class="ld-svg ld-svg--ghost" viewBox="0 0 128 128" aria-hidden="true">
+      <path d={MARK}></path>
+    </svg>
+
+    <span class="ld-reveal">
+      <svg class="ld-svg ld-svg--fill" viewBox="0 0 128 128" aria-hidden="true">
+        <path d={MARK}></path>
+      </svg>
+    </span>
+  </div>
+</div>
+
+<style>
+  /*
+    Hidden unless the head script opts in. Anyone without JavaScript and
+    anyone with reduced motion never sees this element at all — it stays
+    display:none and never paints.
+  */
+  .ld {
+    display: none;
+  }
+
+  :global(html[data-loader='on']) .ld {
+    display: grid;
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    place-items: center;
+    background: var(--color-ground);
+    /* Composited transform on exit, so lifting the curtain cannot jank the
+       first frame of the page underneath. */
+    transform: translateY(0);
+    transition:
+      transform 0.75s cubic-bezier(0.76, 0, 0.24, 1),
+      opacity 0.4s ease 0.35s;
+  }
+
+  :global(html[data-loader='done']) .ld {
+    transform: translateY(-100%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* While the curtain is up the page behind must not scroll. Set here rather
+     than on body from script, so it cannot be left behind if the script dies
+     between the two. */
+  :global(html[data-loader='on']) {
+    overflow: hidden;
+  }
+  :global(html[data-loader='done']) {
+    overflow: auto;
+  }
+
+  /* --- Mark ------------------------------------------------------------- */
+  .ld-mark {
+    /*
+      Width and height both come from --mark rather than from a width plus
+      `aspect-ratio`, and the reveal window animates to that same value rather
+      than to 100%. Percentage heights need a definite height on the parent to
+      resolve against, and one derived from aspect-ratio is not reliably that
+      — so the animation is given a length it can always interpolate.
+
+      Larger than it was: the mark is carrying the whole screen now that the
+      counter and the progress rule are gone.
+    */
+    --mark: clamp(5.5rem, 15vw, 8.5rem);
+    position: relative;
+    width: var(--mark);
+    height: var(--mark);
+  }
+  .ld-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .ld-svg--ghost path {
+    fill: var(--color-ink);
+    opacity: 0.14;
+  }
+  .ld-svg--fill path {
+    fill: var(--color-accent);
+  }
+
+  /*
+    The window. Anchored to the bottom and grown to full height, so the mark
+    is uncovered from the baseline up. The inner SVG is pinned to the bottom
+    at the full mark size, or it would squash as the window grows instead of
+    being revealed by it.
+  */
+  .ld-reveal {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 0;
+    overflow: hidden;
+    animation: ld-rise 1.15s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  }
+  .ld-reveal .ld-svg {
+    inset: auto 0 0 0;
+    height: var(--mark);
+  }
+  @keyframes ld-rise {
+    to {
+      height: var(--mark);
+    }
+  }
+
+  /*
+    Belt and braces. The head script already skips the loader entirely for
+    reduced motion, but if it is ever shown some other way, nothing here
+    should move.
+  */
+  @media (prefers-reduced-motion: reduce) {
+    .ld-reveal {
+      animation: none;
+      height: var(--mark);
+    }
+    :global(html[data-loader='on']) .ld {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  /**
+   * Lifts the curtain.
+   *
+   * The decision to show at all was already made by the inline script in
+   * Base.astro's <head>, before first paint — it has to be, or the page
+   * flashes before the loader covers it. This module only runs the exit.
+   */
+  function initLoader() {
+    const root = document.documentElement;
+    if (root.dataset.loader !== 'on') return;
+
+    const started = performance.now();
+
+    /* Long enough for the fill to complete and read, short enough not to be
+       a toll. Must outlast the 1.15s fill or the mark is cut off mid-rise. */
+    const MIN = 1400;
+    /* Hard ceiling. If `load` has not fired by now something on the network
+       is hanging, and that is not the visitor's problem to wait out. */
+    const MAX = 2200;
+
+    let done = false;
+
+    const finish = () => {
+      if (done) return;
+      done = true;
+
+      root.dataset.loader = 'done';
+
+      /* Motion boot waits on this — see Base.astro. Without it the hero
+         reveals play behind the curtain and are over by the time it lifts. */
+      window.dispatchEvent(new CustomEvent('aniwala:loader-done'));
+
+      /* Take the element out of the tree once it has finished travelling, so
+         a fixed, full-screen div is not left sitting over the document. */
+      setTimeout(() => document.getElementById('loader')?.remove(), 900);
+    };
+
+    const elapsed = () => performance.now() - started;
+    const afterMin = (fn: () => void) => setTimeout(fn, Math.max(0, MIN - elapsed()));
+
+    if (document.readyState === 'complete') afterMin(finish);
+    else window.addEventListener('load', () => afterMin(finish), { once: true });
+
+    /* The ceiling runs regardless of `load`. */
+    setTimeout(finish, MAX);
+  }
+
+  initLoader();
+</script>
