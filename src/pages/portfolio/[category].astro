@@ -6,7 +6,8 @@ import DisciplineBar from '../../components/DisciplineBar.astro';
 import PieceCard from '../../components/PieceCard.astro';
 import CtaBand from '../../components/CtaBand.astro';
 import Footer from '../../components/Footer.astro';
-import { workCategories, piecesIn, type WorkCategory } from '../../config/portfolio';
+import { workCategories, type WorkCategory } from '../../config/portfolio';
+import { piecesIn } from '../../lib/pieces';
 import { serviceBySlug, type Service } from '../../config/services';
 
 /**
@@ -29,7 +30,7 @@ interface Props {
 }
 
 const { category } = Astro.props;
-const pieces = piecesIn(category.slug);
+const pieces = await piecesIn(category.slug);
 
 /* Filtered rather than mapped straight through, so a typo in the config drops
    the cross-link instead of rendering `undefined` into the page. */

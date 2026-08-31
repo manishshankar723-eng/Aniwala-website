@@ -27,6 +27,15 @@ interface Props {
   meta?: string[];
   /** Tighter vertical rhythm, for listing pages that lead into a grid. */
   compact?: boolean;
+  /**
+   * Optional background artwork, from the CMS — see `lib/artwork.ts`.
+   *
+   * Layered UNDER the tint wash rather than replacing it, so the heading
+   * keeps its contrast over whatever gets uploaded. Without that the page
+   * would be one bright still away from unreadable white-on-white, decided by
+   * whoever last dragged a file in.
+   */
+  image?: { src: string; srcset: string; alt: string };
 }
 
 const {
@@ -37,10 +46,28 @@ const {
   tint = '210 70% 22%',
   meta = [],
   compact = false,
+  image,
 } = Astro.props;
 ---
 
 <section class:list={['page-hero', compact && 'page-hero--compact']} style={`--tint:${tint}`}>
+  {
+    /* Decorative: the heading beside it already says what the page is, so an
+       alt here would only make a screen reader read the page twice. The alt
+       an editor writes is used where the same image is content. */
+    image && (
+      <img
+        class="page-hero-img"
+        src={image.src}
+        srcset={image.srcset}
+        sizes="100vw"
+        alt=""
+        aria-hidden="true"
+        fetchpriority="high"
+        decoding="async"
+      />
+    )
+  }
   <div class="page-hero-wash" aria-hidden="true"></div>
 
   <div class="page-hero-inner">
@@ -113,6 +140,19 @@ const {
       ),
       linear-gradient(to bottom, var(--color-surface), var(--color-ground) 92%);
   }
+  /* Sits beneath the wash, which is what keeps the heading legible over an
+     arbitrary upload. Dimmed for the same reason — a hero still is background,
+     not the subject. */
+  .page-hero-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.38;
+    z-index: -1;
+  }
+
   /* Light mode: the same tint at full strength turns the type unreadable. */
   :global(:root[data-theme='light']) .page-hero-wash {
     background:

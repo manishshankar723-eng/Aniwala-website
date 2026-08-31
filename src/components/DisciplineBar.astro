@@ -1,5 +1,6 @@
 ---
-import { workCategories, categoryHref, pieceCounts } from '../config/portfolio';
+import { workCategories, categoryHref } from '../config/portfolio';
+import { pieceCounts } from '../lib/pieces';
 
 /**
  * The discipline filter on the portfolio.
@@ -17,7 +18,7 @@ interface Props {
 
 const { active } = Astro.props;
 
-const counts = pieceCounts();
+const counts = await pieceCounts();
 const total = Object.values(counts).reduce((n, c) => n + c, 0);
 ---
 

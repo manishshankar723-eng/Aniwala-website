@@ -6,14 +6,32 @@ import CaseCard from '../components/CaseCard.astro';
 import Marquee from '../components/Marquee.astro';
 import Footer from '../components/Footer.astro';
 import { nav } from '../config/nav';
-import { processSteps, capabilities, marqueeItems, testimonials, clients } from '../config/site';
+import { processSteps } from '../config/site';
+import { getSiteCopy, getTestimonials, getClients } from '../lib/studio';
 import { workCategories, categoryHref } from '../config/portfolio';
+import { portfolioSlot } from '../config/imageSlots';
+import { getArtworkMap, getArtwork } from '../lib/artwork';
 import { getCaseStudies } from '../lib/caseStudies';
 
 const services = nav.find((i) => i.children)?.children ?? [];
 
 /* Three, and no more. "View all" carries the rest. */
 const caseStudies = (await getCaseStudies()).slice(0, 3);
+
+/* One lookup for the whole grid. `getArtwork` per tile inside the loop would
+   read the same collection six times for one section. */
+const workArt = await getArtworkMap(workCategories.map((w) => portfolioSlot(w.slug)));
+
+/* The still behind the hero. Shown before the video paints and whenever it
+   cannot play at all, so it is the one image on the site guaranteed to be
+   seen — on a slow connection it may be the only one. */
+const heroPoster = await getArtwork('home-hero-poster');
+
+const { marqueeItems, capabilities } = await getSiteCopy();
+/* Both sections hide themselves while empty — see the notes on the old
+   config arrays, which were left deliberately empty for the same reason. */
+const testimonials = await getTestimonials();
+const clients = await getClients();
 ---
 
 <Base
@@ -22,6 +40,7 @@ const caseStudies = (await getCaseStudies()).slice(0, 3);
   transparentHeader
 >
   <VideoHero
+    poster={heroPoster?.src}
     eyebrow="Animation & Game Art Studio"
     headline="We make things&nbsp;move."
     sub="2D, 3D, VFX and game art for games, film and brands. Built by artists who will tell you the truth about your schedule."
@@ -73,8 +92,30 @@ const caseStudies = (await getCaseStudies()).slice(0, 3);
               style={`--tint:${w.tint}`}
               data-reveal
             >
-              {/* Placeholder art until real stills are imported via astro:assets. */}
-              <span class="work-media" aria-hidden="true" />
+              {/*
+                The tint gradient stays underneath the image rather than being
+                replaced by it, so the tile holds its colour while the picture
+                loads and still looks deliberate if a slot is empty.
+
+                `aria-hidden` and an empty alt: the tile's own title and blurb
+                sit right beside this, so announcing the image as well would
+                make a screen reader read every card twice. The alt text an
+                editor writes is used where the image is content, not
+                decoration.
+              */}
+              <span class="work-media" aria-hidden="true">
+                {workArt.get(portfolioSlot(w.slug)) && (
+                  <img
+                    class="work-img"
+                    src={workArt.get(portfolioSlot(w.slug))!.src}
+                    srcset={workArt.get(portfolioSlot(w.slug))!.srcset}
+                    sizes={w.wide ? '(min-width: 900px) 66vw, 100vw' : '(min-width: 900px) 33vw, 100vw'}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                  />
+                )}
+              </span>
               <span class="work-body">
                 <span class="work-title">{w.title}</span>
                 <span class="work-blurb">{w.blurb}</span>
@@ -179,7 +220,12 @@ const caseStudies = (await getCaseStudies()).slice(0, 3);
           </div>
           <ul class="clients" data-reveal>
             {clients.map((c) => (
-              <li class="client">{c.name}</li>
+              <li class="client">
+                {/* The name is a perfectly good logo wall on its own, and a
+                    real fallback rather than a placeholder box — a client
+                    added before their logo arrives still reads correctly. */}
+                {c.logo ? <img class="client-logo" src={c.logo} alt={c.name} loading="lazy" /> : c.name}
+              </li>
             ))}
           </ul>
         </section>
@@ -301,8 +347,8 @@ const caseStudies = (await getCaseStudies()).slice(0, 3);
     }
   }
 
-  /* Placeholder art. Replace .work-media with a real <Image /> and this
-     gradient simply stops being visible. */
+  /* The colour placeholder. Visible when a slot has no image filed against
+     it, and behind one while it loads. */
   .work-media {
     position: absolute;
     inset: 0;
@@ -312,6 +358,17 @@ const caseStudies = (await getCaseStudies()).slice(0, 3);
       linear-gradient(160deg, hsl(var(--tint) / 0.55), #0b0c10 75%);
     transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
   }
+  /* Sits on the tint. `object-fit: cover` plus the tile's own aspect ratio
+     means a portrait upload crops rather than letterboxes; Sanity's hotspot
+     decides which part survives. */
+  .work-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
   .work-tile::after {
     content: '';
     position: absolute;
@@ -482,6 +539,16 @@ const caseStudies = (await getCaseStudies()).slice(0, 3);
     border-radius: 0.6rem;
     overflow: hidden;
   }
+  /* Height-capped rather than width-capped: logos arrive at wildly different
+     aspect ratios and matching their heights is what makes a row of them look
+     like a set instead of a pile. */
+  .client-logo {
+    display: block;
+    max-height: 2rem;
+    width: auto;
+    object-fit: contain;
+  }
+
   .client {
     background: var(--color-ground);
     padding: 2rem 1rem;

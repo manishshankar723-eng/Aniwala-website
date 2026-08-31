@@ -2,7 +2,8 @@
 import Base from '../layouts/Base.astro';
 import PageHero from '../components/PageHero.astro';
 import Footer from '../components/Footer.astro';
-import { email, office, legalName } from '../config/contact';
+import { legalName } from '../config/contact';
+import { getContactDetails } from '../lib/studio';
 
 /**
  * Privacy policy.
@@ -36,6 +37,8 @@ const formatted = lastUpdated.toLocaleDateString('en-GB', {
   month: 'long',
   year: 'numeric',
 });
+
+const { email, addressLines, country } = await getContactDetails();
 ---
 
 <Base
@@ -218,8 +221,8 @@ const formatted = lastUpdated.toLocaleDateString('en-GB', {
         </p>
         <p>
           <address class="addr">
-            {office.lines.map((line) => <span>{line}</span>)}
-            <span>{office.country}</span>
+            {addressLines.map((line) => <span>{line}</span>)}
+            <span>{country}</span>
           </address>
         </p>
       </div>

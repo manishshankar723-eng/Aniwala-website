@@ -71,32 +71,22 @@ export const nav: NavItem[] = [
   { label: 'Contact', href: '/contact/' },
 ];
 
-/**
- * The slim strip above the header.
+/*
+ * The announcement strip moved to the CMS.
  *
- * `id` versions the dismissal: bump it and the bar returns for people who
- * dismissed the previous one, instead of staying hidden forever.
+ * It is a single line of marketing copy that changes with whatever the studio
+ * is currently pushing, and needing a developer and a deploy to edit one
+ * sentence at the top of every page was exactly the friction the CMS exists
+ * to remove. See the `announcement` singleton in content.config.ts, and
+ * lib/announce.ts for the accessor.
+ *
+ * It is currently OFF. It had been live and pointing at `/ai-animation/`, a
+ * page that was never built, so all 64 pages carried a link to a 404 and
+ * `scripts/check-links.mjs` was failing every deploy over it. Turn it back on
+ * from the Studio once there is a real page to point at — and note that the
+ * link checker will still fail the build if the target does not exist, which
+ * is the behaviour you want.
  */
-export const announce = {
-  /*
-   * OFF until `/ai-animation/` exists.
-   *
-   * The bar was live and pointing at a page that had never been built, so
-   * every one of the 64 pages on the site carried a link to a 404 — which is
-   * what `scripts/check-links.mjs` exists to catch, and was catching. Turned
-   * off rather than repointed, because the copy is specific to a page about
-   * how the studio uses AI and sending that click to /services/ would be a
-   * small lie to anyone who clicked it.
-   *
-   * Set this back to `true` the day the page ships. Nothing else needs to
-   * change; the href below is already correct for it.
-   */
-  enabled: false,
-  id: 'ai-animation-2026',
-  text: 'AI + Animation — faster iteration, same hand-finished craft.',
-  cta: 'See how we use it',
-  href: '/ai-animation/',
-};
 
 /** The gold call-to-action button at the end of the header. */
 export const cta = { label: 'Book Appointment', href: '/contact/' };

@@ -1,7 +1,23 @@
 import { defineCollection, z } from 'astro:content';
 import { CATEGORIES } from './config/categories';
 import { DISCIPLINES, EMPLOYMENT_KINDS } from './config/disciplines';
-import { sanityPosts, sanityCaseStudies, sanityRoles } from './lib/sanity/loader';
+import { IMAGE_SLOT_NAMES } from './config/imageSlots';
+import { SOCIAL_ICONS } from './config/contact';
+import {
+  sanityPosts,
+  sanityCaseStudies,
+  sanityRoles,
+  sanityTeam,
+  sanityAnnouncement,
+  sanityArtwork,
+  sanityPieces,
+  sanityTestimonials,
+  sanityClients,
+  sanityMilestones,
+  sanityFaqs,
+  sanityContactDetails,
+  sanitySiteCopy,
+} from './lib/sanity/loader';
 
 /**
  * WHERE CONTENT COMES FROM
@@ -210,4 +226,238 @@ const roles = defineCollection({
   }),
 });
 
-export const collections = { blog, caseStudies, roles };
+/**
+ * The team.
+ *
+ * These were a hand-written array in `config/about.ts`, with photos dropped
+ * into `/public/team/`. Moving them here means a new hire does not need a
+ * developer, a commit and a deploy — and their photo gets the same CDN
+ * resizing and hotspot cropping everything else now gets, instead of being
+ * served at whatever size it was exported at.
+ *
+ * `order` is the field that matters. An array had an order for free; CMS
+ * documents do not, and sorting by name would put the production manager
+ * above the creative director on the page a client reads to decide who they
+ * would be working with.
+ *
+ * There is deliberately no `alt` on the photo. The card renders
+ * `"{name}, {role}"` as the alt text, which is exactly what a screen reader
+ * should say, so asking an editor to retype it would only create a second
+ * copy to keep in step.
+ */
+const team = defineCollection({
+  loader: sanityTeam(),
+  schema: z.object({
+    name: z.string(),
+    /** Discipline and what they own — "Creative Director | External Game Art". */
+    role: z.string(),
+    /** Two or three sentences. What they actually do here, not adjectives. */
+    bio: z.string(),
+    /** Optional. The card falls back to initials, never to a stock avatar. */
+    photo: sanityImage.omit({ alt: true }).optional(),
+    /** ArtStation, LinkedIn, a reel. No link means no button is rendered. */
+    href: z.url().optional(),
+    /** Lower first. Gaps are intentional so someone can be slotted in later. */
+    order: z.number().int().default(50),
+    draft: z.boolean().default(false),
+  }),
+});
+
+/**
+ * The announcement strip. A singleton — one entry, id `announcement`.
+ *
+ * `href` is validated as a path or an absolute URL rather than left free, and
+ * it is the field worth being strict about: the strip renders on every page,
+ * so a broken link here is 65 broken links, and `check-links.mjs` fails the
+ * whole deploy over it. That has happened on this site before — see the note
+ * in the deploy workflow.
+ *
+ * What this schema CANNOT check is whether the path exists. That is the link
+ * checker's job, at the end of the build, which is the right place for it.
+ */
+const announcement = defineCollection({
+  loader: sanityAnnouncement(),
+  schema: z.object({
+    enabled: z.boolean().default(false),
+    text: z.string().default(''),
+    cta: z.string().default(''),
+    /** A site path ("/services/") or an absolute URL. */
+    href: z
+      .string()
+      .refine((v) => v === '' || v.startsWith('/') || /^https?:\/\//.test(v), {
+        message: 'Use a path starting with / or a full http(s) URL.',
+      })
+      .default(''),
+    /**
+     * Versions the dismissal. Bump it and the bar returns for people who
+     * dismissed the previous one, instead of staying hidden forever.
+     */
+    id: z.string().default('announcement'),
+    draft: z.boolean().default(false),
+  }),
+});
+
+/**
+ * Artwork, keyed by slot.
+ *
+ * The entry id IS the slot name, so a page asks for its picture by a stable
+ * key — `getArtwork('service-vfx')` — rather than by hunting through a list.
+ *
+ * `slot` is validated against `config/imageSlots.ts` rather than left free.
+ * An image filed against a slot nothing renders is invisible with no error,
+ * which is the worst kind of bug: the editor uploaded something, the site
+ * looks unchanged, and there is nothing to read. Failing the build names the
+ * bad slot instead.
+ */
+const artwork = defineCollection({
+  loader: sanityArtwork(),
+  schema: z.object({
+    slot: z.enum(IMAGE_SLOT_NAMES as [string, ...string[]]),
+    image: sanityImage.omit({ alt: true }),
+    alt: z.string().default(''),
+    draft: z.boolean().default(false),
+  }),
+});
+
+
+/**
+ * Portfolio pieces.
+ *
+ * `category` is validated against the categories still defined in
+ * `config/portfolio.ts`, because those drive the /portfolio/ URLs and the
+ * filter chips. A piece filed under a category that does not exist would
+ * build fine and then be unreachable from every route that lists it.
+ */
+const pieces = defineCollection({
+  loader: sanityPieces(),
+  schema: z.object({
+    title: z.string(),
+    category: z.string(),
+    /** One line: what it is, not how good it looks. */
+    blurb: z.string(),
+    image: sanityImage.optional(),
+    kind: z.enum(['Client project', 'Studio project']),
+    client: z.string(),
+    year: z.number(),
+    tools: z.array(z.string()).default([]),
+    /** Slug of a case study, when one has been written. */
+    caseStudy: z.string().optional(),
+    tint: z.string().default('210 70% 22%'),
+    wide: z.boolean().default(false),
+    order: z.number().int().default(50),
+    draft: z.boolean().default(false),
+  }),
+});
+
+/**
+ * Proof — testimonials, clients, milestones.
+ *
+ * All three replace arrays that were deliberately left EMPTY, with notes
+ * reading "add real ones as they arrive" and "an empty logo wall is worse
+ * than none". Each section still hides itself when its collection is empty,
+ * so moving them to the CMS changed nothing on the site: it only removed the
+ * need for a deploy the day something real turns up.
+ */
+const testimonials = defineCollection({
+  loader: sanityTestimonials(),
+  schema: z.object({
+    quote: z.string(),
+    name: z.string(),
+    role: z.string(),
+    company: z.string(),
+    order: z.number().int().default(50),
+    draft: z.boolean().default(false),
+  }),
+});
+
+const clients = defineCollection({
+  loader: sanityClients(),
+  schema: z.object({
+    name: z.string(),
+    /** Optional: without one the wall renders the name as text. */
+    logo: sanityImage.omit({ alt: true }).optional(),
+    order: z.number().int().default(50),
+    draft: z.boolean().default(false),
+  }),
+});
+
+const milestones = defineCollection({
+  loader: sanityMilestones(),
+  schema: z.object({
+    /** A string, not a date, so a quarter fits: '2026' or '2026 Q1'. */
+    when: z.string(),
+    title: z.string(),
+    body: z.string(),
+    order: z.number().int().default(50),
+    draft: z.boolean().default(false),
+  }),
+});
+
+/**
+ * FAQs for the service pages and the careers page.
+ *
+ * `scope` is what separates them: 'careers', or 'service:<slug>'. Validated
+ * loosely on purpose — a scope that matches nothing renders nowhere, which is
+ * invisible but harmless, whereas an enum here would have to be regenerated
+ * every time a service is added and would fail the build until it was.
+ */
+const faqs = defineCollection({
+  loader: sanityFaqs(),
+  schema: z.object({
+    scope: z.string(),
+    question: z.string(),
+    answer: z.string(),
+    order: z.number().int().default(50),
+    draft: z.boolean().default(false),
+  }),
+});
+
+/** Contact details and social links. A singleton. */
+const contactDetails = defineCollection({
+  loader: sanityContactDetails(),
+  schema: z.object({
+    email: z.string(),
+    careersEmail: z.string(),
+    addressLines: z.array(z.string()).default([]),
+    country: z.string().default('India'),
+    socials: z
+      .array(
+        z.object({
+          icon: z.enum(SOCIAL_ICONS),
+          label: z.string(),
+          /** Blank means "no account yet" — the icon is dropped, not linked. */
+          href: z.string().default(''),
+        })
+      )
+      .default([]),
+    draft: z.boolean().default(false),
+  }),
+});
+
+/** Standalone lines of copy. A singleton. */
+const siteCopy = defineCollection({
+  loader: sanitySiteCopy(),
+  schema: z.object({
+    positioning: z.string().default(''),
+    teamIntro: z.string().default(''),
+    marqueeItems: z.array(z.string()).default([]),
+    capabilities: z.array(z.string()).default([]),
+    draft: z.boolean().default(false),
+  }),
+});
+
+export const collections = {
+  blog,
+  caseStudies,
+  roles,
+  team,
+  pieces,
+  testimonials,
+  clients,
+  milestones,
+  faqs,
+  artwork,
+  announcement,
+  contactDetails,
+  siteCopy,
+};

@@ -1,6 +1,9 @@
 ---
 import Base from '../../layouts/Base.astro';
 import PageHero from '../../components/PageHero.astro';
+import { serviceSlot } from '../../config/imageSlots';
+import { getArtwork } from '../../lib/artwork';
+import { getFaqs } from '../../lib/studio';
 import Faq from '../../components/Faq.astro';
 import ProcessFlow from '../../components/ProcessFlow.astro';
 import CtaBand from '../../components/CtaBand.astro';
@@ -50,6 +53,12 @@ const serviceSchema = {
     })),
   },
 };
+
+/* Optional. An empty slot leaves the tint gradient exactly as it was. */
+const heroArt = await getArtwork(serviceSlot(service.slug));
+
+/* FAQs moved to the CMS — they are the most-edited copy on a service page. */
+const faqs = await getFaqs(`service:${service.slug}`);
 ---
 
 <Base
@@ -59,6 +68,7 @@ const serviceSchema = {
 >
   <main id="main">
     <PageHero
+      image={heroArt}
       eyebrow="Services"
       title={service.title}
       lead={service.intro}
@@ -178,7 +188,7 @@ const serviceSchema = {
       )
     }
 
-    <Faq items={service.faqs} name={`faq-${service.slug}`} title={`${service.label}, answered`} />
+    <Faq items={faqs} name={`faq-${service.slug}`} title={`${service.label}, answered`} />
 
     <CtaBand
       eyebrow="Start a project"

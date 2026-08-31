@@ -138,86 +138,20 @@ export const milestones: Milestone[] = [];
 /* The section a client scrolls to when they have decided the work is   */
 /* good enough and now want to know who would actually be doing it.     */
 /*                                                                     */
-/* DRAFT MEMBERS: the entries below are marked `draft: true`, which     */
-/* means they render under `astro dev` and are dropped from the         */
-/* production build — the same rule case study drafts follow in         */
-/* lib/caseStudies.ts. That is deliberate. It lets the layout be judged */
-/* with realistic content while making it impossible to accidentally    */
-/* publish a team page full of people who do not exist.                 */
+/* The MEMBERS moved to the CMS — see the `team` collection in          */
+/* content.config.ts and the accessor in lib/team.ts. Hiring someone    */
+/* should not require a developer, a commit and a deploy, and their     */
+/* photo now gets CDN resizing and hotspot cropping instead of being    */
+/* served from /public at whatever size it was exported at.             */
 /*                                                                     */
-/* To go live: replace a card\'s name, role and bio with a real person,  */
-/* drop a photo into /public/team/, and delete its `draft` line.        */
+/* The intro line below stayed here because it is not about any         */
+/* particular person — it is a claim the studio makes about how it      */
+/* works, and it belongs with the rest of the positioning copy.         */
+/*                                                                     */
+/* The draft rule survived the move intact: an unpublished member       */
+/* renders under `astro dev` and is dropped from the production build,  */
+/* so the layout can be judged with realistic content while it stays    */
+/* impossible to publish a team page full of people who do not exist.   */
 /* ------------------------------------------------------------------ */
 export const teamIntro =
   'Small studio, so the person you brief is usually the person building it. Worth knowing who that would be before you hand over a budget.';
-
-export interface Member {
-  name: string;
-  /**
-   * Their discipline, and what they own. The reference studios run two
-   * clauses split by a pipe — "Creative Director | External Game Art" — and
-   * it reads well, so the separator is written into the string rather than
-   * imposed by the component.
-   */
-  role: string;
-  /** Two or three sentences. What they actually do here, not adjectives. */
-  bio: string;
-  /** Path in /public, e.g. '/team/asha.jpg'. Falls back to initials. */
-  photo?: string;
-  /** ArtStation, LinkedIn, a reel — wherever their work lives. */
-  href?: string;
-  /**
-   * Visible under `astro dev`, dropped from the production build. Every
-   * placeholder below carries it. Remove it once the card is a real person.
-   */
-  draft?: boolean;
-}
-
-export const team: Member[] = [
-  {
-    name: 'Creative Director',
-    role: 'Placeholder card | replace in config/about.ts',
-    bio: 'Name, then what they own and where they came from. Two or three sentences is the right length — enough for a producer to place them, short enough that six of these still scan as a grid.',
-    draft: true,
-  },
-  {
-    name: 'Art Director',
-    role: 'Placeholder card | replace in config/about.ts',
-    bio: 'Name the shipped work if there is any, and the disciplines they cover. Concrete titles and studios beat adjectives: "12 years across mobile and console" tells a client more than "passionate about quality".',
-    draft: true,
-  },
-  {
-    name: 'Lead Animator',
-    role: 'Placeholder card | replace in config/about.ts',
-    bio: 'What they specialise in — performance, gameplay, cinematic — and which pipeline they run it through. This is the card an animation client reads first.',
-    draft: true,
-  },
-  {
-    name: 'Lead 3D Artist',
-    role: 'Placeholder card | replace in config/about.ts',
-    bio: 'Characters or environments, and the technical side they own: topology, budgets, texel density, engine handoff. Say which engines they have actually shipped into.',
-    draft: true,
-  },
-  {
-    name: 'FX Supervisor',
-    role: 'Placeholder card | replace in config/about.ts',
-    bio: 'Simulation, comp and finishing. Worth naming the packages here — a VFX client is checking for Houdini and Nuke before they read anything else on the page.',
-    draft: true,
-  },
-  {
-    name: 'Production Manager',
-    role: 'Placeholder card | replace in config/about.ts',
-    bio: 'Scheduling, budgets and the review cadence. The person who makes the weekly playblast actually happen, which is the promise the rest of this page keeps making.',
-    draft: true,
-  },
-];
-
-/**
- * The team as the site should show it.
- *
- * Drafts stay visible under `astro dev` so the layout can be worked on, and
- * are dropped from the production build. If every member is a draft, the
- * live site renders no team section at all rather than an empty grid.
- */
-export const publishedTeam = (): Member[] =>
-  team.filter((m) => (import.meta.env.DEV ? true : !m.draft));

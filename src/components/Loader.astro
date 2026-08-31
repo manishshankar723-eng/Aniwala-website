@@ -37,7 +37,14 @@ const MARK =
   'M50.4 78.5a75.1 75.1 0 0 0-28.5 6.9l24.2-65.7c.7-2 1.9-3.2 3.4-3.2h29c1.5 0 2.7 1.2 3.4 3.2l24.2 65.7s-11.6-7-28.5-7L67 45.5c-.4-1.7-1.6-2.8-2.9-2.8-1.3 0-2.5 1.1-2.9 2.7L50.4 78.5Zm-1.1 28.2Zm-4.2-20.2c-2 6.6-.6 15.8 4.2 20.2a17.5 17.5 0 0 1 .2-.7 5.5 5.5 0 0 1 5.7-4.5c2.8.1 4.3 1.5 4.7 4.7.2 1.1.2 2.3.2 3.5v.4c0 2.7.7 5.2 2.2 7.4a13 13 0 0 0 5.7 4.9v-.3l-.2-.3c-1.8-5.6-.5-9.5 4.4-12.8l1.5-1a73 73 0 0 0 3.2-2.2 16 16 0 0 0 6.8-11.4c.3-2 .1-4-.6-6l-.8.6-1.6 1a37 37 0 0 1-22.4 2.7c-5-.7-9.7-2-13.2-6.2Z';
 ---
 
-<div id="loader" class="ld" role="presentation" aria-hidden="true">
+{/*
+  `transition:persist` is what makes this usable on internal navigation.
+  ClientRouter replaces the whole body on a swap, so without it the curtain
+  raised at the start of a navigation would be destroyed halfway through it —
+  the visitor would see it flash and vanish mid-transition. Persisted, the one
+  element outlives the swap and can be lowered again on the other side.
+*/}
+<div id="loader" class="ld" role="presentation" aria-hidden="true" transition:persist="loader">
   {/*
     The gold mark is revealed by a window that grows upward from the baseline
     — the mark resolving the way an animator watches a render come in.
@@ -71,7 +78,9 @@ const MARK =
     display: none;
   }
 
-  :global(html[data-loader='on']) .ld {
+  :global(html[data-loader='on']) .ld,
+  :global(html[data-loader='nav']) .ld,
+  :global(html[data-loader='done']) .ld {
     display: grid;
     position: fixed;
     inset: 0;
@@ -92,10 +101,62 @@ const MARK =
     pointer-events: none;
   }
 
+  /*
+    Navigation is not arrival.
+
+    A client-side swap takes tens of milliseconds, so replaying the full 1.15s
+    fill on every internal link would make a fast site feel slow — the "toll"
+    this component's own notes warn about. Same curtain, same mark, roughly a
+    third of the running time.
+
+    And it FADES where it stands rather than sliding up.
+
+    Lifting it is right on a first load, where the panel pulling away reads as
+    the site opening. Between pages it reads as the wrong thing entirely: the
+    mark finishes, then travels off the top, and the eye follows it upward
+    instead of landing on the page that just arrived. The point of the curtain
+    here is to hand over to the new page, so it gets out of the way in place
+    and leaves the reader looking at the content.
+  */
+  :global(html[data-loader='nav']) .ld {
+    transition: opacity 0.28s ease;
+  }
+  :global(html[data-loader='nav'][data-loader-exit]) .ld {
+    transform: none;
+    opacity: 0;
+  }
+  :global(html[data-loader='nav']) .ld-reveal {
+    /* Kept in step with NAV_MIN in the script below, which must outlast it.
+       At 0.42s against a 380ms floor the mark was still filling when the
+       curtain lifted, so the gold never reached the top — the same trap the
+       first-load MIN comment warns about. */
+    animation-duration: 0.4s;
+  }
+
+  /*
+    Astro's own cross-fade, turned off.
+
+    ClientRouter animates the page swap with the View Transitions API, and
+    those `::view-transition` snapshots are composited ABOVE the real
+    document — above a `position: fixed; z-index: 200` curtain included. So
+    the outgoing page was visibly fading over the top of the loader on every
+    internal link, which is the "page comes in front" of it.
+
+    There is no z-index that wins this; the fix is to stop having two
+    transitions for one navigation. The curtain IS the transition now, so the
+    snapshot layer is told not to animate at all.
+  */
+  :global(::view-transition-old(root)),
+  :global(::view-transition-new(root)) {
+    animation: none;
+    mix-blend-mode: normal;
+  }
+
   /* While the curtain is up the page behind must not scroll. Set here rather
      than on body from script, so it cannot be left behind if the script dies
      between the two. */
-  :global(html[data-loader='on']) {
+  :global(html[data-loader='on']),
+  :global(html[data-loader='nav']) {
     overflow: hidden;
   }
   :global(html[data-loader='done']) {
@@ -207,9 +268,16 @@ const MARK =
          reveals play behind the curtain and are over by the time it lifts. */
       window.dispatchEvent(new CustomEvent('aniwala:loader-done'));
 
-      /* Take the element out of the tree once it has finished travelling, so
-         a fixed, full-screen div is not left sitting over the document. */
-      setTimeout(() => document.getElementById('loader')?.remove(), 900);
+      /* Parked, not removed.
+         It used to be removed here, so a fixed full-screen div was not left
+         sitting over the document. It now has a second job — the curtain for
+         internal navigation — and an element that deleted itself after the
+         first page could not do it. `idle` drops it back to `display: none`
+         via the base rule, which achieves the same thing and keeps it
+         reusable. */
+      setTimeout(() => {
+        if (root.dataset.loader === 'done') root.dataset.loader = 'idle';
+      }, 900);
     };
 
     const elapsed = () => performance.now() - started;
@@ -223,4 +291,104 @@ const MARK =
   }
 
   initLoader();
+
+  /* ------------------------------------------------------------------
+     Internal navigation.
+
+     ClientRouter swaps pages without a reload, so none of the above runs
+     again. These two events are the swap's own start and end, which is what
+     the curtain hangs off.
+
+     The element is persisted (`transition:persist`), so the SAME node is
+     raised before the swap and lowered after it — it is never mid-flight
+     when the body is replaced.
+     ------------------------------------------------------------------ */
+  const root = document.documentElement;
+
+  /*
+    Timing is measured from when the MARK starts, not from when the navigation
+    starts, because those are not the same moment — see the `after-swap`
+    handler below for why.
+  */
+  let markStarted = 0;
+  let curtainUp = false;
+
+  document.addEventListener('astro:before-preparation', () => {
+    /* Same exemption as the first load: someone who asked for reduced motion
+       gets no curtain, here or anywhere. */
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+
+    curtainUp = true;
+    root.dataset.loader = 'nav';
+
+    /* The same flag the first load uses. `bootMotion` in Base.astro reads it
+       on `astro:page-load` and, when set, holds the reveals until
+       `aniwala:loader-done`. Without this the entrance animations play behind
+       the curtain on every internal link and are over before it lifts —
+       precisely the failure the first-load path already guards against. */
+    (window as any).__aniwalaLoaderPending = true;
+  });
+
+  /*
+    Start the fill AFTER the swap, not before it.
+
+    The first version restarted the animation in `before-preparation`, and it
+    never played: `transition:persist` carries this element across the swap by
+    MOVING the node into the newly built document, and moving a node cancels
+    the CSS animations running on it. The curtain went up, the animation was
+    killed a few milliseconds later, and the mark sat as a grey ghost with no
+    gold in it for the whole navigation.
+
+    `astro:after-swap` is the first moment the node is in its final home, so
+    the restart survives.
+  */
+  document.addEventListener('astro:after-swap', () => {
+    if (!curtainUp) return;
+
+    /* The swap rebuilds the document, so re-assert the state on the new
+       <html> element — the attribute set before the swap is not carried. */
+    root.dataset.loader = 'nav';
+
+    const reveal = document.querySelector<HTMLElement>('#loader .ld-reveal');
+    if (reveal) {
+      reveal.style.animation = 'none';
+      /* Forcing layout is the reliable way to restart a CSS animation. */
+      void reveal.offsetHeight;
+      reveal.style.animation = '';
+    }
+
+    markStarted = performance.now();
+  });
+
+  document.addEventListener('astro:page-load', () => {
+    if (!curtainUp) return;
+    curtainUp = false;
+
+    /* Must outlast the 0.4s fill, or the mark is cut off partway up and the
+       gold never completes — the constraint the first-load MIN documents.
+       Measured from the swap, which is when the fill actually starts. */
+    const NAV_MIN = 520;
+    const elapsed = markStarted ? performance.now() - markStarted : 0;
+
+    setTimeout(
+      () => {
+        /* Stays in the `nav` state and fades, rather than switching to `done`
+           and sliding up — see the CSS above for why the two exits differ. */
+        root.dataset.loaderExit = '';
+
+        /* Releases the reveals held above. Same event the first load fires,
+           so Base.astro needs no second code path. Dispatched as the fade
+           STARTS, so the page is already animating in behind the curtain and
+           is settled by the time it clears, rather than beginning from
+           nothing on a page the reader is already looking at. */
+        window.dispatchEvent(new CustomEvent('aniwala:loader-done'));
+
+        setTimeout(() => {
+          delete root.dataset.loaderExit;
+          root.dataset.loader = 'idle';
+        }, 300);
+      },
+      Math.max(0, NAV_MIN - elapsed)
+    );
+  });
 </script>

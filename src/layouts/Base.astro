@@ -1,7 +1,7 @@
 ---
 import { ClientRouter } from 'astro:transitions';
 import Announce from '../components/Announce.astro';
-import { announce } from '../config/nav';
+import { getAnnouncement } from '../lib/announce';
 import Header from '../components/Header.astro';
 import Loader from '../components/Loader.astro';
 import Search from '../components/Search.astro';
@@ -46,6 +46,8 @@ const {
   ogImageAlt,
 } = Astro.props;
 
+const announce = await getAnnouncement();
+
 const canonicalURL = new URL(canonical, Astro.site);
 
 /* A Sanity CDN URL arrives absolute and is used as-is; the fallback has to be
@@ -53,7 +55,17 @@ const canonicalURL = new URL(canonical, Astro.site);
 const ogImage = ogImageProp ?? new URL('/og-default.jpg', Astro.site).href;
 ---
 
-<html lang="en">
+{/*
+  `data-announce="off"` collapses `--announce-h` to zero — see global.css.
+
+  Set here, server-side, when the strip is turned off in config. The inline
+  script below only sets it when a visitor has DISMISSED the current
+  announcement, so with `announce.enabled = false` nothing set it at all and
+  the header sat 2.75rem down the page with empty space above it. Doing it in
+  the markup also means it is right before any script runs, and right for a
+  visitor with JavaScript disabled.
+*/}
+<html lang="en" data-announce={announce.enabled ? undefined : 'off'}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />

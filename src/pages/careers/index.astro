@@ -8,12 +8,11 @@ import Footer from '../../components/Footer.astro';
 import {
   values,
   hiringSteps,
-  careerFaqs,
-  careersEmail,
   hiringOpen,
   employmentTypeSchema,
 } from '../../config/careers';
 import { getFlatRoles } from '../../lib/roles';
+import { getFaqs, getContactDetails } from '../../lib/studio';
 import { office } from '../../config/contact';
 
 /**
@@ -30,6 +29,9 @@ import { office } from '../../config/contact';
  * process with real timings, so nobody has to ask. Then the form.
  */
 const roles = hiringOpen ? await getFlatRoles() : [];
+
+const careerFaqs = await getFaqs('careers');
+const { careersEmail } = await getContactDetails();
 const totalSeats = roles.reduce((n, r) => n + r.openings, 0);
 
 /* Filter chips. Built from the listings rather than typed out, so a chip can

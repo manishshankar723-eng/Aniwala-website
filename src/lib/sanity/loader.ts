@@ -26,23 +26,30 @@
  * quietly drop the role out of Google's job index.
  */
 import type { Loader, LoaderContext } from 'astro/loaders';
-import { sanityClient, sanityConfigured } from './client';
+import { sanityClient, sanityConfigured, draftsVisible } from './client';
 import { renderBody, toPlainText } from './portableText';
 
 /**
- * Drafts are visible under `astro dev` and never in a production build — the
- * same rule the Markdown files had, so previewing unfinished writing works
- * the way it always did.
+ * Second line of defence.
  *
- * Sanity models an unpublished document as a separate `drafts.<id>` record.
- * With a read token the API returns both, so production has to filter them
- * out explicitly; without a token it only ever sees published documents and
- * the filter costs nothing. Belt and braces, deliberately: the failure mode
- * of getting this wrong is publishing unfinished writing to a live site.
+ * The real guarantee is the client's `perspective` — see `client.ts`, which
+ * requests `published` in a production build so the API never sends a draft
+ * at all. This filter is then redundant, costs nothing, and stays because the
+ * failure mode of getting it wrong is publishing unfinished writing to a live
+ * site. If someone later changes the perspective without thinking it through,
+ * this still holds.
+ *
+ * In dev the perspective is `raw`, so both a draft and its published twin come
+ * back with their real ids and the dedupe below can tell them apart.
  */
 const PUBLISHED_ONLY = '!(_id in path("drafts.**"))';
 
 const isDev = import.meta.env?.DEV === true;
+
+/* Only skip the published-only filter when drafts can actually come back —
+   i.e. in dev WITH a token. Without one the perspective is `published`
+   anyway, so dropping the filter would gain nothing. */
+const includeDrafts = draftsVisible;
 
 interface SanityDoc {
   _id: string;
@@ -63,8 +70,23 @@ function sanityLoader(options: {
   toData: (doc: SanityDoc, isDraft: boolean) => Record<string, unknown>;
   /** Collections whose entries have no rich-text body skip rendering. */
   hasBody?: boolean;
+  /**
+   * Where the entry id comes from. Defaults to the document's slug.
+   *
+   * A singleton — the announcement bar, say — has no slug because it has no
+   * URL and there is only ever one of it. Such a type passes a constant here
+   * instead, so the entry can still be looked up by a stable id.
+   */
+  idFrom?: (doc: SanityDoc) => string | undefined;
 }): Loader {
-  const { name, type, projection, toData, hasBody = true } = options;
+  const {
+    name,
+    type,
+    projection,
+    toData,
+    hasBody = true,
+    idFrom = (doc) => doc.slug?.current,
+  } = options;
 
   return {
     name,
@@ -107,13 +129,37 @@ function sanityLoader(options: {
         );
       }
 
-      const filter = isDev ? '' : ` && ${PUBLISHED_ONLY}`;
+      const filter = includeDrafts ? '' : ` && ${PUBLISHED_ONLY}`;
       const query = `*[_type == "${type}"${filter}]{ ${projection} }`;
 
       let docs: SanityDoc[];
       try {
         docs = await sanityClient.fetch<SanityDoc[]>(query);
       } catch (error) {
+        const status = (error as { statusCode?: number }).statusCode;
+
+        /*
+         * A 401 here almost always means a revoked or mistyped token, not a
+         * missing one — the dataset is public, so with NO token these queries
+         * succeed. Sending a dead one is worse than sending none, and Sanity
+         * reports it as "Unauthorized - Session not found", which reads like a
+         * login problem and sends you looking in the wrong place.
+         *
+         * Failing rather than dropping the token and retrying is deliberate:
+         * a credential that was configured on purpose and no longer works is
+         * something you want to be told about, not something to paper over.
+         */
+        if (status === 401) {
+          throw new Error(
+            `Sanity rejected the credentials while loading "${name}".\n\n` +
+              `  SANITY_READ_TOKEN is set but is not valid — most likely revoked.\n\n` +
+              `  This dataset is public, so the token is OPTIONAL: it is only needed to\n` +
+              `  preview unpublished drafts under \`astro dev\`. Either clear\n` +
+              `  SANITY_READ_TOKEN in .env, or replace it with a fresh Viewer token from\n` +
+              `  sanity.io/manage -> API -> Tokens.`
+          );
+        }
+
         /* Fail the build. A network blip that silently produced an empty blog
            would deploy a site with every post missing and no error anywhere. */
         throw new Error(`Failed to load "${name}" from Sanity: ${(error as Error).message}`);
@@ -124,9 +170,9 @@ function sanityLoader(options: {
          the entire reason drafts are loaded at all. */
       const bySlug = new Map<string, { doc: SanityDoc; isDraft: boolean }>();
       for (const doc of docs) {
-        const slug = doc.slug?.current;
+        const slug = idFrom(doc);
         if (!slug) {
-          logger.warn(`Skipped a ${type} with no slug (_id: ${doc._id}) — it has no URL.`);
+          logger.warn(`Skipped a ${type} with no slug (_id: ${doc._id}) — the slug is its id.`);
           continue;
         }
         const isDraft = doc._id.startsWith('drafts.');
@@ -247,6 +293,212 @@ export const sanityRoles = (): Loader =>
       ...(doc.niceToHave?.length ? { niceToHave: doc.niceToHave } : {}),
       software: doc.software ?? [],
       reelNote: doc.reelNote,
+      draft: isDraft,
+    }),
+  });
+
+/* ------------------------------------------------------------------ */
+/* Team                                                                */
+/* ------------------------------------------------------------------ */
+export const sanityTeam = (): Loader =>
+  sanityLoader({
+    name: 'sanity:team',
+    type: 'teamMember',
+    hasBody: false,
+    projection: `
+      _id, slug, name, role, bio, photo, href, order
+    `,
+    toData: (doc, isDraft) => ({
+      name: doc.name,
+      role: doc.role,
+      bio: doc.bio,
+      ...(doc.photo ? { photo: doc.photo } : {}),
+      ...(doc.href ? { href: doc.href } : {}),
+      order: doc.order ?? 50,
+      draft: isDraft,
+    }),
+  });
+
+/* ------------------------------------------------------------------ */
+/* Announcement bar (singleton)                                        */
+/* ------------------------------------------------------------------ */
+export const sanityAnnouncement = (): Loader =>
+  sanityLoader({
+    name: 'sanity:announcement',
+    type: 'announcement',
+    hasBody: false,
+    /* No slug: there is one of these and it has no URL. A constant id keeps
+       it addressable as `getEntry('announcement', 'announcement')`. */
+    idFrom: () => 'announcement',
+    projection: `_id, enabled, text, cta, href, id`,
+    toData: (doc, isDraft) => ({
+      enabled: doc.enabled ?? false,
+      text: doc.text ?? '',
+      cta: doc.cta ?? '',
+      href: doc.href ?? '',
+      id: doc.id ?? 'announcement',
+      draft: isDraft,
+    }),
+  });
+
+/* ------------------------------------------------------------------ */
+/* Artwork — one image per named slot                                  */
+/* ------------------------------------------------------------------ */
+export const sanityArtwork = (): Loader =>
+  sanityLoader({
+    name: 'sanity:artwork',
+    type: 'artwork',
+    hasBody: false,
+    /* Keyed by slot, not by slug: the slot IS the address. Two documents
+       filed against the same slot collapse to one, which is the documented
+       behaviour rather than an accident. */
+    idFrom: (doc) => doc.slot,
+    projection: `_id, slot, image, alt`,
+    toData: (doc, isDraft) => ({
+      slot: doc.slot,
+      image: doc.image,
+      alt: doc.alt ?? '',
+      draft: isDraft,
+    }),
+  });
+
+/* ------------------------------------------------------------------ */
+/* Portfolio pieces                                                    */
+/* ------------------------------------------------------------------ */
+export const sanityPieces = (): Loader =>
+  sanityLoader({
+    name: 'sanity:pieces',
+    type: 'piece',
+    hasBody: false,
+    projection: `
+      _id, slug, title, category, blurb, image, kind, client, year,
+      tools, caseStudy, tint, wide, order
+    `,
+    toData: (doc, isDraft) => ({
+      title: doc.title,
+      category: doc.category,
+      blurb: doc.blurb,
+      ...(doc.image ? { image: doc.image } : {}),
+      kind: doc.kind,
+      client: doc.client,
+      year: doc.year,
+      tools: doc.tools ?? [],
+      ...(doc.caseStudy ? { caseStudy: doc.caseStudy } : {}),
+      tint: doc.tint ?? '210 70% 22%',
+      wide: doc.wide ?? false,
+      order: doc.order ?? 50,
+      draft: isDraft,
+    }),
+  });
+
+/* ------------------------------------------------------------------ */
+/* Proof — testimonials, clients, milestones                           */
+/* ------------------------------------------------------------------ */
+export const sanityTestimonials = (): Loader =>
+  sanityLoader({
+    name: 'sanity:testimonials',
+    type: 'testimonial',
+    hasBody: false,
+    /* No slug field: a testimonial has no URL. The document id is unique
+       already, so it doubles as the entry id. */
+    idFrom: (doc) => doc._id.replace(/^drafts\./, ''),
+    projection: `_id, quote, name, role, company, order`,
+    toData: (doc, isDraft) => ({
+      quote: doc.quote,
+      name: doc.name,
+      role: doc.role,
+      company: doc.company,
+      order: doc.order ?? 50,
+      draft: isDraft,
+    }),
+  });
+
+export const sanityClients = (): Loader =>
+  sanityLoader({
+    name: 'sanity:clients',
+    type: 'client',
+    hasBody: false,
+    idFrom: (doc) => doc._id.replace(/^drafts\./, ''),
+    projection: `_id, name, logo, order`,
+    toData: (doc, isDraft) => ({
+      name: doc.name,
+      ...(doc.logo ? { logo: doc.logo } : {}),
+      order: doc.order ?? 50,
+      draft: isDraft,
+    }),
+  });
+
+export const sanityMilestones = (): Loader =>
+  sanityLoader({
+    name: 'sanity:milestones',
+    type: 'milestone',
+    hasBody: false,
+    idFrom: (doc) => doc._id.replace(/^drafts\./, ''),
+    projection: `_id, when, title, body, order`,
+    toData: (doc, isDraft) => ({
+      when: doc.when,
+      title: doc.title,
+      body: doc.body,
+      order: doc.order ?? 50,
+      draft: isDraft,
+    }),
+  });
+
+/* ------------------------------------------------------------------ */
+/* FAQs — service and careers, separated by `scope`                    */
+/* ------------------------------------------------------------------ */
+export const sanityFaqs = (): Loader =>
+  sanityLoader({
+    name: 'sanity:faqs',
+    type: 'faq',
+    hasBody: false,
+    idFrom: (doc) => doc._id.replace(/^drafts\./, ''),
+    projection: `_id, scope, question, answer, order`,
+    toData: (doc, isDraft) => ({
+      scope: doc.scope,
+      question: doc.question,
+      answer: doc.answer,
+      order: doc.order ?? 50,
+      draft: isDraft,
+    }),
+  });
+
+/* ------------------------------------------------------------------ */
+/* Singletons — contact details and site copy                          */
+/* ------------------------------------------------------------------ */
+export const sanityContactDetails = (): Loader =>
+  sanityLoader({
+    name: 'sanity:contact',
+    type: 'contactDetails',
+    hasBody: false,
+    idFrom: () => 'contactDetails',
+    projection: `_id, email, careersEmail, addressLines, country, socials`,
+    toData: (doc, isDraft) => ({
+      email: doc.email,
+      careersEmail: doc.careersEmail,
+      addressLines: doc.addressLines ?? [],
+      country: doc.country ?? 'India',
+      socials: (doc.socials ?? []).map((s: Record<string, unknown>) => ({
+        icon: s.icon,
+        label: s.label,
+        href: s.href ?? '',
+      })),
+      draft: isDraft,
+    }),
+  });
+
+export const sanitySiteCopy = (): Loader =>
+  sanityLoader({
+    name: 'sanity:copy',
+    type: 'siteCopy',
+    hasBody: false,
+    idFrom: () => 'siteCopy',
+    projection: `_id, positioning, teamIntro, marqueeItems, capabilities`,
+    toData: (doc, isDraft) => ({
+      positioning: doc.positioning ?? '',
+      teamIntro: doc.teamIntro ?? '',
+      marqueeItems: doc.marqueeItems ?? [],
+      capabilities: doc.capabilities ?? [],
       draft: isDraft,
     }),
   });

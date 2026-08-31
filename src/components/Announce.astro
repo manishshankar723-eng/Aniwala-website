@@ -1,5 +1,7 @@
 ---
-import { announce } from '../config/nav';
+import { getAnnouncement } from '../lib/announce';
+
+const announce = await getAnnouncement();
 ---
 
 {

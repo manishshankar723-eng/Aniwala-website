@@ -53,7 +53,24 @@ export const office = {
 /* under `astro dev` as an inert row and is dropped from the production */
 /* build, the same rule the draft team cards follow in config/about.ts. */
 /* ------------------------------------------------------------------ */
-export type SocialIcon = 'whatsapp' | 'linkedin' | 'x' | 'youtube' | 'facebook' | 'artstation';
+/**
+ * The icons `SocialIcon.astro` can actually draw.
+ *
+ * A const array rather than a bare union, so the CMS schema can offer exactly
+ * this list and the Zod schema can validate against it. An icon name that is
+ * not one of these renders as nothing — visible to no one, with no error —
+ * which is precisely the kind of silent failure worth a few lines to prevent.
+ */
+export const SOCIAL_ICONS = [
+  'whatsapp',
+  'linkedin',
+  'x',
+  'youtube',
+  'facebook',
+  'artstation',
+] as const;
+
+export type SocialIcon = (typeof SOCIAL_ICONS)[number];
 
 export interface Social {
   label: string;

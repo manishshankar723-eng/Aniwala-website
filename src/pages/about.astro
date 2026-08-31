@@ -4,21 +4,25 @@ import PageHero from '../components/PageHero.astro';
 import CtaBand from '../components/CtaBand.astro';
 import Footer from '../components/Footer.astro';
 import {
-  positioning,
   studioFacts,
   principles,
   practices,
-  milestones,
-  teamIntro,
-  publishedTeam,
 } from '../config/about';
-import { capabilities } from '../config/site';
+import { getTeam } from '../lib/team';
+import { imageUrl, imageSrcSet } from '../lib/sanity/client';
+import { getSiteCopy, getMilestones } from '../lib/studio';
 import { email } from '../config/contact';
 
 /* Drafts render under `astro dev` and are dropped from the production build,
    so the layout can be worked on without risking six invented people going
    live. See the block comment on `team` in config/about.ts. */
-const members = publishedTeam();
+const members = await getTeam();
+
+/* Copy and timeline now come from the CMS. Both degrade to empty rather than
+   to stale hardcoded text — a duplicate that silently takes over when the CMS
+   document is missing is the kind of bug you ship for a year. */
+const { positioning, teamIntro, capabilities } = await getSiteCopy();
+const milestones = await getMilestones();
 
 /**
  * About us.
@@ -188,9 +192,16 @@ const members = publishedTeam();
                 <article class="member" data-reveal>
                   <span class="member-shot">
                     {m.photo ? (
+                      /* Alt text is derived, not typed — see the note on the
+                         team collection in content.config.ts. `srcset` means
+                         a phone fetches a 480px file rather than whatever
+                         resolution the photo was uploaded at, and Sanity's
+                         hotspot decides what survives the 4:3 crop. */
                       <img
                         class="member-photo"
-                        src={m.photo}
+                        src={imageUrl(m.photo, 480)}
+                        srcset={imageSrcSet(m.photo, [480, 720, 960])}
+                        sizes="(min-width: 900px) 320px, 100vw"
                         alt={`${m.name}, ${m.role}`}
                         width="480"
                         height="360"

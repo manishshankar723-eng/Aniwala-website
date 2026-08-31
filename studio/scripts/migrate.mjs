@@ -86,9 +86,27 @@ const idFor = (type, slug) => `${type}-${slug}`;
 
 const slugField = (slug) => ({ _type: 'slug', current: slug });
 
-/** Read every .md file in a directory as { slug, data, body }. */
+/**
+ * Read every .md file in a directory as { slug, data, body }.
+ *
+ * A missing directory is not an error. The Markdown was deleted once it had
+ * been migrated, so this returns nothing on a later run rather than failing —
+ * which is what lets the script be re-run to migrate a NEW content type
+ * without first restoring content that has already moved.
+ */
 async function readMarkdownDir(dir) {
-  const files = (await readdir(dir)).filter((f) => f.endsWith('.md'));
+  let entries;
+  try {
+    entries = await readdir(dir);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      console.log(`  (${basename(dir)}: already migrated, nothing on disk)`);
+      return [];
+    }
+    throw error;
+  }
+
+  const files = entries.filter((f) => f.endsWith('.md'));
   return Promise.all(
     files.map(async (file) => {
       const raw = await readFile(join(dir, file), 'utf8');
@@ -206,6 +224,191 @@ async function migrateRoles() {
   }));
 }
 
+
+/**
+ * Team members, from the committed `config/about.ts`.
+ *
+ * Created UNPUBLISHED, unlike everything else this script writes. The old
+ * array marked every card `draft: true` so the placeholders rendered under
+ * `astro dev` and never reached the live site — they describe roles, not
+ * people. Publishing them here would put six invented colleagues on the about
+ * page, which is exactly the outcome that flag existed to prevent.
+ *
+ * A Sanity draft is just a document whose _id is prefixed `drafts.`.
+ */
+async function migrateTeam() {
+  const { execSync } = await import('node:child_process');
+
+  let source;
+  try {
+    source = execSync('git show HEAD:src/config/about.ts', {
+      cwd: REPO,
+      encoding: 'utf8',
+      maxBuffer: 10 * 1024 * 1024,
+    });
+  } catch {
+    console.warn('  ! Could not read the old about.ts from git — skipping team.');
+    return [];
+  }
+
+  const match = source.match(/export const team: Member\[\] = (\[[\s\S]*?\n\]);/);
+  if (!match) {
+    console.warn('  ! Could not find the team array in the committed about.ts — skipping.');
+    return [];
+  }
+
+  const members = eval(match[1]);
+
+  const slugify = (name) =>
+    name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+
+  return members.map((m, i) => {
+    const slug = slugify(m.name);
+    return {
+      /* Gaps of 10 so someone can be slotted between two people later
+         without renumbering the whole grid. */
+      _id: m.draft ? `drafts.teamMember-${slug}` : `teamMember-${slug}`,
+      _type: 'teamMember',
+      name: m.name,
+      slug: slugField(slug),
+      role: m.role,
+      bio: m.bio,
+      ...(m.href ? { href: m.href } : {}),
+      order: (i + 1) * 10,
+    };
+  });
+}
+
+
+/* ------------------------------------------------------------------ */
+/* The studio's own content                                            */
+/*                                                                     */
+/* These configs are imported directly rather than scraped out of git   */
+/* with a regex, the way `openRoles` had to be. They have no imports of */
+/* their own, so Node can load them with type stripping and hand back   */
+/* real objects — which is both shorter and impossible to get subtly    */
+/* wrong the way a regex over source can be.                            */
+/* ------------------------------------------------------------------ */
+
+async function migratePieces() {
+  const { pieces } = await import('../../src/config/portfolio.ts');
+
+  return pieces.map((p, i) => ({
+    _id: idFor('piece', p.slug),
+    _type: 'piece',
+    title: p.title,
+    slug: slugField(p.slug),
+    category: p.category,
+    blurb: p.blurb,
+    kind: p.kind,
+    client: p.client,
+    year: p.year,
+    tools: p.tools ?? [],
+    ...(p.caseStudy ? { caseStudy: p.caseStudy } : {}),
+    tint: p.tint,
+    wide: p.wide ?? false,
+    /* Gaps of 10, so a piece can be slotted between two others later
+       without renumbering the whole grid. */
+    order: (i + 1) * 10,
+  }));
+}
+
+/*
+ * `careers.ts` is read as TEXT, not imported.
+ *
+ * It is the one config with an import of its own (`./disciplines`), written
+ * without a file extension the way bundlers accept and Node's ESM resolver
+ * does not. Changing the app's import style to suit a throwaway migration
+ * script would be the tail wagging the dog, so this script does the awkward
+ * thing instead.
+ */
+async function readCareersSource() {
+  return readFile(join(REPO, 'src', 'config', 'careers.ts'), 'utf8');
+}
+
+async function migrateFaqs() {
+  const source = await readCareersSource();
+  const match = source.match(/export const careerFaqs: CareerFaq\[\] = (\[[\s\S]*?\n\]);/);
+  const careerFaqs = match ? eval(match[1]) : [];
+  if (!match) console.warn('  ! Could not find careerFaqs — skipping the careers FAQs.');
+
+  const { services } = await import('../../src/config/services.ts');
+
+  const docs = [];
+
+  careerFaqs.forEach((f, i) => {
+    docs.push({
+      _id: `faq-careers-${i}`,
+      _type: 'faq',
+      scope: 'careers',
+      question: f.q,
+      answer: f.a,
+      order: (i + 1) * 10,
+    });
+  });
+
+  for (const service of services) {
+    (service.faqs ?? []).forEach((f, i) => {
+      docs.push({
+        _id: `faq-${service.slug}-${i}`,
+        _type: 'faq',
+        scope: `service:${service.slug}`,
+        question: f.q,
+        answer: f.a,
+        order: (i + 1) * 10,
+      });
+    });
+  }
+
+  return docs;
+}
+
+async function migrateContactDetails() {
+  const contact = await import('../../src/config/contact.ts');
+
+  const source = await readCareersSource();
+  const emailMatch = source.match(/export const careersEmail = '([^']+)'/);
+  const careersEmail = emailMatch ? emailMatch[1] : contact.email;
+
+  return [
+    {
+      _id: 'contactDetails',
+      _type: 'contactDetails',
+      email: contact.email,
+      careersEmail,
+      addressLines: contact.office.lines,
+      country: contact.office.country,
+      socials: contact.socials.map((s, i) => ({
+        _type: 'object',
+        _key: `social-${i}`,
+        icon: s.icon,
+        label: s.label,
+        href: s.href,
+      })),
+    },
+  ];
+}
+
+async function migrateSiteCopy() {
+  const { positioning, teamIntro } = await import('../../src/config/about.ts');
+  const { marqueeItems, capabilities } = await import('../../src/config/site.ts');
+
+  return [
+    {
+      _id: 'siteCopy',
+      _type: 'siteCopy',
+      positioning,
+      teamIntro,
+      marqueeItems,
+      capabilities,
+    },
+  ];
+}
+
 async function main() {
   console.log(`\nMigrating into ${projectId}/${dataset}${DRY_RUN ? '  (DRY RUN)' : ''}\n`);
 
@@ -213,11 +416,21 @@ async function main() {
     ...(await migratePosts()),
     ...(await migrateCaseStudies()),
     ...(await migrateRoles()),
+    ...(await migrateTeam()),
+    ...(await migratePieces()),
+    ...(await migrateFaqs()),
+    ...(await migrateContactDetails()),
+    ...(await migrateSiteCopy()),
   ];
 
   for (const doc of docs) {
     const blocks = Array.isArray(doc.body) ? doc.body.length : 0;
-    console.log(`  ${doc._type.padEnd(10)} ${doc.slug.current}${blocks ? `  (${blocks} blocks)` : ''}`);
+    const state = doc._id.startsWith('drafts.') ? '  [unpublished]' : '';
+    /* FAQs and the singletons have no slug — fall back to the id. */
+    const label = doc.slug?.current ?? doc._id;
+    console.log(
+      `  ${doc._type.padEnd(16)} ${label}${blocks ? `  (${blocks} blocks)` : ''}${state}`
+    );
   }
 
   if (DRY_RUN) {

@@ -1,6 +1,7 @@
 ---
 import { nav, cta } from '../config/nav';
-import { email, office, legalName, legalLinks, publishedSocials } from '../config/contact';
+import { legalName, legalLinks } from '../config/contact';
+import { getContactDetails } from '../lib/studio';
 import SocialIcon from './SocialIcon.astro';
 
 const year = new Date().getFullYear();
@@ -9,7 +10,8 @@ const serviceParent = nav.find((i) => i.children);
 
 /* Accounts with no URL yet render under `astro dev` so the row can be laid
    out, and are dropped from the production build. See config/contact.ts. */
-const social = publishedSocials();
+const { email, addressLines, country, mapsUrl, publishedSocials: social } =
+  await getContactDetails();
 ---
 
 <footer class="footer">
@@ -29,11 +31,11 @@ const social = publishedSocials();
       */}
       <address class="footer-address">
         <span class="footer-address-label">Office</span>
-        <a href={office.mapsUrl} rel="noopener">
-          {office.lines.map((line) => (
+        <a href={mapsUrl} rel="noopener">
+          {addressLines.map((line) => (
             <span class="footer-address-line">{line}</span>
           ))}
-          <span class="footer-address-line">{office.country}</span>
+          <span class="footer-address-line">{country}</span>
         </a>
       </address>
     </div>

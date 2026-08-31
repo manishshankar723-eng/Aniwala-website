@@ -4,7 +4,7 @@ import PageHero from '../components/PageHero.astro';
 import BookCall from '../components/BookCall.astro';
 import SocialIcon from '../components/SocialIcon.astro';
 import Footer from '../components/Footer.astro';
-import { email, office, publishedSocials } from '../config/contact';
+import { getContactDetails } from '../lib/studio';
 import { enquiryTypes } from '../config/site';
 
 /**
@@ -20,7 +20,8 @@ import { enquiryTypes } from '../config/site';
  * not have to negotiate a calendar first. The address comes before the
  * scheduler for the same reason.
  */
-const socials = publishedSocials();
+const { email, addressLines, country, mapsUrl, publishedSocials: socials } =
+  await getContactDetails();
 ---
 
 <Base
@@ -60,10 +61,10 @@ const socials = publishedSocials();
           <div class="reach-card" data-reveal>
             <p class="reach-label">Studio</p>
             <address class="reach-address">
-              {office.lines.map((line) => <span>{line}</span>)}
-              <span>{office.country}</span>
+              {addressLines.map((line) => <span>{line}</span>)}
+              <span>{country}</span>
             </address>
-            <a href={office.mapsUrl} class="reach-link" rel="noopener">
+            <a href={mapsUrl} class="reach-link" rel="noopener">
               Open in Maps <span aria-hidden="true">&rarr;</span>
             </a>
           </div>

@@ -40,6 +40,44 @@ const SANITY_READ_TOKEN = env('SANITY_READ_TOKEN');
  */
 export const sanityConfigured = Boolean(SANITY_PROJECT_ID);
 
+/**
+ * Which documents the API returns, and it is not a detail.
+ *
+ * Sanity stores an unpublished document as a separate `drafts.<id>` record,
+ * and the `perspective` decides which of the two you see:
+ *
+ *   published  only published documents
+ *   drafts     drafts overlaid on published, with the ids NORMALISED — the
+ *              `drafts.` prefix is stripped, so you cannot tell which is which
+ *   raw        everything, with the real ids
+ *
+ * The default perspective on this API version excludes drafts, which meant
+ * the "drafts are previewable under `astro dev`" behaviour silently did
+ * nothing: the loader asked for everything and the API returned published
+ * documents only.
+ *
+ * So: `raw` in dev, because the loader needs the real ids to tell a draft
+ * from its published twin. `published` in production, which makes it an
+ * API-level guarantee rather than something a GROQ filter has to get right.
+ *
+ * `raw` requires authentication — drafts are private, so an unauthenticated
+ * request for them fails outright with "Unauthorized - Session not found"
+ * rather than quietly returning less. Without a token, dev therefore asks for
+ * `published` too: no draft preview, but the site still runs, which is the
+ * behaviour a fresh clone needs. That is why a production build works with no
+ * token at all and dev does not.
+ */
+const canReadDrafts = import.meta.env?.DEV === true && Boolean(SANITY_READ_TOKEN);
+
+const PERSPECTIVE = canReadDrafts ? 'raw' : 'published';
+
+/**
+ * True when a draft could be showing. The loaders use it to decide whether to
+ * ask for unpublished documents at all — asking for them under a `published`
+ * perspective returns nothing, so the query may as well not bother.
+ */
+export const draftsVisible = canReadDrafts;
+
 export const sanityClient = sanityConfigured
   ? createClient({
       projectId: SANITY_PROJECT_ID,
@@ -52,6 +90,7 @@ export const sanityClient = sanityConfigured
          publish, the rebuild starts immediately, and a cached response would
          ship the previous version and look like the CMS lost the edit. */
       useCdn: false,
+      perspective: PERSPECTIVE,
       token: SANITY_READ_TOKEN || undefined,
     })
   : null;
