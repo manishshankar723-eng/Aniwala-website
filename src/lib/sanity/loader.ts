@@ -73,13 +73,38 @@ function sanityLoader(options: {
       store.clear();
 
       if (!sanityConfigured || !sanityClient) {
-        /* A fresh clone with no credentials still builds. Every non-content
-           page renders and the content listings are simply empty. Throwing
-           here would mean nobody can run the site without a token. */
-        logger.warn(
-          `Sanity is not configured — "${name}" is empty. Set SANITY_PROJECT_ID in .env to load content.`
+        /*
+         * Under `astro dev`, warn and carry on: a fresh clone with no
+         * credentials should still start, so someone can work on the header
+         * without a Sanity account.
+         *
+         * In a production build, FAIL. This used to warn here too, and that
+         * was a genuine bug: a build with no credentials produced a complete
+         * site with an empty blog, an empty careers page and no case studies,
+         * exited 0, and handed a deployable `dist/` to the FTP step. The one
+         * thing that caught it was `check-links.mjs` noticing two hardcoded
+         * case-study links in `config/portfolio.ts` — pure luck. Remove those
+         * two links and a misconfigured deploy would have gone green and
+         * replaced the live site with a hollow one.
+         *
+         * Never let a missing credential be quieter than a broken link.
+         */
+        if (isDev) {
+          logger.warn(
+            `Sanity is not configured — "${name}" is empty. Set SANITY_PROJECT_ID in .env to load content.`
+          );
+          return;
+        }
+
+        throw new Error(
+          `Sanity is not configured, so "${name}" would be empty and this build would ` +
+            `produce a site with no content.\n\n` +
+            `  SANITY_PROJECT_ID is missing or blank.\n\n` +
+            `  Locally: copy .env.example to .env and fill it in.\n` +
+            `  In CI:   add SANITY_PROJECT_ID and SANITY_DATASET as repository secrets\n` +
+            `           (Settings -> Secrets and variables -> Actions -> Repository secrets).\n` +
+            `           Environment secrets do NOT reach a job with no environment set.`
         );
-        return;
       }
 
       const filter = isDev ? '' : ` && ${PUBLISHED_ONLY}`;

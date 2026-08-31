@@ -39,6 +39,26 @@ jobs:
 
       - run: npm ci
 
+      # Fails in two seconds with a readable message, rather than letting the
+      # build run and produce a site with no content. Prints only whether the
+      # value is empty, never the value.
+      - name: Check the Sanity secrets are actually reaching this job
+        env:
+          SANITY_PROJECT_ID: ${{ secrets.SANITY_PROJECT_ID }}
+        run: |
+          if [ -z "$SANITY_PROJECT_ID" ]; then
+            echo "::error::SANITY_PROJECT_ID is empty in this job."
+            echo ""
+            echo "The content lives in Sanity, so without this the build produces a"
+            echo "site with no blog, no case studies and no job listings."
+            echo ""
+            echo "Add it under Settings -> Secrets and variables -> Actions, in the"
+            echo "REPOSITORY SECRETS section. Environment secrets do not reach a job"
+            echo "that declares no 'environment:', which is the usual cause of this."
+            exit 1
+          fi
+          echo "SANITY_PROJECT_ID is present (${#SANITY_PROJECT_ID} characters)."
+
       # Type and template errors that `astro build` happily ignores: a bad
       # prop type, a missing import, a component called with the wrong shape.
       # This is the check that makes the build gate worth having.
