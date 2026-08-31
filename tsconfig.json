@@ -7,6 +7,12 @@
     // provided by the Supabase Edge runtime and are invisible to tsc. These
     // are type-checked by `deno check` / the Supabase CLI at deploy time, not
     // by `astro check`, which only knows about the website.
-    "supabase/functions"
+    "supabase/functions",
+    // A separate npm package with its own tsconfig and its own dependencies
+    // (React, the Sanity toolkit). Its node_modules is not installed by the
+    // root `npm ci`, so every `import ... from 'sanity'` in there is
+    // unresolvable from here — 55 errors that say nothing about the website.
+    // Check it with `cd studio && npx tsc --noEmit`.
+    "studio"
   ]
 }

@@ -78,7 +78,20 @@ export const nav: NavItem[] = [
  * dismissed the previous one, instead of staying hidden forever.
  */
 export const announce = {
-  enabled: true,
+  /*
+   * OFF until `/ai-animation/` exists.
+   *
+   * The bar was live and pointing at a page that had never been built, so
+   * every one of the 64 pages on the site carried a link to a 404 — which is
+   * what `scripts/check-links.mjs` exists to catch, and was catching. Turned
+   * off rather than repointed, because the copy is specific to a page about
+   * how the studio uses AI and sending that click to /services/ would be a
+   * small lie to anyone who clicked it.
+   *
+   * Set this back to `true` the day the page ships. Nothing else needs to
+   * change; the href below is already correct for it.
+   */
+  enabled: false,
   id: 'ai-animation-2026',
   text: 'AI + Animation — faster iteration, same hand-finished craft.',
   cta: 'See how we use it',

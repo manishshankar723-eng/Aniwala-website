@@ -30,8 +30,21 @@ terminal. Use it only if you want the logs streaming in front of you.
 
 ## How a change goes live
 
-Push to `main`. GitHub Actions builds and FTPs `dist/` into `public_html`.
+Two ways in, one way out.
+
+**A code change** — push to `main`.
+**A content change** — hit Publish in the Studio at
+<https://aniwala.com/admin> (which redirects to `aniwala.sanity.studio`).
+
+Either one triggers the same GitHub Actions workflow: it type-checks, builds,
+checks every internal link, and only then FTPs `dist/` into `public_html`.
 Live in roughly 90 seconds. Watch it in the repo's **Actions** tab.
+
+The content path works because a webhook on the Sanity project POSTs a
+`repository_dispatch` event to GitHub when a document is published. Without
+that webhook, publishing changes the database and nothing else — the site is
+static and would carry on serving the previous build. If an editor says
+"I published it and nothing happened", check the webhook first.
 
 Hostinger runs PHP, not Node — it only ever receives finished HTML.
 Never point the workflow at a Node runtime; there isn't one on this plan.
@@ -43,6 +56,9 @@ Never point the workflow at a Node runtime; there isn't one on this plan.
    `FTP_HOST`, `FTP_USER`, `FTP_PASS`.
 3. **hPanel → Websites → aniwala.com → Security → SSL** — install the free
    certificate and enable Force HTTPS.
+4. **Sanity** — see *Setting up the CMS* below. The build needs
+   `SANITY_PROJECT_ID` and `SANITY_DATASET` as GitHub Actions secrets, or it
+   produces a site with no blog, no case studies and no jobs.
 
 ## Layout
 
@@ -132,8 +148,9 @@ Three things have to move together when a `slug` changes, and nothing will
 warn you about the last one:
 
 1. the matching `href` in `src/config/nav.ts`, or the nav link 404s;
-2. any `services:` entry in `src/content/case-studies/*.md` — a stale slug is
-   silently dropped from the case study's cross-links rather than erroring;
+2. the **Services** field on any case study in the Studio — a stale slug is
+   silently dropped from the cross-links rather than erroring, and renaming a
+   slug in code cannot reach into the CMS to fix the documents that use it;
 3. `enquiryTypes` in `src/config/site.ts`, which fills the contact form's
    dropdown and is matched by label rather than slug.
 
@@ -144,15 +161,14 @@ guessed.
 
 ### Posting or closing a job
 
-Add an object to `openRoles` in `src/config/careers.ts`.
-`src/pages/careers/[slug].astro` builds the page, `/careers/` lists it, search
-indexes it and the JobPosting structured data is emitted from the same record —
-there is nothing else to touch.
+**Open Roles → Create** in the Studio, then Publish. The page builds, `/careers/`
+lists it, search indexes it and the JobPosting structured data comes off the
+same record — there is nothing else to touch, and no code change.
 
-**Closing a role means deleting its object, not annotating it.** Its page stops
-being built, it drops out of the listing and it leaves search the same day. A
-listing still live three months after the seat was filled costs you the next
-good applicant.
+**Closing a role means UNPUBLISHING it, not annotating it.** Its page stops
+being built, it drops out of the listing and it leaves search on the next
+build. A listing still live three months after the seat was filled costs you
+the next good applicant.
 
 Two fields carry more weight than they look:
 
@@ -163,8 +179,15 @@ Two fields carry more weight than they look:
   creative job ad, and the one almost nobody writes. An animator and a
   character artist are judged on different things; saying which saves a round.
 
-Set `hiringOpen = false` to take everything down at once. The page keeps its
-open application and explains itself rather than going blank.
+`discipline` is a dropdown rather than free text, because it has to match a
+filter chip on `/careers/` or the role becomes unreachable behind every
+filter. Adding a new discipline is a code change, in
+`src/config/disciplines.ts` — and it has to be added to the site's list *and*
+be a value the Studio offers, which that one file handles for both.
+
+Set `hiringOpen = false` in `src/config/careers.ts` to take everything down at
+once. The page keeps its open application and explains itself rather than
+going blank.
 
 Applications land in the `applications` table, both kinds in one place:
 `kind = 'role'` for an application against a listing, `kind = 'open'` for
@@ -173,26 +196,30 @@ Table Editor and you have two working queues.
 
 ### Adding a blog post
 
-Drop a Markdown file in `src/content/blog/`. **The filename becomes the URL**,
-so renaming one breaks its link. Frontmatter is validated against
-`src/content.config.ts`, and the build fails loudly on a bad field rather than
-publishing something malformed.
+**Blog posts → Create** in the Studio, then Publish.
 
-```yaml
----
-title: 'Approve the blocking, not the render'
-description: 'One or two lines. Also used as the meta description.'
-pubDate: 2026-08-12
-category: 'Craft'        # Craft | Pipeline | Studio | Industry
-tags: ['3d animation', 'review']
-tint: '210 70% 22%'      # HSL triple for the card art
-draft: false             # true = visible in dev, absent from the live build
----
-```
+Every field is validated twice: once in the Studio while you type, and again
+at build time against the Zod schema in `src/content.config.ts`. The build
+fails loudly on a bad document rather than publishing something malformed —
+which matters more now that publishing does not go through a code review.
+
+Three fields to get right:
+
+- **URL** — generated from the title. Changing it after publishing breaks
+  every existing link to the post. The Studio will let you; don't.
+- **Description** — capped at 160 characters, because it is both the card
+  excerpt *and* the meta description Google prints under the title. Write it
+  for someone deciding whether to click, not as a summary.
+- **Cover image** — optional. Without one the card falls back to the colour
+  placeholder. With one, it also becomes the post's social card, so a shared
+  link shows the artwork instead of the studio logo.
 
 Reading time is counted from the body, never typed. A new post appears on the
 blog index, its category page and site search automatically. The homepage does
 **not** list posts — the blog is reached from the nav.
+
+Unpublished posts are visible under `astro dev` and excluded from production
+builds, so a draft can be previewed on a real page before anyone sees it.
 
 ### Blog pages
 
@@ -223,16 +250,80 @@ on the right edge — stacking it under a 2000-word post buries it.
 
 ## Where the data lives
 
-Two places, on purpose.
+Three places, on purpose.
 
 | What | Where |
 | --- | --- |
-| Posts, case studies, services, nav | This repo. Plain files, diffable, in git. |
+| Posts, case studies, job openings | Sanity. Edited at aniwala.com/admin. |
+| Services, nav, portfolio, hiring process | This repo. Plain files, in git. |
 | Enquiries, bookings, applications, comments | One Supabase project. |
+
+The split between the first two rows is the one worth understanding. Anything
+published on a weekly rhythm by a person who should not need a developer lives
+in the CMS. Anything that describes how the studio is *structured* — the six
+services, the navigation, the hiring steps, the disciplines a role can belong
+to — stays in code, where it gets a diff and a review. A new blog post is
+content; a seventh service is a decision.
 
 Everything a visitor submits goes into a single Supabase database, so there is
 one dashboard to check and one export to take — not a form service plus a
 comment service plus a scheduler.
+
+### Setting up the CMS
+
+1. Create a free project at <https://sanity.io>. Note the **project ID**.
+2. `cp .env.example .env` and fill in `SANITY_PROJECT_ID`,
+   `SANITY_STUDIO_PROJECT_ID` (same value) and the dataset (`production`).
+3. **GitHub → Settings → Secrets and variables → Actions** — add
+   `SANITY_PROJECT_ID` and `SANITY_DATASET`. Without them CI builds an empty
+   site; the link checker catches it, but only after a wasted run.
+4. Install and start the Studio:
+
+   ```
+   cd studio
+   npm install
+   npm run dev          # http://localhost:3333
+   ```
+
+5. Migrate the old Markdown content in (once):
+
+   ```
+   SANITY_STUDIO_PROJECT_ID=xxx node scripts/migrate.mjs --dry-run
+   SANITY_STUDIO_PROJECT_ID=xxx SANITY_WRITE_TOKEN=sk... node scripts/migrate.mjs
+   ```
+
+   Check a long post's formatting in the Studio, then delete
+   `src/content/` and revoke the write token.
+
+6. Deploy the Studio so the non-technical editor can reach it:
+
+   ```
+   npm run deploy       # -> https://aniwala.sanity.studio
+   ```
+
+7. **sanity.io/manage → API → Webhooks** — add a webhook so publishing
+   rebuilds the site:
+
+   - URL: `https://api.github.com/repos/<owner>/<repo>/dispatches`
+   - Method: `POST`
+   - Headers: `Authorization: Bearer <a GitHub PAT with repo scope>`,
+     `Accept: application/vnd.github+json`
+   - Body: `{"event_type": "sanity-publish"}`
+   - Trigger on: create, update, delete
+
+8. **sanity.io/manage → Members → Invite** — add the editor by email. They
+   need no GitHub account and no repo access, which is the entire reason this
+   is a headless CMS rather than a git-backed one.
+
+### Adding an editor safely
+
+Invite them as **Editor**, not Administrator. An Editor can write and publish
+content and cannot change the schema, the dataset or the project's members.
+
+Two things they can still do that no schema prevents, so say them out loud
+once: changing a published post's **URL** breaks every existing link to it,
+and closing a filled role means **unpublishing** it, not editing the summary
+to say "position filled".
 
 ### Setting up Supabase
 
@@ -348,27 +439,18 @@ which two steps are missing. That note never ships in a production build.
 
 ### Adding a case study
 
-Same idea, in `src/content/case-studies/`. Newest three appear on the homepage,
-all of them at `/case-studies/`.
+Same idea — **Case studies → Create** in the Studio. Newest three appear on
+the homepage, all of them at `/case-studies/`.
 
-```yaml
----
-title: 'Kite'
-description: 'One line. Also the meta description.'
-kind: 'Studio project'   # or 'Client project'
-client: 'Aniwala Studios'
-sector: 'Short film'
-year: 2026
-services: ['animation']  # slugs from config/services.ts
-deliverables: ['ProRes 4444 master at 2K, 24fps']
-tools: ['Toon Boom Harmony']
-results:                          # facts you can point at, NOT invented %
-  - { label: 'Runtime', value: '40 seconds' }
-tint: '28 75% 26%'
-featured: false          # pins it as the lead card. Use on ONE study.
-draft: false
----
-```
+A few fields behave differently from the blog:
+
+- **Services** is a dropdown of the slugs in `config/services.ts`. It drives
+  the cross-links back to the service pages, so a case study and the service
+  it demonstrates always point at each other.
+- **Results** wants facts you can point at — shot counts, runtimes, asset
+  counts. Not invented percentages: "40% faster" with nothing behind it is
+  the kind of claim a producer asks you to substantiate in a meeting.
+- **Featured** pins it as the lead card. Use it on one study at a time.
 
 **`kind` is load-bearing, not a label.** `Studio project` renders a gold badge
 on every card plus a disclosure panel at the top of the page, so a
@@ -380,13 +462,13 @@ and the service it demonstrates always point at each other.
 
 ### About the seed content
 
-Everything in `src/content/blog/` and `src/content/case-studies/` was written
-to give the site something real to launch with. **The three case studies
-describe projects the studio has not actually made.** They are marked
-`Studio project` so nothing claims a client, but they must be replaced with
-real work — or deleted — before the site goes anywhere near a client. Both
-listing pages render an honest empty state when their folder is empty, so
-deleting is safe.
+The seven blog posts and three case studies now in Sanity were written to give
+the site something real to launch with. **The three case studies describe
+projects the studio has not actually made.** They are marked `Studio project`
+so nothing claims a client, but they must be replaced with real work — or
+deleted — before the site goes anywhere near a client. Both listing pages
+render an honest empty state when their collection is empty, so deleting is
+safe.
 
 ## Conventions
 

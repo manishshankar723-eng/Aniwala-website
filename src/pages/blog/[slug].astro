@@ -7,6 +7,7 @@ import BlogSidebar from '../../components/BlogSidebar.astro';
 import Comments from '../../components/Comments.astro';
 import CtaBand from '../../components/CtaBand.astro';
 import Footer from '../../components/Footer.astro';
+import { imageUrl, imageSrcSet, ogImageUrl } from '../../lib/sanity/client';
 import {
   getPosts,
   getRelatedPosts,
@@ -27,7 +28,8 @@ interface Props {
   post: Post;
 }
 const { post } = Astro.props;
-const { title, description, pubDate, updatedDate, category, tags, author, tint } = post.data;
+const { title, description, pubDate, updatedDate, category, tags, author, tint, cover } =
+  post.data;
 
 const { Content, headings } = await render(post);
 const related = await getRelatedPosts(post);
@@ -58,6 +60,8 @@ const articleSchema = {
   title={`${title} — Aniwala Studios`}
   description={description}
   canonical={`/blog/${post.id}/`}
+  ogImage={cover ? ogImageUrl(cover) : undefined}
+  ogImageAlt={cover?.alt}
 >
   <main id="main">
     <PageHero
@@ -73,6 +77,32 @@ const articleSchema = {
         { label: title },
       ]}
     />
+
+    {
+      /* The cover, at full width between the hero and the article.
+
+         Unlike the copy on the blog card, this one carries its real alt text
+         and is NOT aria-hidden: here the image is part of the article rather
+         than decoration beside a link that already says what the piece is.
+
+         `fetchpriority="high"` and no lazy loading because this is almost
+         always the largest element in the viewport on load — lazy-loading it
+         would delay the very thing the page is measured on. */
+      cover && (
+        <figure class="post-cover">
+          <img
+            src={imageUrl(cover, 1600)}
+            srcset={imageSrcSet(cover, [768, 1200, 1600, 2000])}
+            sizes="(min-width: 1200px) 1100px, 100vw"
+            alt={cover.alt}
+            fetchpriority="high"
+            decoding="async"
+            width="1600"
+            height="900"
+          />
+        </figure>
+      )
+    }
 
     <div class="section blog-shell">
       <article class="blog-main">
@@ -142,6 +172,22 @@ const articleSchema = {
 </Base>
 
 <style>
+  /* Full-bleed within the content column, not the viewport — a cover that
+     runs edge to edge on a wide monitor dwarfs the article it belongs to. */
+  .post-cover {
+    max-width: 1100px;
+    margin: 0 auto 1rem;
+    padding: 0 1.5rem;
+  }
+  .post-cover img {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    border-radius: 0.5rem;
+  }
+
   .article-foot {
     display: flex;
     flex-wrap: wrap;

@@ -1,0 +1,60 @@
+---
+/**
+ * aniwala.com/admin — the address worth remembering.
+ *
+ * There is no admin panel on this domain and there cannot be one. The site is
+ * a static build served by Hostinger's Apache, which runs no Node; a login
+ * form here would have nothing to talk to. The Studio is a separate app hosted
+ * free by Sanity at aniwala.sanity.studio, and this page exists purely so that
+ * nobody has to remember that.
+ *
+ * WHY A META REFRESH AND NOT A REAL REDIRECT
+ * A 301 needs either a server or a host-level rule. Astro's own `redirect`
+ * config emits exactly this same meta-refresh page under `output: 'static'`,
+ * and an `.htaccess` rule would live outside the repo where the FTP deploy
+ * cannot see it — a redirect nobody could review, on a host where a syntax
+ * error in that file takes the whole site down with a 500. A visible link is
+ * worse for a search engine and better for the two people who use it, neither
+ * of which is a search engine. `noindex` keeps it out of the index anyway.
+ */
+const STUDIO_URL = 'https://aniwala.sanity.studio/';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta http-equiv="refresh" content={`0; url=${STUDIO_URL}`} />
+    <title>Redirecting to the Studio…</title>
+    <link rel="canonical" href={STUDIO_URL} />
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-content: center;
+        gap: 0.75rem;
+        text-align: center;
+        padding: 2rem;
+        background: #0b0c10;
+        color: #e8e9ed;
+        font:
+          16px/1.6 system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+      }
+      a {
+        color: #8ab4ff;
+      }
+    </style>
+  </head>
+  <body>
+    <p>Taking you to the Aniwala Studio…</p>
+    <p>
+      If nothing happens, <a href={STUDIO_URL}>open it here</a>.
+    </p>
+  </body>
+</html>

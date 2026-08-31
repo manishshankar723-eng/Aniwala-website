@@ -6,7 +6,6 @@ import Faq from '../../components/Faq.astro';
 import CtaBand from '../../components/CtaBand.astro';
 import Footer from '../../components/Footer.astro';
 import {
-  openRoles,
   values,
   hiringSteps,
   careerFaqs,
@@ -14,6 +13,7 @@ import {
   hiringOpen,
   employmentTypeSchema,
 } from '../../config/careers';
+import { getFlatRoles } from '../../lib/roles';
 import { office } from '../../config/contact';
 
 /**
@@ -29,7 +29,7 @@ import { office } from '../../config/contact';
  * because that is what decides whether a good applicant bothers. Then the
  * process with real timings, so nobody has to ask. Then the form.
  */
-const roles = hiringOpen ? openRoles : [];
+const roles = hiringOpen ? await getFlatRoles() : [];
 const totalSeats = roles.reduce((n, r) => n + r.openings, 0);
 
 /* Filter chips. Built from the listings rather than typed out, so a chip can

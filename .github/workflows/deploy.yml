@@ -7,6 +7,13 @@ on:
     branches: [main]
   workflow_dispatch: # lets you re-deploy by hand from the Actions tab
 
+  # Content lives in Sanity, so publishing a post changes the site without
+  # changing this repo — no push, no build, nothing happens. A webhook on the
+  # Sanity project POSTs here when a document is published, which is what makes
+  # "Publish" in the Studio actually reach aniwala.com. Setup is in README.md.
+  repository_dispatch:
+    types: [sanity-publish]
+
 concurrency:
   group: deploy-production
   cancel-in-progress: true
@@ -40,6 +47,14 @@ jobs:
 
       - name: Build
         run: npm run build # outputs ./dist
+        env:
+          # Without these the loaders log a warning and return nothing, and
+          # the build cheerfully produces a site with no blog, no case studies
+          # and no jobs. The link checker below is what catches that, because
+          # the nav points at pages that would no longer exist.
+          SANITY_PROJECT_ID: ${{ secrets.SANITY_PROJECT_ID }}
+          SANITY_DATASET: ${{ secrets.SANITY_DATASET }}
+          SANITY_READ_TOKEN: ${{ secrets.SANITY_READ_TOKEN }}
 
       # Every one of these has been a real bug on this site. The announcement
       # bar pointed at a page that did not exist for weeks, and og:image

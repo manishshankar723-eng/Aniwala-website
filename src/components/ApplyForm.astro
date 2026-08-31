@@ -1,12 +1,11 @@
 ---
 import {
-  openRoles,
   disciplines,
   experienceBands,
   availabilityOptions,
   careersEmail,
-  type Role,
 } from '../config/careers';
+import { getFlatRoles, type Role } from '../lib/roles';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config/site';
 import { supabaseConfigured } from '../lib/supabase';
 
@@ -49,6 +48,8 @@ interface Props {
 }
 
 const { role, eyebrow = 'Apply', title, lead } = Astro.props;
+
+const openRoles = await getFlatRoles();
 
 const locked = Boolean(role);
 const configured = supabaseConfigured;

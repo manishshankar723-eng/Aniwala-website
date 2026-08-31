@@ -1,0 +1,31 @@
+{
+  "name": "aniwala-studio",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Sanity Studio \u2014 the admin panel for aniwala.com",
+  "type": "module",
+  "scripts": {
+    "dev": "sanity dev",
+    "start": "sanity dev",
+    "build": "sanity build",
+    "deploy": "sanity deploy",
+    "manage": "sanity manage",
+    "migrate": "node --env-file=../.env scripts/migrate.mjs"
+  },
+  "dependencies": {
+    "@sanity/vision": "^3.68.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "sanity": "^3.68.0",
+    "styled-components": "^6.1.15"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "typescript": "^5.9.2",
+    "@sanity/block-tools": "^3.68.0",
+    "@sanity/schema": "^3.68.0",
+    "gray-matter": "^4.0.3",
+    "jsdom": "^25.0.1",
+    "marked": "^14.1.3"
+  }
+}

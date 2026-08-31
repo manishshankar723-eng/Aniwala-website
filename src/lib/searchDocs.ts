@@ -22,11 +22,12 @@ import { getPosts } from './posts';
 import { getCaseStudies } from './caseStudies';
 import { services } from '../config/services';
 import { workCategories, categoryHref } from '../config/portfolio';
-import { openRoles } from '../config/careers';
+import { getRoles } from './roles';
 
 export async function buildSearchDocs(): Promise<SearchDoc[]> {
   const posts = await getPosts();
   const studies = await getCaseStudies();
+  const roles = await getRoles();
 
   /* Derived, not listed by hand — renaming a service in config/services.ts
      must not be able to leave a dead entry behind in search. */
@@ -68,15 +69,22 @@ export async function buildSearchDocs(): Promise<SearchDoc[]> {
   }));
 
   /* Open roles, on the same rule again — and here it matters more than
-     anywhere else on the site, because a listing is deleted the moment it is
-     filled. Deriving these means a filled role leaves search the same day it
+     anywhere else on the site, because a listing is unpublished the moment it
+     is filled. Deriving these means a filled role leaves search the same day it
      leaves the careers page, instead of lingering as a hand-written entry
      pointing at a 404. */
-  const roleDocs = openRoles.map((r) => ({
-    title: r.title,
-    href: `/careers/${r.slug}/`,
+  const roleDocs = roles.map((r) => ({
+    title: r.data.title,
+    href: `/careers/${r.id}/`,
     section: 'Careers',
-    keywords: [r.summary, r.discipline, r.kind, r.location, r.experience, ...r.software]
+    keywords: [
+      r.data.summary,
+      r.data.discipline,
+      r.data.kind,
+      r.data.location,
+      r.data.experience,
+      ...r.data.software,
+    ]
       .join(' ')
       .toLowerCase(),
   }));

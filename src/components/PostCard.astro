@@ -1,6 +1,7 @@
 ---
 import type { Post } from '../lib/posts';
 import { formatDate, isoDate, readingTime } from '../lib/posts';
+import { imageUrl, imageSrcSet } from '../lib/sanity/client';
 
 interface Props {
   post: Post;
@@ -11,15 +12,39 @@ interface Props {
 }
 
 const { post, featured = false, terse = false } = Astro.props;
-const { title, description, pubDate, category, tint } = post.data;
+const { title, description, pubDate, category, tint, cover } = post.data;
 const href = `/blog/${post.id}/`;
 ---
 
 <article class:list={['card', featured && 'card--featured']} style={`--tint:${tint}`} data-reveal>
   <a href={href} class="card-link">
-    {/* Placeholder art. Swap for <Image /> via astro:assets once covers exist. */}
+    {/*
+      The cover, or the tint placeholder when a post has none.
+
+      `aria-hidden` and `alt=""` are both correct HERE and would be wrong on
+      the post page. This image sits inside a link that already contains the
+      title, so announcing it too would make a screen reader read every card
+      twice. On `/blog/[slug]` the same image IS content and carries its real
+      alt text. Sanity requires the alt text either way — it is written once
+      and used where it means something.
+
+      The tint stays underneath a cover rather than being replaced by it, so
+      the card holds its colour while the image is still loading instead of
+      flashing an empty box.
+    */}
     <span class="card-media" aria-hidden="true">
       <span class="card-media-art"></span>
+      {cover && (
+        <img
+          class="card-media-img"
+          src={imageUrl(cover, 800)}
+          srcset={imageSrcSet(cover, [400, 600, 800, 1200])}
+          sizes={featured ? '(min-width: 900px) 50vw, 100vw' : '(min-width: 900px) 33vw, 100vw'}
+          alt=""
+          loading="lazy"
+          decoding="async"
+        />
+      )}
     </span>
 
     <span class="card-body">
@@ -96,6 +121,23 @@ const href = `/blog/${post.id}/`;
   .card:hover .card-media-art {
     transform: scale(1.05);
   }
+
+  /* Sits on top of the tint, which stays visible until this has loaded and
+     shows through if the image ever fails. `object-fit: cover` plus the
+     16/9 wrapper means a portrait upload crops rather than letterboxes —
+     Sanity's hotspot decides which part survives the crop. */
+  .card-media-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .card:hover .card-media-img {
+    transform: scale(1.05);
+  }
+
 
   /* --- Body ----------------------------------------------------------- */
   .card-body {

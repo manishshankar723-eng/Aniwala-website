@@ -1,7 +1,7 @@
 ---
 import Base from '../layouts/Base.astro';
 import Footer from '../components/Footer.astro';
-import { openRoles } from '../config/careers';
+import { getFlatRoles } from '../lib/roles';
 
 /**
  * 404.
@@ -20,6 +20,12 @@ import { openRoles } from '../config/careers';
  * which means it renders at the URL the visitor actually asked for — the
  * links have to be absolute, and they are.
  */
+/* Awaited here rather than imported, now that roles come from the CMS. The
+   404 page advertises the careers link only when something is actually open —
+   sending someone who is already lost to an empty listing is a second dead
+   end. */
+const openRoles = await getFlatRoles();
+
 const routes = [
   { label: 'The work', href: '/portfolio/', blurb: 'Animation, game art and VFX' },
   { label: 'Services', href: '/services/', blurb: 'Six disciplines, one pipeline' },
@@ -27,7 +33,13 @@ const routes = [
   { label: 'Journal', href: '/blog/', blurb: 'Breakdowns and studio notes' },
   { label: 'Contact', href: '/contact/', blurb: 'Briefs, quotes and bookings' },
   ...(openRoles.length > 0
-    ? [{ label: 'Careers', href: '/careers/', blurb: `${openRoles.length} roles open` }]
+    ? [
+        {
+          label: 'Careers',
+          href: '/careers/',
+          blurb: openRoles.length === 1 ? '1 role open' : `${openRoles.length} roles open`,
+        },
+      ]
     : []),
 ];
 ---

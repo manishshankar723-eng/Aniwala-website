@@ -4,12 +4,11 @@ import PageHero from '../../components/PageHero.astro';
 import ApplyForm from '../../components/ApplyForm.astro';
 import Footer from '../../components/Footer.astro';
 import {
-  openRoles,
   careersEmail,
   hiringSteps,
   employmentTypeSchema,
-  type Role,
 } from '../../config/careers';
+import { getFlatRoles, type Role } from '../../lib/roles';
 import { office } from '../../config/contact';
 
 /**
@@ -25,20 +24,23 @@ import { office } from '../../config/contact';
  * stops being built. That is deliberate: a live page for a filled seat is
  * worse than a 404, because a 404 is at least honest about it.
  */
-export function getStaticPaths() {
-  return openRoles.map((role) => ({
+export async function getStaticPaths() {
+  /* Async now that roles come from the CMS rather than a config array. An
+     unpublished role builds no page, which is how a filled seat disappears:
+     the listing goes, and so does its URL. */
+  const roles = await getFlatRoles();
+  return roles.map((role) => ({
     params: { slug: role.slug },
-    props: { role },
+    props: { role, others: roles.filter((r) => r.slug !== role.slug) },
   }));
 }
 
 interface Props {
   role: Role;
+  others: Role[];
 }
 
-const { role } = Astro.props;
-
-const others = openRoles.filter((r) => r.slug !== role.slug);
+const { role, others } = Astro.props;
 
 const fmtDate = (iso: string) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', {
