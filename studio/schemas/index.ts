@@ -11,6 +11,7 @@ import caseStudy from './caseStudy';
 import role from './role';
 import teamMember from './teamMember';
 import piece from './piece';
+import service from './service';
 import workCategory from './workCategory';
 import testimonial from './testimonial';
 import client from './client';
@@ -33,6 +34,7 @@ export const schemaTypes = [
   caseStudy,
   role,
   piece,
+  service,
   workCategory,
 
   /* The studio itself */

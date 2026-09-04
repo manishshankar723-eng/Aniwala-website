@@ -31,6 +31,7 @@ export default defineType({
   groups: [
     { name: 'basics', title: 'The basics', default: true },
     { name: 'detail', title: 'The job itself' },
+    { name: 'seo', title: 'Search' },
   ],
 
   fields: [

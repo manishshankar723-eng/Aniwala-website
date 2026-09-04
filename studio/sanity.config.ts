@@ -87,6 +87,14 @@ export default defineConfig({
                   .defaultOrdering([{ field: 'order', direction: 'asc' }])
               ),
             S.listItem()
+              .title('Services')
+              .schemaType('service')
+              .child(
+                S.documentTypeList('service')
+                  .title('Services')
+                  .defaultOrdering([{ field: 'order', direction: 'asc' }])
+              ),
+            S.listItem()
               .title('Portfolio disciplines')
               .schemaType('workCategory')
               .child(
