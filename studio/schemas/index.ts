@@ -19,6 +19,8 @@ import artwork from './artwork';
 import announcement from './announcement';
 import contactDetails from './contactDetails';
 import siteCopy from './siteCopy';
+import page from './page';
+import { blockTypes } from './blocks';
 
 export const schemaTypes = [
   /* Published content */
@@ -39,7 +41,12 @@ export const schemaTypes = [
   announcement,
   contactDetails,
   siteCopy,
+  page,
 
   /* Field types, not documents */
   blockContent,
+
+  /* Page-builder blocks. Objects, not documents: they exist only inside a
+     page's `blocks` array, so they get no place of their own in the sidebar. */
+  ...blockTypes,
 ];

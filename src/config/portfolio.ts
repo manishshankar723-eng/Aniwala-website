@@ -115,101 +115,16 @@ export const categoryHref = (slug: string) => `/portfolio/${slug}/`;
 export const categoryBySlug = (slug: string) => workCategories.find((c) => c.slug === slug);
 
 /* ------------------------------------------------------------------ */
-/* Pieces                                                              */
+/* Pieces — moved to Sanity                                            */
+/*                                                                     */
+/* The `Piece` type, the pieces array and the `piecesIn` / `pieceCounts`*/
+/* helpers all live in `lib/pieces.ts` now, reading the `piece`         */
+/* document type. The three seeded pieces that used to sit here were    */
+/* migrated into the Studio and then deleted, because two lists of the  */
+/* same work is one list too many.                                      */
+/*                                                                     */
+/* The CATEGORIES above stayed. They drive the /portfolio/[category]/   */
+/* routes and the Zod validation on a piece's `category`, so they are   */
+/* structure rather than content — a category exists because there is a */
+/* page for it.                                                         */
 /* ------------------------------------------------------------------ */
-export interface Piece {
-  /** Stable id. Used as the React-ish key and in the lightbox hash. */
-  slug: string;
-  title: string;
-  /** Must match a `slug` in workCategories above. */
-  category: string;
-  /** One line. What the piece actually is, not how good it looks. */
-  blurb: string;
-  /**
-   * Set 'Client project' only when there was a client, and only when they
-   * have agreed to be named. Everything else is a studio project.
-   */
-  kind: 'Client project' | 'Studio project';
-  /** Who it was for. Use the studio\'s own name on a self-directed piece. */
-  client: string;
-  year: number;
-  /** A few, not the whole pipeline. Shown as small print on the card. */
-  tools: string[];
-  /** Placeholder tint until `image` is set. */
-  tint: string;
-  /** Swap for a real import via astro:assets once art exists. */
-  image?: string;
-  /**
-   * Case study id (the Markdown filename without .md) when this piece has
-   * one. The card becomes a link to it; without one the tile is inert,
-   * because a dead end is worse than a tile that plainly is not clickable.
-   */
-  caseStudy?: string;
-  /** Spans two columns in the portfolio grid. Use sparingly — one in four. */
-  wide?: boolean;
-}
-
-/**
- * Everything we can show, newest first.
- *
- * Seeded from the case studies that already exist in this repo, because those
- * are the pieces that are genuinely ours and genuinely finished. Add standalone
- * art here as it clears — a piece does NOT need a case study to be listed,
- * only a `caseStudy` id if one has been written.
- */
-export const pieces: Piece[] = [
-  {
-    slug: 'kite',
-    title: 'Kite',
-    category: 'animation',
-    blurb:
-      'A 40-second hand-drawn short: rigged bodies carrying the staging, drawn faces carrying the performance.',
-    kind: 'Studio project',
-    client: 'Aniwala Studios',
-    year: 2026,
-    tools: ['Toon Boom Harmony', 'Storyboard Pro', 'After Effects'],
-    tint: '28 75% 26%',
-    caseStudy: 'kite-short-film',
-    wide: true,
-  },
-  {
-    slug: 'downpour',
-    title: 'Downpour',
-    category: 'vfx',
-    blurb:
-      'Six shots of rain, standing water and structural collapse, built to find where a Houdini sim stops earning its render time.',
-    kind: 'Studio project',
-    client: 'Aniwala Studios',
-    year: 2026,
-    tools: ['Houdini', 'Karma', 'Nuke'],
-    tint: '280 50% 26%',
-    caseStudy: 'downpour-fx-study',
-  },
-  {
-    slug: 'ferrous',
-    title: 'Ferrous',
-    category: 'environments',
-    blurb:
-      'A modular sci-fi corridor kit on a fixed memory budget, testing how far four trim sheets go before repetition shows.',
-    kind: 'Studio project',
-    client: 'Aniwala Studios',
-    year: 2026,
-    tools: ['Blender', 'Substance 3D Designer', 'Unreal Engine'],
-    tint: '150 45% 20%',
-  },
-];
-
-/**
- * Pieces in one discipline, newest first.
- *
- * Sorted here rather than at each call site so the index and the category
- * pages can never disagree about the order.
- */
-export const piecesIn = (categorySlug?: string): Piece[] =>
-  pieces
-    .filter((p) => !categorySlug || p.category === categorySlug)
-    .sort((a, b) => b.year - a.year || a.title.localeCompare(b.title));
-
-/** How many pieces sit in each discipline, for the filter bar\'s counts. */
-export const pieceCounts = (): Record<string, number> =>
-  Object.fromEntries(workCategories.map((c) => [c.slug, piecesIn(c.slug).length]));

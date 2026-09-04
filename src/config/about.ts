@@ -14,10 +14,19 @@
  */
 
 /* ------------------------------------------------------------------ */
-/* The one-paragraph version                                           */
+/* Moved to Sanity                                                     */
+/*                                                                     */
+/* `positioning` and `teamIntro` are now fields on the `siteCopy`       */
+/* singleton; the timeline is the `milestone` document type; the team   */
+/* members are the `teamMember` type. Read them with `getSiteCopy()`,   */
+/* `getMilestones()` (lib/studio.ts) and `getTeam()` (lib/team.ts).     */
+/*                                                                     */
+/* The empty-timeline rule survived the move and is now enforced by the */
+/* page rather than by this file: the section hides itself when nothing */
+/* is published. A history timeline is the single most tempting place   */
+/* to pad a young studio, and no timeline is more honest than a padded  */
+/* one.                                                                 */
 /* ------------------------------------------------------------------ */
-export const positioning =
-  'Aniwala is an animation and game art studio. We handle a brief from board to delivery: 2D, 3D, VFX, engine integration and the edit, all in one pipeline. Most of the time a project loses is spent in the gaps between vendors. There are fewer gaps here.';
 
 /* ------------------------------------------------------------------ */
 /* At a glance                                                         */
@@ -114,44 +123,3 @@ export const practices: Principle[] = [
   },
 ];
 
-/* ------------------------------------------------------------------ */
-/* Milestones                                                          */
-/*                                                                     */
-/* Empty on purpose. A history timeline is the single most tempting     */
-/* place to pad a young studio, and a two-entry timeline is more honest */
-/* than a padded twelve-entry one. Add a row when something genuinely   */
-/* happened — first client shipped, a studio opened, a title released.  */
-/* The section hides itself while this is empty.                        */
-/* ------------------------------------------------------------------ */
-export interface Milestone {
-  /** '2026' or '2026 Q1'. Kept as a string so a quarter fits. */
-  when: string;
-  title: string;
-  body: string;
-}
-
-export const milestones: Milestone[] = [];
-
-/* ------------------------------------------------------------------ */
-/* Team                                                                */
-/*                                                                     */
-/* The section a client scrolls to when they have decided the work is   */
-/* good enough and now want to know who would actually be doing it.     */
-/*                                                                     */
-/* The MEMBERS moved to the CMS — see the `team` collection in          */
-/* content.config.ts and the accessor in lib/team.ts. Hiring someone    */
-/* should not require a developer, a commit and a deploy, and their     */
-/* photo now gets CDN resizing and hotspot cropping instead of being    */
-/* served from /public at whatever size it was exported at.             */
-/*                                                                     */
-/* The intro line below stayed here because it is not about any         */
-/* particular person — it is a claim the studio makes about how it      */
-/* works, and it belongs with the rest of the positioning copy.         */
-/*                                                                     */
-/* The draft rule survived the move intact: an unpublished member       */
-/* renders under `astro dev` and is dropped from the production build,  */
-/* so the layout can be judged with realistic content while it stays    */
-/* impossible to publish a team page full of people who do not exist.   */
-/* ------------------------------------------------------------------ */
-export const teamIntro =
-  'Small studio, so the person you brief is usually the person building it. Worth knowing who that would be before you hand over a budget.';

@@ -1,0 +1,64 @@
+---
+/**
+ * The quote wall. Hides itself while empty, same rule as the logo wall.
+ */
+import SectionHead from './SectionHead.astro';
+import { getTestimonials } from '../../lib/studio';
+
+interface Props {
+  block: { eyebrow?: string; title?: string; anchor?: string };
+}
+const { block } = Astro.props;
+const testimonials = await getTestimonials();
+---
+
+{
+  testimonials.length > 0 && (
+    <section class="section section--bordered" id={block.anchor}>
+      <SectionHead eyebrow={block.eyebrow} title={block.title} />
+      <div class="quotes">
+        {testimonials.map((t) => (
+          <figure class="quote" data-reveal>
+            <blockquote>{t.quote}</blockquote>
+            <figcaption>
+              <strong>{t.name}</strong>
+              <span>
+                {t.role}, {t.company}
+              </span>
+            </figcaption>
+          </figure>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+<style>
+  .quotes {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  }
+  .quote {
+    margin: 0;
+    padding: 1.75rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 0.75rem;
+  }
+  .quote blockquote {
+    margin: 0 0 1.25rem;
+    font-size: 1.02rem;
+    line-height: 1.6;
+  }
+  .quote figcaption {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: 0.85rem;
+    color: var(--color-ink-muted);
+  }
+  .quote figcaption strong {
+    color: var(--color-ink);
+  }
+</style>

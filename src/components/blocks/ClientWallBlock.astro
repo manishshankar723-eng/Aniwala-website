@@ -1,0 +1,64 @@
+---
+/**
+ * The logo wall. Renders nothing while no clients are published — an empty
+ * logo wall reads as a new studio pretending, which is worse than no wall.
+ */
+import SectionHead from './SectionHead.astro';
+import { getClients } from '../../lib/studio';
+
+interface Props {
+  block: { eyebrow?: string; title?: string; anchor?: string };
+}
+const { block } = Astro.props;
+const clients = await getClients();
+---
+
+{
+  clients.length > 0 && (
+    <section class="section section--bordered" id={block.anchor}>
+      <SectionHead eyebrow={block.eyebrow} title={block.title} />
+      <ul class="clients" data-reveal>
+        {clients.map((c) => (
+          <li class="client">
+            {/* The name is a perfectly good logo wall on its own, and a real
+                fallback rather than a placeholder box — a client added before
+                their logo arrives still reads correctly. */}
+            {c.logo ? <img class="client-logo" src={c.logo} alt={c.name} loading="lazy" /> : c.name}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+<style>
+  .clients {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 1px;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    background: var(--color-line);
+    border: 1px solid var(--color-line);
+    border-radius: 0.6rem;
+    overflow: hidden;
+  }
+  /* Height-capped rather than width-capped: logos arrive at wildly different
+     aspect ratios and matching their heights is what makes a row of them look
+     like a set instead of a pile. */
+  .client-logo {
+    display: block;
+    max-height: 2rem;
+    width: auto;
+    object-fit: contain;
+  }
+  .client {
+    background: var(--color-ground);
+    padding: 2rem 1rem;
+    text-align: center;
+    font-family: var(--font-label);
+    font-size: 0.8rem;
+    color: var(--color-ink-muted);
+  }
+</style>

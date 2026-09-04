@@ -1,0 +1,81 @@
+---
+/**
+ * A bordered panel: heading and paragraph on the left, one button on the
+ * right. The homepage's careers panel is this block.
+ */
+interface Props {
+  block: {
+    eyebrow?: string;
+    title?: string;
+    anchor?: string;
+    body?: string;
+    linkLabel?: string;
+    linkHref?: string;
+  };
+}
+const { block } = Astro.props;
+const hasLink = Boolean(block.linkLabel && block.linkHref);
+---
+
+<section class="section section--bordered" id={block.anchor}>
+  <div class="panel-inner" data-reveal>
+    <div>
+      {block.eyebrow && <p class="section-eyebrow">{block.eyebrow}</p>}
+      {block.title && <h2 class="section-title">{block.title}</h2>}
+      {block.body && <p class="panel-body">{block.body}</p>}
+    </div>
+    {
+      hasLink && (
+        <a href={block.linkHref} class="panel-cta">
+          {block.linkLabel} <span aria-hidden="true">&rarr;</span>
+        </a>
+      )
+    }
+  </div>
+</section>
+
+<style>
+  .panel-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 2rem;
+  }
+  .panel-body {
+    margin: 1.25rem 0 0;
+    max-width: 44ch;
+    color: var(--color-ink-muted);
+    line-height: 1.6;
+  }
+  .panel-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.9rem 1.5rem;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 100px;
+    font-family: var(--font-label);
+    font-size: 0.75rem;
+    letter-spacing: 0.015em;
+    color: var(--color-ink);
+    text-decoration: none;
+    white-space: nowrap;
+    transition:
+      background-color 0.25s ease,
+      border-color 0.25s ease,
+      color 0.25s ease;
+  }
+  .panel-cta:hover {
+    background: var(--color-cta);
+    border-color: var(--color-cta);
+    color: var(--color-cta-ink);
+  }
+  .panel-cta span {
+    display: inline-block;
+    transition: transform 0.25s ease;
+  }
+  .panel-cta:hover span {
+    transform: translateX(4px);
+  }
+</style>

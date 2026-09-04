@@ -239,23 +239,45 @@ async function migrateRoles() {
 async function migrateTeam() {
   const { execSync } = await import('node:child_process');
 
-  let source;
+  const git = (cmd) =>
+    execSync(cmd, { cwd: REPO, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
+
+  const TEAM_RE = /export const team: Member\[\] = (\[[\s\S]*?\n\]);/;
+
+  /*
+   * Walk BACK through the history of about.ts for the last revision that
+   * still had the team array, rather than reading HEAD.
+   *
+   * HEAD was the obvious choice and it was wrong within one commit: the
+   * cleanup that removed the array landed before this script was ever run,
+   * so `git show HEAD:` returned a file with no team in it and the script
+   * printed a warning and skipped seven people. A migration that quietly
+   * migrates nothing is the failure mode worth spending ten lines on.
+   */
+  let source = null;
   try {
-    source = execSync('git show HEAD:src/config/about.ts', {
-      cwd: REPO,
-      encoding: 'utf8',
-      maxBuffer: 10 * 1024 * 1024,
-    });
+    const revs = git('git log --format=%H -- src/config/about.ts').trim().split('\n');
+    for (const rev of revs) {
+      const text = git(`git show ${rev}:src/config/about.ts`);
+      if (TEAM_RE.test(text)) {
+        source = text;
+        if (rev !== revs[0]) {
+          console.log(`  (team: recovered from ${rev.slice(0, 7)}, the last commit that had it)`);
+        }
+        break;
+      }
+    }
   } catch {
-    console.warn('  ! Could not read the old about.ts from git — skipping team.');
+    console.warn('  ! Could not read about.ts from git — skipping team.');
     return [];
   }
 
-  const match = source.match(/export const team: Member\[\] = (\[[\s\S]*?\n\]);/);
-  if (!match) {
-    console.warn('  ! Could not find the team array in the committed about.ts — skipping.');
+  if (!source) {
+    console.warn('  ! No commit of about.ts contains the team array — skipping.');
     return [];
   }
+
+  const match = source.match(TEAM_RE);
 
   const members = eval(match[1]);
 
@@ -287,17 +309,125 @@ async function migrateTeam() {
 /* ------------------------------------------------------------------ */
 /* The studio's own content                                            */
 /*                                                                     */
-/* These configs are imported directly rather than scraped out of git   */
-/* with a regex, the way `openRoles` had to be. They have no imports of */
-/* their own, so Node can load them with type stripping and hand back   */
-/* real objects — which is both shorter and impossible to get subtly    */
-/* wrong the way a regex over source can be.                            */
+/* The seed values below are INLINED rather than imported from          */
+/* `src/config/`, and that is deliberate.                               */
+/*                                                                     */
+/* They used to be imported. That worked exactly until the configs they */
+/* read were cleaned up — at which point this script started producing  */
+/* documents with empty fields, silently, for the three types that had  */
+/* never been seeded in the first place. A migration script whose input */
+/* is the thing the migration is supposed to let you delete is a script */
+/* that can only be run once, in the right order, by someone who knows. */
+/*                                                                     */
+/* Inlined, it is a snapshot: it says what the site said on the day the */
+/* content moved, it cannot drift, and deleting the configs cannot      */
+/* break it. Run it once, check the Studio, then delete this file.      */
 /* ------------------------------------------------------------------ */
 
-async function migratePieces() {
-  const { pieces } = await import('../../src/config/portfolio.ts');
+/** Was `pieces` in src/config/portfolio.ts. */
+const SEED_PIECES = [
+  {
+    slug: 'kite',
+    title: 'Kite',
+    category: 'animation',
+    blurb:
+      'A 40-second hand-drawn short: rigged bodies carrying the staging, drawn faces carrying the performance.',
+    kind: 'Studio project',
+    client: 'Aniwala Studios',
+    year: 2026,
+    tools: ['Toon Boom Harmony', 'Storyboard Pro', 'After Effects'],
+    tint: '28 75% 26%',
+    caseStudy: 'kite-short-film',
+    wide: true,
+  },
+  {
+    slug: 'downpour',
+    title: 'Downpour',
+    category: 'vfx',
+    blurb:
+      'Six shots of rain, standing water and structural collapse, built to find where a Houdini sim stops earning its render time.',
+    kind: 'Studio project',
+    client: 'Aniwala Studios',
+    year: 2026,
+    tools: ['Houdini', 'Karma', 'Nuke'],
+    tint: '280 50% 26%',
+    caseStudy: 'downpour-fx-study',
+  },
+  {
+    slug: 'ferrous',
+    title: 'Ferrous',
+    category: 'environments',
+    blurb:
+      'A modular sci-fi corridor kit on a fixed memory budget, testing how far four trim sheets go before repetition shows.',
+    kind: 'Studio project',
+    client: 'Aniwala Studios',
+    year: 2026,
+    tools: ['Blender', 'Substance 3D Designer', 'Unreal Engine'],
+    tint: '150 45% 20%',
+  },
+];
 
-  return pieces.map((p, i) => ({
+/** Was `email`, `office` and `socials` in src/config/contact.ts. */
+const SEED_CONTACT = {
+  email: 'contact@aniwala.com',
+  addressLines: [
+    'Crossroads Building, Bhumkar Chowk',
+    'Survey 130/123, Service Rd, Shankar Kalat Nagar',
+    'Wakad, Pimpri-Chinchwad',
+    'Maharashtra 411057',
+  ],
+  country: 'India',
+  /* THESE POINT AT THE PLATFORMS, NOT AT US. Until the studio accounts
+     exist, each link goes to the service's own homepage so the row is live
+     and looks right. Swap each href in the Studio as the accounts are
+     created — that is now an edit, not a deploy. */
+  socials: [
+    { label: 'WhatsApp', icon: 'whatsapp', href: 'https://www.whatsapp.com' },
+    { label: 'LinkedIn', icon: 'linkedin', href: 'https://www.linkedin.com' },
+    { label: 'X', icon: 'x', href: 'https://x.com' },
+    { label: 'YouTube', icon: 'youtube', href: 'https://www.youtube.com' },
+    { label: 'Facebook', icon: 'facebook', href: 'https://www.facebook.com' },
+    { label: 'ArtStation', icon: 'artstation', href: 'https://www.artstation.com' },
+  ],
+};
+
+/** Was `positioning` / `teamIntro` in config/about.ts and `marqueeItems` /
+    `capabilities` in config/site.ts. */
+const SEED_COPY = {
+  positioning:
+    'Aniwala is an animation and game art studio. We handle a brief from board to delivery: 2D, 3D, VFX, engine integration and the edit, all in one pipeline. Most of the time a project loses is spent in the gaps between vendors. There are fewer gaps here.',
+  teamIntro:
+    'Small studio, so the person you brief is usually the person building it. Worth knowing who that would be before you hand over a budget.',
+  marqueeItems: [
+    'Character Design',
+    'Creature Design',
+    'Environment Art',
+    'Concept Art',
+    'Storyboarding',
+    '3D Modelling',
+    'Rigging',
+    'Cinematics',
+    'Simulation & FX',
+    'Compositing',
+    'Motion Design',
+    'UI / UX Art',
+  ],
+  capabilities: [
+    'Maya',
+    'Blender',
+    'Houdini',
+    'ZBrush',
+    'Substance',
+    'Unreal Engine',
+    'Nuke',
+    'After Effects',
+    'Toon Boom Harmony',
+    'Photoshop',
+  ],
+};
+
+async function migratePieces() {
+  return SEED_PIECES.map((p, i) => ({
     _id: idFor('piece', p.slug),
     _type: 'piece',
     title: p.title,
@@ -316,6 +446,7 @@ async function migratePieces() {
     order: (i + 1) * 10,
   }));
 }
+
 
 /*
  * `careers.ts` is read as TEXT, not imported.
@@ -368,21 +499,19 @@ async function migrateFaqs() {
 }
 
 async function migrateContactDetails() {
-  const contact = await import('../../src/config/contact.ts');
-
   const source = await readCareersSource();
   const emailMatch = source.match(/export const careersEmail = '([^']+)'/);
-  const careersEmail = emailMatch ? emailMatch[1] : contact.email;
+  const careersEmail = emailMatch ? emailMatch[1] : SEED_CONTACT.email;
 
   return [
     {
       _id: 'contactDetails',
       _type: 'contactDetails',
-      email: contact.email,
+      email: SEED_CONTACT.email,
       careersEmail,
-      addressLines: contact.office.lines,
-      country: contact.office.country,
-      socials: contact.socials.map((s, i) => ({
+      addressLines: SEED_CONTACT.addressLines,
+      country: SEED_CONTACT.country,
+      socials: SEED_CONTACT.socials.map((s, i) => ({
         _type: 'object',
         _key: `social-${i}`,
         icon: s.icon,
@@ -394,19 +523,35 @@ async function migrateContactDetails() {
 }
 
 async function migrateSiteCopy() {
-  const { positioning, teamIntro } = await import('../../src/config/about.ts');
-  const { marqueeItems, capabilities } = await import('../../src/config/site.ts');
-
   return [
     {
       _id: 'siteCopy',
       _type: 'siteCopy',
-      positioning,
-      teamIntro,
-      marqueeItems,
-      capabilities,
+      ...SEED_COPY,
     },
   ];
+}
+
+/**
+ * The site's fixed pages, as block lists.
+ *
+ * The block arrays live in `seed-pages.mjs` — nine pages of them is a data
+ * file, not part of a script, and inlining them here buried the migration
+ * logic under six hundred lines of copy.
+ */
+async function migrateBuiltPages() {
+  const { PAGES, withKeys } = await import('./seed-pages.mjs');
+
+  return PAGES.map((p) => ({
+    _id: `page-${p.slug}`,
+    _type: 'page',
+    title: p.title,
+    slug: slugField(p.slug),
+    seoTitle: p.seoTitle,
+    seoDescription: p.seoDescription,
+    noindex: p.noindex ?? false,
+    blocks: withKeys(p.blocks),
+  }));
 }
 
 async function main() {
@@ -421,9 +566,37 @@ async function main() {
     ...(await migrateFaqs()),
     ...(await migrateContactDetails()),
     ...(await migrateSiteCopy()),
+    ...(await migrateBuiltPages()),
   ];
 
-  for (const doc of docs) {
+  /*
+   * `--only=page,siteCopy` restricts the write to those types.
+   *
+   * Every document here is written with `createOrReplace`, which is what makes
+   * the script safe to re-run on the day of the migration and destructive
+   * afterwards: once an editor has touched something in the Studio, a second
+   * full run silently reverts it. That stops being hypothetical the moment a
+   * NEW type is added — seeding it should not mean rewriting the twelve that
+   * are already live and already edited.
+   */
+  const only = (process.argv.find((a) => a.startsWith('--only=')) ?? '')
+    .replace('--only=', '')
+    .split(',')
+    .filter(Boolean);
+
+  const selected = only.length ? docs.filter((d) => only.includes(d._type)) : docs;
+
+  if (only.length && !selected.length) {
+    console.error(`\nNothing matches --only=${only.join(',')}.`);
+    console.error(`Types available: ${[...new Set(docs.map((d) => d._type))].join(', ')}\n`);
+    process.exit(1);
+  }
+
+  if (only.length) {
+    console.log(`  (--only=${only.join(',')}: ${docs.length - selected.length} document(s) skipped)\n`);
+  }
+
+  for (const doc of selected) {
     const blocks = Array.isArray(doc.body) ? doc.body.length : 0;
     const state = doc._id.startsWith('drafts.') ? '  [unpublished]' : '';
     /* FAQs and the singletons have no slug — fall back to the id. */
@@ -434,17 +607,17 @@ async function main() {
   }
 
   if (DRY_RUN) {
-    console.log(`\n${docs.length} documents would be created. Nothing was written.\n`);
+    console.log(`\n${selected.length} documents would be created. Nothing was written.\n`);
     return;
   }
 
   /* One transaction: either everything lands or nothing does. A partial
      migration is the worst outcome here — you cannot tell by looking at the
      Studio which half made it. */
-  const tx = docs.reduce((t, doc) => t.createOrReplace(doc), client.transaction());
+  const tx = selected.reduce((t, doc) => t.createOrReplace(doc), client.transaction());
   await tx.commit();
 
-  console.log(`\n${docs.length} documents written and PUBLISHED.`);
+  console.log(`\n${selected.length} documents written and PUBLISHED.`);
   console.log('\nPublished rather than drafted on purpose: this content was already live');
   console.log('on the site, and importing it as drafts would have taken the blog down');
   console.log('until someone clicked publish sixteen times.');

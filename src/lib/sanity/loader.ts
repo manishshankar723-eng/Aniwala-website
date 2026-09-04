@@ -487,6 +487,42 @@ export const sanityContactDetails = (): Loader =>
     }),
   });
 
+/* ------------------------------------------------------------------ */
+/* Built pages — the page builder                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Pages assembled from blocks, rendered by the catch-all route.
+ *
+ * The projection dereferences nothing and flattens nothing: a block array is
+ * heterogeneous by design and each block component knows how to read its own
+ * shape. Trying to normalise that here would mean this file growing a branch
+ * per block type, which is precisely the coupling the block components exist
+ * to avoid.
+ *
+ * `_type` and `_key` are kept rather than stripped — the renderer dispatches
+ * on `_type`, and `_key` is what makes a reordered array diff sanely.
+ */
+export const sanityBuiltPages = (): Loader =>
+  sanityLoader({
+    name: 'sanity:built-pages',
+    type: 'page',
+    hasBody: false,
+    projection: `
+      _id, title, slug, blocks, seoTitle, seoDescription, ogImage, noindex
+    `,
+    toData: (doc, isDraft) => ({
+      title: doc.title,
+      blocks: doc.blocks ?? [],
+      seoTitle: doc.seoTitle,
+      seoDescription: doc.seoDescription,
+      ...(doc.ogImage ? { ogImage: doc.ogImage } : {}),
+      noindex: doc.noindex ?? false,
+      draft: isDraft,
+    }),
+  });
+
+
 export const sanitySiteCopy = (): Loader =>
   sanityLoader({
     name: 'sanity:copy',

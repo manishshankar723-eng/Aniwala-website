@@ -1,0 +1,57 @@
+---
+/**
+ * One image, at text width or full width.
+ *
+ * Served through Sanity's CDN with `auto('format')`, so a browser that accepts
+ * AVIF gets AVIF and one that does not gets JPEG, from a single URL. The
+ * `srcset` is what stops a phone downloading a 2400px file.
+ */
+import { imageUrl, imageSrcSet, type SanityImage } from '../../lib/sanity/client';
+
+interface Props {
+  block: {
+    image: SanityImage;
+    alt: string;
+    caption?: string;
+    width?: 'text' | 'full';
+  };
+}
+const { block } = Astro.props;
+
+const full = block.width === 'full';
+---
+
+<section class="section">
+  <figure class:list={['figure', full && 'figure--full']} data-reveal>
+    <img
+      src={imageUrl(block.image, full ? 1800 : 1200)}
+      srcset={imageSrcSet(block.image, full ? [768, 1200, 1800, 2400] : [480, 768, 1200])}
+      sizes={full ? '100vw' : '(min-width: 900px) 68ch, 100vw'}
+      alt={block.alt}
+      loading="lazy"
+      decoding="async"
+    />
+    {block.caption && <figcaption>{block.caption}</figcaption>}
+  </figure>
+</section>
+
+<style>
+  .figure {
+    margin: 0;
+    max-width: 68ch;
+  }
+  .figure--full {
+    max-width: none;
+  }
+  .figure img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 0.75rem;
+  }
+  .figure figcaption {
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--color-ink-muted);
+  }
+</style>

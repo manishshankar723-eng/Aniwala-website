@@ -17,7 +17,9 @@ import {
   sanityFaqs,
   sanityContactDetails,
   sanitySiteCopy,
+  sanityBuiltPages,
 } from './lib/sanity/loader';
+
 
 /**
  * WHERE CONTENT COMES FROM
@@ -446,6 +448,45 @@ const siteCopy = defineCollection({
   }),
 });
 
+/**
+ * Built pages — the page builder.
+ *
+ * The block array is validated loosely ON PURPOSE, which is the opposite of
+ * every other collection here and worth explaining.
+ *
+ * Elsewhere the shape is known in code, so a schema can insist on it and fail
+ * a build when a document does not fit. A built page's shape is chosen by the
+ * editor: any block, any number, any order. There is no correct shape to check
+ * against. What CAN be checked is that each block is a type the renderer knows
+ * — which is done here — and that its own required fields are present, which
+ * is done in the Studio where the editor can see the error while typing.
+ *
+ * The renderer is the backstop: an unknown `_type` throws in a production
+ * build rather than rendering nothing, so a block that exists in Sanity but
+ * has no component cannot ship as a silent gap in a page.
+ */
+const builtPages = defineCollection({
+  loader: sanityBuiltPages(),
+  schema: z.object({
+    title: z.string(),
+    seoTitle: z.string().min(1),
+    seoDescription: z.string().min(1).max(300),
+    ogImage: sanityImage.omit({ alt: true }).optional(),
+    noindex: z.boolean().default(false),
+    blocks: z
+      .array(
+        z
+          .object({
+            _type: z.string(),
+            _key: z.string(),
+          })
+          .passthrough()
+      )
+      .min(1, 'A page with no sections would render as an empty document.'),
+    draft: z.boolean().default(false),
+  }),
+});
+
 export const collections = {
   blog,
   caseStudies,
@@ -460,4 +501,5 @@ export const collections = {
   announcement,
   contactDetails,
   siteCopy,
+  builtPages,
 };

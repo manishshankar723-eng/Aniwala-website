@@ -1,0 +1,187 @@
+---
+/**
+ * Case study cards, in one of two layouts.
+ *
+ * `grid` is the homepage's row of three under a heading. `featured` is the
+ * index page: the newest study at full width, the rest in a two-up grid below,
+ * plus the empty state and the studio-work note. They were separate markup
+ * that shared their card, their sort order and their data — so they are one
+ * block with a layout switch rather than two blocks that drift.
+ *
+ * Featured order comes from `getCaseStudies()` and is not re-sorted here, so
+ * this block and the index can never disagree about which study leads.
+ *
+ * THE EMPTY STATE ONLY EXISTS IN `featured`. On the homepage a section with
+ * nothing in it should vanish; on the page whose entire job is listing case
+ * studies, vanishing would leave a hero above a footer. The right answer
+ * differs by context, which is exactly why it is a layout option and not a
+ * global rule.
+ */
+import SectionHead from './SectionHead.astro';
+import CaseCard from '../CaseCard.astro';
+import { getCaseStudies } from '../../lib/caseStudies';
+
+interface Props {
+  block: {
+    eyebrow?: string;
+    title?: string;
+    anchor?: string;
+    layout?: 'grid' | 'featured';
+    limit?: number;
+    linkLabel?: string;
+    linkHref?: string;
+    emptyTitle?: string;
+    emptyBody?: string;
+    emptyCtaLabel?: string;
+    emptyCtaHref?: string;
+  };
+}
+const { block } = Astro.props;
+const featured = block.layout === 'featured';
+
+const all = await getCaseStudies();
+const studies = block.limit ? all.slice(0, block.limit) : all;
+
+const [lead, ...rest] = studies;
+
+/* Said plainly rather than implied. Every card carries its own badge too, but
+   the count belongs at the top where someone decides how much weight to give
+   the page. Derived, so it stops appearing the day a client project lands. */
+const ownCount = studies.filter((s) => s.data.kind === 'Studio project').length;
+const allOwn = studies.length > 0 && ownCount === studies.length;
+---
+
+{
+  (featured || studies.length > 0) && (
+    <section
+      class:list={['section', !featured && 'section--bordered']}
+      id={block.anchor ?? (featured ? undefined : 'case-studies')}
+    >
+      <SectionHead
+        eyebrow={block.eyebrow}
+        title={block.title}
+        linkLabel={block.linkLabel}
+        linkHref={block.linkHref}
+      />
+
+      {studies.length === 0 ? (
+        <div class="empty" data-reveal>
+          <p class="empty-title">{block.emptyTitle}</p>
+          <p class="empty-body">{block.emptyBody}</p>
+          {block.emptyCtaLabel && block.emptyCtaHref && (
+            <a href={block.emptyCtaHref} class="empty-cta">
+              {block.emptyCtaLabel} <span aria-hidden="true">&rarr;</span>
+            </a>
+          )}
+        </div>
+      ) : featured ? (
+        <>
+          {allOwn && (
+            <p class="note" data-reveal>
+              Everything below is self-directed studio work — pieces we set ourselves to test a
+              pipeline claim before making it to a client. Commissioned projects appear here as they
+              clear approval.
+            </p>
+          )}
+
+          <h2 class="visually-hidden">All case studies</h2>
+
+          <div class="lead-slot">
+            <CaseCard study={lead} featured />
+          </div>
+
+          {rest.length > 0 && (
+            <div class="grid">
+              {rest.map((study) => (
+                <CaseCard study={study} />
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        <div class="cases">
+          {studies.map((c) => (
+            <CaseCard study={c} />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+<style>
+  /* Cards themselves are CaseCard.astro; these only lay them out. */
+  .cases {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 800px) {
+    .cases {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (min-width: 1200px) {
+    .cases {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  .note {
+    max-width: 62ch;
+    margin: 0 0 clamp(2rem, 4vw, 3rem);
+    padding-left: 1rem;
+    border-left: 2px solid var(--color-accent);
+    font-size: 0.95rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+
+  .lead-slot {
+    margin-bottom: 1.25rem;
+  }
+
+  .grid {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 800px) {
+    .grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  /* --- Empty state ------------------------------------------------------ */
+  .empty {
+    padding: clamp(3rem, 8vw, 6rem) 1.5rem;
+    text-align: center;
+    border: 1px dashed var(--color-line-strong);
+    border-radius: 0.75rem;
+  }
+  .empty-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.4rem, 3vw, 2rem);
+    font-weight: 750;
+    font-stretch: 108%;
+    letter-spacing: -0.022em;
+  }
+  .empty-body {
+    margin: 1rem auto 0;
+    max-width: 44ch;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+  .empty-cta {
+    display: inline-block;
+    margin-top: 1.75rem;
+    font-family: var(--font-label);
+    font-size: 0.75rem;
+    letter-spacing: 0.015em;
+    color: var(--color-accent);
+    text-decoration: none;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid currentColor;
+  }
+</style>

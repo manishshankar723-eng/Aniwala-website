@@ -9,7 +9,6 @@ import {
 } from '../../config/careers';
 import { getFlatRoles, type Role } from '../../lib/roles';
 import { getContactDetails } from '../../lib/studio';
-import { office } from '../../config/contact';
 
 /**
  * One page per opening, built from `config/careers.ts`.
@@ -42,7 +41,7 @@ interface Props {
 
 const { role, others } = Astro.props;
 
-const { careersEmail } = await getContactDetails();
+const { careersEmail, addressLines } = await getContactDetails();
 
 const fmtDate = (iso: string) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', {
@@ -83,7 +82,7 @@ const jobSchema = {
     '@type': 'Place',
     address: {
       '@type': 'PostalAddress',
-      streetAddress: office.lines.slice(0, 2).join(', '),
+      streetAddress: addressLines.slice(0, 2).join(', '),
       addressLocality: 'Pimpri-Chinchwad',
       addressRegion: 'Maharashtra',
       postalCode: '411057',

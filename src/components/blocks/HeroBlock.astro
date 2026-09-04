@@ -1,0 +1,117 @@
+---
+/**
+ * The hero, in both flavours.
+ *
+ * `VideoHero` and `PageHero` already existed and are unchanged — this block
+ * only chooses between them and passes the editor's words through. Keeping the
+ * two components rather than merging them matters: the video hero is a
+ * full-screen arrival with a poster fallback and its own scrim, the page hero
+ * is a compact band, and folding both into one component with a `variant` flag
+ * would mean every future change to either having to reason about the other.
+ *
+ * The CTA is rendered here rather than inside `VideoHero` because the button
+ * sits on the dark scrim and needs light-on-dark styling that only makes sense
+ * in that context — the same reason the markup lived in `index.astro` before.
+ */
+import VideoHero from '../VideoHero.astro';
+import PageHero from '../PageHero.astro';
+import { getArtwork } from '../../lib/artwork';
+
+interface Props {
+  block: {
+    variant?: 'video' | 'page';
+    eyebrow?: string;
+    headline: string;
+    sub?: string;
+    ctaLabel?: string;
+    ctaHref?: string;
+    crumbLabel?: string;
+    tint?: string;
+    compact?: boolean;
+    posterSlot?: string;
+  };
+}
+
+const { block } = Astro.props;
+const isVideo = block.variant === 'video';
+
+/* Only looked up for a video hero, and only when a slot was picked. The still
+   is shown before the video paints and whenever it cannot play at all, so on a
+   slow connection it may be the only thing a visitor sees. */
+const poster = isVideo && block.posterSlot ? await getArtwork(block.posterSlot) : undefined;
+
+/* Every inner page's trail is "Home / <this page>", so it is built here
+   rather than typed into each document — one fewer thing to get wrong, and
+   the Home link can never point somewhere else on one page only. */
+const crumbs = block.crumbLabel
+  ? [{ label: 'Home', href: '/' }, { label: block.crumbLabel }]
+  : undefined;
+
+const hasCta = Boolean(block.ctaLabel && block.ctaHref);
+---
+
+{
+  isVideo ? (
+    <VideoHero poster={poster?.src} eyebrow={block.eyebrow} headline={block.headline} sub={block.sub}>
+      {hasCta && (
+        <a href={block.ctaHref} class="hero-cta" data-reveal data-reveal-delay="0.24">
+          {block.ctaLabel}
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path
+              d="M3 8h10M9 4l4 4-4 4"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </a>
+      )}
+    </VideoHero>
+  ) : (
+    <PageHero
+      eyebrow={block.eyebrow}
+      title={block.headline}
+      lead={block.sub}
+      crumbs={crumbs}
+      tint={block.tint}
+      compact={block.compact}
+    />
+  )
+}
+
+<style>
+  /* Sits on the dark scrim, so these colours are pinned light-on-dark rather
+     than taken from the theme tokens. */
+  .hero-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 2.25rem;
+    padding: 0.85rem 1.5rem;
+    border: 1px solid rgb(255 255 255 / 0.45);
+    border-radius: 100px;
+    font-family: var(--font-label);
+    font-size: 0.75rem;
+    letter-spacing: 0.015em;
+    color: #f4f4f2;
+    text-decoration: none;
+    transition:
+      background-color 0.25s ease,
+      color 0.25s ease,
+      border-color 0.25s ease;
+  }
+  .hero-cta svg {
+    width: 1rem;
+    height: 1rem;
+    transition: transform 0.25s ease;
+  }
+  .hero-cta:hover {
+    background: #e4c24c;
+    border-color: #e4c24c;
+    color: #14161d;
+  }
+  .hero-cta:hover svg {
+    transform: translateX(3px);
+  }
+</style>

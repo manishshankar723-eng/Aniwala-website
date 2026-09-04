@@ -1,0 +1,32 @@
+---
+/**
+ * One short paragraph, set large.
+ *
+ * Defaults to the shared studio positioning statement rather than storing its
+ * own copy — it appears on both the homepage and the about page, and two
+ * copies of a positioning line is how a studio ends up describing itself two
+ * different ways on two pages. A custom paragraph is available for a page that
+ * genuinely needs its own.
+ *
+ * `.section--intro` and `.statement` are both global, so this owns no styles.
+ */
+import { getSiteCopy } from '../../lib/studio';
+
+interface Props {
+  block: { source?: 'positioning' | 'custom'; body?: string };
+}
+const { block } = Astro.props;
+
+const body =
+  block.source === 'positioning' ? (await getSiteCopy()).positioning : (block.body ?? '');
+---
+
+{
+  body && (
+    <section class="section section--intro">
+      <p class="statement" data-reveal>
+        {body}
+      </p>
+    </section>
+  )
+}

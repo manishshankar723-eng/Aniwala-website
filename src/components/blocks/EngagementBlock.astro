@@ -1,0 +1,92 @@
+---
+/**
+ * How you actually hire the studio.
+ *
+ * The question every producer asks on the first call, answered before they
+ * have to ask it. A data block: the models live in `config/services.ts`
+ * alongside the services themselves, because "fixed-scope / team extension /
+ * co-development" is how the business is structured rather than copy that
+ * changes month to month — and because the same three have to mean the same
+ * thing on every page that mentions them.
+ */
+import SectionHead from './SectionHead.astro';
+import { engagementModels } from '../../config/services';
+
+interface Props {
+  block: { eyebrow?: string; title?: string; anchor?: string };
+}
+const { block } = Astro.props;
+---
+
+<section class="section section--bordered" id={block.anchor}>
+  <SectionHead eyebrow={block.eyebrow} title={block.title} />
+
+  <div class="models">
+    {
+      engagementModels.map((m) => (
+        <div class="model" data-reveal>
+          <h3 class="model-title">{m.title}</h3>
+          <p class="model-body">{m.body}</p>
+          <p class="model-best">
+            <span>Best for</span>
+            {m.bestFor}
+          </p>
+        </div>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .models {
+    display: grid;
+    gap: 1px;
+    background: var(--color-line);
+    border: 1px solid var(--color-line);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 900px) {
+    .models {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+  .model {
+    background: var(--color-ground);
+    padding: clamp(1.75rem, 3vw, 2.5rem);
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+  .model-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    font-weight: 700;
+    font-stretch: 108%;
+    letter-spacing: -0.015em;
+  }
+  .model-body {
+    margin: 0;
+    font-size: 0.93rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+  .model-best {
+    margin: auto 0 0;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--color-line);
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: var(--color-ink);
+  }
+  .model-best span {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-family: var(--font-label);
+    font-size: 0.72rem;
+    letter-spacing: 0.015em;
+    color: var(--color-ink-faint);
+  }
+</style>

@@ -1,0 +1,33 @@
+---
+/**
+ * Questions for one scope, read from the FAQs list.
+ *
+ * `schema` is false here. `Faq.astro` can emit FAQPage structured data, but
+ * only one block per page may do so — two FAQPage graphs on one URL is a
+ * structured-data error Google reports and ignores. A built page can hold
+ * several FAQ blocks, so none of them claims it.
+ */
+import Faq from '../Faq.astro';
+import { getFaqs } from '../../lib/studio';
+
+interface Props {
+  block: { eyebrow?: string; title?: string; scope: string };
+  /** Index in the page, so several FAQ blocks get unique accordion names. */
+  index: number;
+}
+const { block, index } = Astro.props;
+
+const items = await getFaqs(block.scope);
+---
+
+{
+  items.length > 0 && (
+    <Faq
+      items={items}
+      eyebrow={block.eyebrow}
+      title={block.title}
+      name={`faq-${index}`}
+      schema={false}
+    />
+  )
+}

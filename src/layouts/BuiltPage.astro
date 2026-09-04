@@ -1,0 +1,98 @@
+---
+/**
+ * The shell every CMS-built page renders through.
+ *
+ * Fetch the page document by slug, decide the header treatment, render the
+ * blocks. It exists so that the nine converted routes are nine near-identical
+ * ten-line files instead of nine copies of this logic — the kind of duplication
+ * where one copy quietly drifts and only that page breaks.
+ *
+ * WHY THE ROUTES STILL EXIST at all, rather than letting `[...slug].astro`
+ * serve everything: a real route file guarantees the URL. `/about/` resolves
+ * because there is a file called `about.astro`, not because a document happens
+ * to be published with the right slug. That turns "somebody deleted the about
+ * page in the CMS" from a 404 a visitor discovers into a build failure with a
+ * message — and it keeps the pages that carry their own logic (the careers
+ * JSON-LD, the blog's category counts) able to keep it.
+ *
+ * Pages created BY an editor have no route file and are served by the
+ * catch-all. That is the difference between the two: the site's fixed pages
+ * are fixed, and everything else is theirs.
+ */
+import { getEntry } from 'astro:content';
+import Base from './Base.astro';
+import Footer from '../components/Footer.astro';
+import Blocks from '../components/blocks/Blocks.astro';
+import { ogImageUrl, type SanityImage } from '../lib/sanity/client';
+
+interface Props {
+  /** The `page` document's slug. */
+  slug: string;
+  /** Overrides the document's own SEO title. Used where a page computes it. */
+  title?: string;
+}
+
+const { slug, title } = Astro.props;
+
+const page = await getEntry('builtPages', slug);
+
+if (!page || (page.data.draft && !import.meta.env.DEV)) {
+  throw new Error(
+    `There is no published page for "${slug}", so this build would produce that\n` +
+      `route with no title, no hero and no content.\n\n` +
+      `  Expected a published "page" document with the URL "${slug}".\n\n` +
+      `  Create it in the Studio under Built pages, or seed it with\n` +
+      `  studio/scripts/migrate.mjs --only=page.\n\n` +
+      `  If it is a draft, publish it — a draft renders under \`astro dev\` and is\n` +
+      `  deliberately excluded from a production build.`
+  );
+}
+
+const ogImage = page.data.ogImage ? ogImageUrl(page.data.ogImage as SanityImage) : undefined;
+
+/*
+ * The hero decides the header treatment, not the page.
+ *
+ * A video hero is full-bleed and dark, so the header has to sit transparently
+ * on top of it. Every other page runs under a solid header — `PageHero` even
+ * carries the top offset for it itself. Deriving this from the first block
+ * rather than offering it as a field means an editor cannot produce the one
+ * broken combination: a solid header overlapping a full-screen video.
+ */
+const first = page.data.blocks[0] as { _type?: string; variant?: string } | undefined;
+const transparentHeader = first?._type === 'heroBlock' && first?.variant === 'video';
+
+const label = `/${slug === 'home' ? '' : slug + '/'}`;
+---
+
+<Base
+  title={title ?? page.data.seoTitle}
+  description={page.data.seoDescription}
+  ogImage={ogImage}
+  noindex={page.data.noindex}
+  transparentHeader={transparentHeader}
+>
+  {/*
+    A full-bleed hero sits OUTSIDE `<main>`: it is an arrival rather than part
+    of the document's main content, and the skip link should land on what is
+    below it. A standard hero is part of the page and stays inside.
+  */}
+  {
+    transparentHeader ? (
+      <>
+        <Blocks blocks={[page.data.blocks[0]] as never} label={label} />
+        <main id="main">
+          <Blocks blocks={page.data.blocks.slice(1) as never} label={label} />
+          <slot />
+        </main>
+      </>
+    ) : (
+      <main id="main">
+        <Blocks blocks={page.data.blocks as never} label={label} />
+        <slot />
+      </main>
+    )
+  }
+
+  <Footer />
+</Base>

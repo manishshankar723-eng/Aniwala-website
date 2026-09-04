@@ -1,0 +1,45 @@
+---
+/**
+ * The eyebrow / heading / link row every section shares.
+ *
+ * Extracted because nine blocks render it identically and the classes it uses
+ * (`.section-head`, `.section-eyebrow`, `.section-title`, `.section-link`) are
+ * defined once in `global.css`. Nothing here is scoped: this component owns no
+ * styles of its own, deliberately, so a block can drop it in and inherit the
+ * page's typography rather than each block re-deciding what a heading is.
+ *
+ * Renders NOTHING when there is no eyebrow, title or link. A block whose
+ * heading fields are blank is a section the editor wants unlabelled, not an
+ * empty `<div>` adding 4rem of whitespace.
+ */
+interface Props {
+  eyebrow?: string;
+  title?: string;
+  linkLabel?: string;
+  linkHref?: string;
+  /** Centres the row. Used by sections that sit alone rather than over a grid. */
+  center?: boolean;
+}
+
+const { eyebrow, title, linkLabel, linkHref, center = false } = Astro.props;
+
+/* A label with no target renders as text, not as a dead link. The Studio
+   warns about this and the Zod schema catches it on a `pageCopy` page, but a
+   built page's blocks are validated loosely — so the guard lives here too. */
+const hasLink = Boolean(linkLabel && linkHref);
+const hasAnything = Boolean(eyebrow || title || hasLink);
+---
+
+{
+  hasAnything && (
+    <div class:list={['section-head', center && 'section-head--center']} data-reveal>
+      {eyebrow && <p class="section-eyebrow">{eyebrow}</p>}
+      {title && <h2 class="section-title">{title}</h2>}
+      {hasLink && (
+        <a href={linkHref} class="section-link">
+          {linkLabel} <span aria-hidden="true">&rarr;</span>
+        </a>
+      )}
+    </div>
+  )
+}

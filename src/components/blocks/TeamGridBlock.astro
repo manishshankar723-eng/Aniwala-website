@@ -1,0 +1,264 @@
+---
+/**
+ * The people cards.
+ *
+ * On a page with no shipped-title count this is the strongest proof available:
+ * a client can see there are actual specialists here and read what each one
+ * owns. The name is the identity, the role line is what they are accountable
+ * for, and the bio is the concrete detail a producer is checking for.
+ *
+ * Renders nothing when there is nobody to show — an empty grid under a "meet
+ * the team" heading is worse than no section. Unpublished members appear under
+ * `astro dev` and are dropped from a production build, so the layout can be
+ * judged with realistic content that cannot accidentally go live.
+ */
+import SectionHead from './SectionHead.astro';
+import { getTeam } from '../../lib/team';
+import { getSiteCopy } from '../../lib/studio';
+import { imageUrl, imageSrcSet } from '../../lib/sanity/client';
+
+interface Props {
+  block: { eyebrow?: string; title?: string; anchor?: string; intro?: string };
+}
+const { block } = Astro.props;
+
+const members = await getTeam();
+
+/* Falls back to the shared team intro rather than storing a second copy of a
+   line that is about how the studio works, not about this page. */
+const intro = block.intro || (await getSiteCopy()).teamIntro;
+---
+
+{
+  members.length > 0 && (
+    <section class="section section--bordered" id={block.anchor || "team"}>
+      <SectionHead eyebrow={block.eyebrow} title={block.title} />
+
+      {intro && (
+        <p class="team-intro" data-reveal>
+          {intro}
+        </p>
+      )}
+
+      <div class="team">
+        {members.map((m) => {
+          /* Two letters, so a fallback card is never a wall of text. */
+          const initials = m.name
+            .split(' ')
+            .map((part) => part[0])
+            .join('')
+            .slice(0, 2)
+            .toUpperCase();
+
+          return (
+            <article class="member" data-reveal>
+              <span class="member-shot">
+                {m.photo ? (
+                  /* Alt text is derived, not typed — see the note on the team
+                     collection in content.config.ts. `srcset` means a phone
+                     fetches a 480px file rather than whatever resolution the
+                     photo was uploaded at, and Sanity's hotspot decides what
+                     survives the 4:3 crop. */
+                  <img
+                    class="member-photo"
+                    src={imageUrl(m.photo, 480)}
+                    srcset={imageSrcSet(m.photo, [480, 720, 960])}
+                    sizes="(min-width: 900px) 320px, 100vw"
+                    alt={`${m.name}, ${m.role}`}
+                    width="480"
+                    height="360"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : (
+                  /* No photo yet: initials on the surface tone. A stock avatar
+                     would be a lie about a person. */
+                  <span class="member-photo member-photo--fallback" aria-hidden="true">
+                    {initials}
+                  </span>
+                )}
+              </span>
+
+              <div class="member-info">
+                <h3 class="member-name">{m.name}</h3>
+
+                <div class="member-role-row">
+                  <p class="member-role">{m.role}</p>
+
+                  {/* Only rendered when there is somewhere real to go. A button
+                      that does nothing is worse than no button. */}
+                  {m.href && (
+                    <a class="member-link" href={m.href}>
+                      <span class="visually-hidden">See {m.name}'s work</span>
+                      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path
+                          d="M4 12L12 4M12 4H5.5M12 4v6.5"
+                          stroke="currentColor"
+                          stroke-width="1.6"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        />
+                      </svg>
+                    </a>
+                  )}
+                </div>
+
+                <p class="member-bio">{m.bio}</p>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  )
+}
+
+<style>
+  .team-intro {
+    max-width: 62ch;
+    margin: 0 0 clamp(2rem, 4vw, 3rem);
+    font-size: clamp(1rem, 1.5vw, 1.08rem);
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+
+  /* Three across on a desktop. Explicit breakpoints rather than auto-fit:
+     these cards hold a photo, a two-clause role line and a three-sentence
+     bio, and auto-fit will happily drop them to a width where the role line
+     wraps four times. */
+  .team {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 640px) {
+    .team {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (min-width: 1100px) {
+    .team {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  .member {
+    display: flex;
+    flex-direction: column;
+    /* The photo is inset rather than bleeding to the card edge — it is what
+       gives the cards their framed, catalogue feel. */
+    padding: 0.6rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 0.9rem;
+    transition:
+      border-color 0.25s ease,
+      transform 0.25s ease;
+  }
+  .member:hover {
+    border-color: var(--color-line-strong);
+    transform: translateY(-2px);
+  }
+
+  .member-shot {
+    display: block;
+    overflow: hidden;
+    border-radius: 0.6rem;
+    background: var(--color-surface-2);
+  }
+  .member-photo {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    /* Faces sit high in a portrait crop; centring lops off foreheads. */
+    object-position: center 25%;
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .member:hover .member-photo {
+    transform: scale(1.04);
+  }
+  .member-photo--fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-size: 2.75rem;
+    font-weight: 750;
+    font-stretch: 108%;
+    letter-spacing: -0.02em;
+    color: var(--color-ink-faint);
+    transform: none;
+  }
+  .member:hover .member-photo--fallback {
+    transform: none;
+  }
+
+  .member-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1.15rem 0.9rem 1rem;
+  }
+
+  .member-name {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 800;
+    font-stretch: 110%;
+    letter-spacing: 0.01em;
+    line-height: 1.2;
+    /* Set in caps in CSS rather than typed into the CMS, so a name keeps its
+       real casing everywhere else it is used. */
+    text-transform: uppercase;
+    color: var(--color-ink);
+  }
+
+  .member-role-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .member-role {
+    margin: 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.45;
+    color: var(--color-ink);
+  }
+
+  .member-link {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.65rem;
+    height: 1.65rem;
+    margin-top: 0.1rem;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 100px;
+    color: var(--color-ink-muted);
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      color 0.2s ease;
+  }
+  .member-link svg {
+    width: 0.8rem;
+    height: 0.8rem;
+  }
+  .member-link:hover {
+    background: var(--color-cta);
+    border-color: var(--color-cta);
+    color: var(--color-cta-ink);
+  }
+
+  .member-bio {
+    margin: 0;
+    font-size: 0.86rem;
+    line-height: 1.6;
+    color: var(--color-ink-muted);
+  }
+</style>

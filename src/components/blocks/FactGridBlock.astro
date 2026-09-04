@@ -1,0 +1,113 @@
+---
+/**
+ * A spec strip: label, value, and an optional line of context.
+ *
+ * Deliberately NOT a stat counter. Every row is a fact about how the studio is
+ * set up rather than a number that grows to flatter it — a young studio
+ * putting "0 years" or "1 client" behind a big serif number is the exact
+ * failure this shape exists to avoid. The Studio schema says so too, because
+ * the temptation returns every time someone edits the page.
+ *
+ * Hairline rules between the columns and nothing around the outside: the
+ * section already has a border above it, and a boxed panel directly under a
+ * boxed panel is what made the about page read as one repeating rectangle.
+ */
+import SectionHead from './SectionHead.astro';
+
+interface Props {
+  block: {
+    eyebrow?: string;
+    title?: string;
+    anchor?: string;
+    facts?: { label: string; value: string; note?: string }[];
+  };
+}
+const { block } = Astro.props;
+const facts = block.facts ?? [];
+---
+
+{
+  facts.length > 0 && (
+    <section class="section section--bordered" id={block.anchor}>
+      <SectionHead eyebrow={block.eyebrow} title={block.title} />
+
+      <dl class="facts">
+        {facts.map((f) => (
+          <div class="fact" data-reveal>
+            <dt>{f.label}</dt>
+            <dd class="fact-value">{f.value}</dd>
+            {f.note && <dd class="fact-note">{f.note}</dd>}
+          </div>
+        ))}
+      </dl>
+    </section>
+  )
+}
+
+<style>
+  .facts {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 640px) {
+    .facts {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (min-width: 1100px) {
+    .facts {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  .fact {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1.5rem 0;
+    border-top: 1px solid var(--color-line);
+  }
+  @media (min-width: 640px) {
+    .fact {
+      padding: 0 1.75rem;
+      border-top: 0;
+      border-left: 1px solid var(--color-line);
+    }
+    .fact:first-child {
+      padding-left: 0;
+      border-left: 0;
+    }
+  }
+  @media (min-width: 1100px) {
+    /* The first item in each row loses its rule; at four across that is only
+       the first cell, but the query above already handled the two-up case. */
+    .fact:first-child {
+      padding-left: 0;
+    }
+  }
+  .fact dt {
+    font-family: var(--font-label);
+    font-size: 0.72rem;
+    letter-spacing: 0.015em;
+    color: var(--color-ink-faint);
+  }
+  .fact-value {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.15rem, 2vw, 1.4rem);
+    font-weight: 750;
+    font-stretch: 106%;
+    letter-spacing: -0.018em;
+    line-height: 1.2;
+    color: var(--color-ink);
+    text-wrap: balance;
+  }
+  .fact-note {
+    margin: 0;
+    font-size: 0.86rem;
+    line-height: 1.55;
+    color: var(--color-ink-muted);
+  }
+</style>

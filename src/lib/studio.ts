@@ -28,6 +28,53 @@ const live = ({ data }: { data: { draft: boolean } }) => import.meta.env.DEV || 
 const byOrder = (a: { data: { order: number } }, b: { data: { order: number } }) =>
   a.data.order - b.data.order;
 
+/**
+ * What to do when a REQUIRED singleton is not in the dataset.
+ *
+ * Under `astro dev`: warn and hand back the empty shape, so a fresh clone
+ * pointed at an empty dataset still starts and someone can work on a layout
+ * without first seeding thirteen document types.
+ *
+ * In a production build: THROW.
+ *
+ * This is not theoretical. The migration that moved this content to Sanity
+ * shipped the accessors but never wrote `contactDetails` or `siteCopy` to the
+ * dataset, and for weeks every build exited 0 while producing a site with an
+ * empty `mailto:` on all 65 pages, no address in the footer, no marquee and a
+ * blank positioning paragraph. Nothing caught it: the credentials were fine,
+ * so the loader was happy; `astro check` type-checks code, not content; and
+ * `check-links.mjs` does not treat an empty `mailto:` as a broken link.
+ *
+ * The loaders already fail a production build when Sanity is unreachable —
+ * see the note in `sanity/loader.ts` about never letting a missing credential
+ * be quieter than a broken link. A missing DOCUMENT is the same failure one
+ * layer up, and deserves the same noise.
+ *
+ * The empty shape is still returned in dev rather than a hardcoded copy of
+ * the old text, for the reason the original note gave: a stale duplicate that
+ * silently takes over is worse than a visibly empty heading. One of them you
+ * notice; the other you ship for a year.
+ */
+function missingSingleton<T>(type: string, id: string, empty: T): T {
+  if (import.meta.env.DEV) {
+    console.warn(
+      `[content] No "${type}" document — the site will render with that section empty.\n` +
+        `          Create it in the Studio (npm run dev in studio/), or seed the dataset.`
+    );
+    return empty;
+  }
+
+  throw new Error(
+    `The "${type}" document is missing from Sanity, so this build would produce a\n` +
+      `site with that content blank on every page it appears on.\n\n` +
+      `  Expected a published document with _id "${id}".\n\n` +
+      `  Fix it in the Studio at aniwala.com/admin, or seed the dataset with\n` +
+      `  studio/scripts/migrate.mjs. If a section is genuinely meant to be empty,\n` +
+      `  publish the document with blank fields — that is a decision someone made,\n` +
+      `  which is the difference between an empty section and a broken one.`
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Proof                                                               */
 /* ------------------------------------------------------------------ */
@@ -90,7 +137,8 @@ export interface SiteCopy {
 }
 
 /**
- * Falls back to empty strings and empty lists when nothing is published.
+ * The dev-only fallback. In a production build a missing `siteCopy` throws
+ * instead — see `missingSingleton`.
  *
  * Deliberately NOT a hardcoded copy of the old text. A stale duplicate that
  * silently takes over whenever the CMS document is missing is worse than a
@@ -106,7 +154,8 @@ const EMPTY_COPY: SiteCopy = {
 
 export async function getSiteCopy(): Promise<SiteCopy> {
   const entry = await getEntry('siteCopy', 'siteCopy');
-  if (!entry || (entry.data.draft && !import.meta.env.DEV)) return EMPTY_COPY;
+  if (!entry || (entry.data.draft && !import.meta.env.DEV))
+    return missingSingleton('siteCopy', 'siteCopy', EMPTY_COPY);
 
   return {
     positioning: entry.data.positioning,
@@ -144,8 +193,8 @@ export interface ContactDetails {
   mapsUrl: string;
 }
 
-/* Used only when nothing is published, so the site still renders and the
-   footer does not throw on a missing address. */
+/* The dev-only fallback, so a clone pointed at an empty dataset still starts.
+   A production build throws instead — see `missingSingleton`. */
 const EMPTY_CONTACT: ContactDetails = {
   email: '',
   careersEmail: '',
@@ -158,7 +207,8 @@ const EMPTY_CONTACT: ContactDetails = {
 
 export async function getContactDetails(): Promise<ContactDetails> {
   const entry = await getEntry('contactDetails', 'contactDetails');
-  if (!entry || (entry.data.draft && !import.meta.env.DEV)) return EMPTY_CONTACT;
+  if (!entry || (entry.data.draft && !import.meta.env.DEV))
+    return missingSingleton('contactDetails', 'contactDetails', EMPTY_CONTACT);
 
   const { email, careersEmail, addressLines, country, socials } = entry.data;
 

@@ -13,7 +13,6 @@ import {
 } from '../../config/careers';
 import { getFlatRoles } from '../../lib/roles';
 import { getFaqs, getContactDetails } from '../../lib/studio';
-import { office } from '../../config/contact';
 
 /**
  * Careers.
@@ -31,7 +30,7 @@ import { office } from '../../config/contact';
 const roles = hiringOpen ? await getFlatRoles() : [];
 
 const careerFaqs = await getFaqs('careers');
-const { careersEmail } = await getContactDetails();
+const { careersEmail, addressLines } = await getContactDetails();
 const totalSeats = roles.reduce((n, r) => n + r.openings, 0);
 
 /* Filter chips. Built from the listings rather than typed out, so a chip can
@@ -77,7 +76,7 @@ const jobSchema = roles.map((r) => ({
     '@type': 'Place',
     address: {
       '@type': 'PostalAddress',
-      streetAddress: office.lines.slice(0, 2).join(', '),
+      streetAddress: addressLines.slice(0, 2).join(', '),
       addressLocality: 'Pimpri-Chinchwad',
       addressRegion: 'Maharashtra',
       postalCode: '411057',

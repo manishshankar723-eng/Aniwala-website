@@ -1,0 +1,28 @@
+---
+/**
+ * The full-width closing panel. Every field is optional: left blank, the band
+ * falls back to the site-wide default in `CtaBand.astro`, so a new page ends
+ * correctly without the editor having to write a closing pitch.
+ */
+import CtaBand from '../CtaBand.astro';
+
+interface Props {
+  block: {
+    eyebrow?: string;
+    title?: string;
+    body?: string;
+    linkLabel?: string;
+    linkHref?: string;
+  };
+}
+const { block } = Astro.props;
+
+/* Only override the primary action when BOTH halves are set. A label with no
+   target would render a button going nowhere, which is worse than the default. */
+const primary =
+  block.linkLabel && block.linkHref
+    ? { label: block.linkLabel, href: block.linkHref }
+    : undefined;
+---
+
+<CtaBand eyebrow={block.eyebrow} title={block.title} body={block.body} primary={primary} />

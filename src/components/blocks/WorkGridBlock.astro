@@ -1,0 +1,159 @@
+---
+/**
+ * The discipline tiles.
+ *
+ * A data block: the categories come from `config/portfolio.ts` (they drive the
+ * /portfolio/ URLs, so they are structure) and the pictures from the artwork
+ * slots. The editor supplies only the heading — which is the point, since the
+ * alternative is a second list of disciplines that immediately disagrees with
+ * the one the routes are built from.
+ */
+import SectionHead from './SectionHead.astro';
+import { workCategories, categoryHref } from '../../config/portfolio';
+import { portfolioSlot } from '../../config/imageSlots';
+import { getArtworkMap } from '../../lib/artwork';
+
+interface Props {
+  block: { eyebrow?: string; title?: string; anchor?: string; linkLabel?: string; linkHref?: string };
+}
+const { block } = Astro.props;
+
+/* One lookup for the whole grid. `getArtwork` per tile inside the loop would
+   read the same collection six times for one section. */
+const workArt = await getArtworkMap(workCategories.map((w) => portfolioSlot(w.slug)));
+---
+
+<section class="section" id={block.anchor || "work"}>
+  <SectionHead
+    eyebrow={block.eyebrow}
+    title={block.title}
+    linkLabel={block.linkLabel}
+    linkHref={block.linkHref}
+  />
+
+  <div class="work-grid">
+    {
+      workCategories.map((w) => (
+        <a
+          href={categoryHref(w.slug)}
+          class:list={['work-tile', w.wide && 'work-tile--wide']}
+          style={`--tint:${w.tint}`}
+          data-reveal
+        >
+          {/*
+            The tint gradient stays underneath the image rather than being
+            replaced by it, so the tile holds its colour while the picture
+            loads and still looks deliberate if a slot is empty.
+
+            `aria-hidden` and an empty alt: the tile's own title and blurb sit
+            right beside this, so announcing the image as well would make a
+            screen reader read every card twice.
+          */}
+          <span class="work-media" aria-hidden="true">
+            {workArt.get(portfolioSlot(w.slug)) && (
+              <img
+                class="work-img"
+                src={workArt.get(portfolioSlot(w.slug))!.src}
+                srcset={workArt.get(portfolioSlot(w.slug))!.srcset}
+                sizes={w.wide ? '(min-width: 900px) 66vw, 100vw' : '(min-width: 900px) 33vw, 100vw'}
+                alt=""
+                loading="lazy"
+                decoding="async"
+              />
+            )}
+          </span>
+          <span class="work-body">
+            <span class="work-title">{w.title}</span>
+            <span class="work-blurb">{w.blurb}</span>
+          </span>
+        </a>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .work-grid {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 700px) {
+    .work-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  .work-tile {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-height: 16rem;
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    text-decoration: none;
+    isolation: isolate;
+  }
+  @media (min-width: 700px) {
+    .work-tile {
+      min-height: 20rem;
+    }
+    .work-tile--wide {
+      grid-column: span 2;
+    }
+  }
+
+  /* The colour placeholder. Visible when a slot has no image filed against
+     it, and behind one while it loads. */
+  .work-media {
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    background:
+      radial-gradient(ellipse 90% 70% at 30% 20%, hsl(var(--tint) / 0.85), transparent 70%),
+      linear-gradient(160deg, hsl(var(--tint) / 0.55), #0b0c10 75%);
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  /* Sits on the tint. `object-fit: cover` plus the tile's own aspect ratio
+     means a portrait upload crops rather than letterboxes; Sanity's hotspot
+     decides which part survives. */
+  .work-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .work-tile::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(to top, rgb(0 0 0 / 0.75), transparent 60%);
+  }
+  .work-tile:hover .work-media {
+    transform: scale(1.06);
+  }
+
+  .work-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .work-title {
+    font-family: var(--font-display);
+    font-weight: 750;
+    font-stretch: 108%;
+    letter-spacing: -0.015em;
+    font-size: 1.35rem;
+    color: #f4f4f2;
+  }
+  .work-blurb {
+    font-size: 0.88rem;
+    line-height: 1.45;
+    color: rgb(255 255 255 / 0.72);
+  }
+</style>

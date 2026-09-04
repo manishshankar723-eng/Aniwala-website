@@ -12,8 +12,10 @@ import {
 } from '../config/site';
 
 import { supabaseConfigured } from '../lib/supabase';
-import { email } from '../config/contact';
+import { getContactDetails } from '../lib/studio';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config/site';
+
+const { email } = await getContactDetails();
 
 const configured = supabaseConfigured;
 const defaultDuration = callDurations[Math.floor(callDurations.length / 2)];

@@ -1,0 +1,21 @@
+---
+/**
+ * The scrolling strip.
+ *
+ * Defaults to the shared studio list rather than storing its own copy, so the
+ * marquee on a new landing page cannot drift out of step with the homepage.
+ * A custom list is available for a page that genuinely needs its own.
+ */
+import Marquee from '../Marquee.astro';
+import { getSiteCopy } from '../../lib/studio';
+
+interface Props {
+  block: { source?: 'marquee' | 'custom'; items?: string[] };
+}
+const { block } = Astro.props;
+
+const items =
+  block.source === 'custom' ? (block.items ?? []) : (await getSiteCopy()).marqueeItems;
+---
+
+{items.length > 0 && <Marquee items={items} />}

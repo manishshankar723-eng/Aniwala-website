@@ -1,0 +1,74 @@
+---
+/**
+ * A wrapped row of short labels — the tools list, a list of formats.
+ * Same sharing rule as the marquee: the studio list by default.
+ */
+import SectionHead from './SectionHead.astro';
+import { getSiteCopy } from '../../lib/studio';
+import { services } from '../../config/services';
+import { enquiryTypes } from '../../config/site';
+
+interface Props {
+  block: {
+    eyebrow?: string;
+    title?: string;
+    anchor?: string;
+    source?: 'capabilities' | 'serviceTools' | 'enquiryTypes' | 'custom';
+    items?: string[];
+    linkLabel?: string;
+    linkHref?: string;
+  };
+}
+const { block } = Astro.props;
+
+/*
+   Three sources, none of them a second copy of a list that exists elsewhere:
+   the shared studio tools, every tool named on any service page (derived, so
+   it cannot disagree with the individual pages), or a list for this page only.
+*/
+const items =
+  block.source === 'custom'
+    ? (block.items ?? [])
+    : block.source === 'serviceTools'
+      ? [...new Set(services.flatMap((s) => s.tools))].sort((a, b) => a.localeCompare(b))
+      : block.source === 'enquiryTypes'
+        ? enquiryTypes
+        : (await getSiteCopy()).capabilities;
+---
+
+{
+  items.length > 0 && (
+    <section class="section section--bordered" id={block.anchor}>
+      <SectionHead
+        eyebrow={block.eyebrow}
+        title={block.title}
+        linkLabel={block.linkLabel}
+        linkHref={block.linkHref}
+      />
+      <ul class="tools" data-reveal>
+        {items.map((t) => (
+          <li class="tool">{t}</li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+<style>
+  .tools {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+  .tool {
+    padding: 0.6rem 1.1rem;
+    border: 1px solid var(--color-line);
+    border-radius: 100px;
+    font-family: var(--font-label);
+    font-size: 0.78rem;
+    color: var(--color-ink-muted);
+  }
+</style>

@@ -1,0 +1,128 @@
+---
+/**
+ * Blog posts: the newest at full width, the rest in the grid below.
+ *
+ * `showFilter` puts the category bar above them, with counts derived from the
+ * posts themselves rather than stored — a chip claiming four posts when three
+ * are published is the kind of small lie nobody notices until they click it.
+ *
+ * `.blog-grid` is global (the category, tag and archive pages all use it), so
+ * only the featured slot and the empty state are styled here.
+ */
+import SectionHead from './SectionHead.astro';
+import PostCard from '../PostCard.astro';
+import CategoryBar from '../CategoryBar.astro';
+import { getPosts } from '../../lib/posts';
+import { CATEGORIES } from '../../config/categories';
+
+interface Props {
+  block: {
+    eyebrow?: string;
+    title?: string;
+    anchor?: string;
+    limit?: number;
+    showFilter?: boolean;
+    linkLabel?: string;
+    linkHref?: string;
+    emptyTitle?: string;
+    emptyBody?: string;
+    emptyCtaLabel?: string;
+    emptyCtaHref?: string;
+  };
+}
+const { block } = Astro.props;
+
+const all = await getPosts();
+const posts = block.limit ? all.slice(0, block.limit) : all;
+
+const [featured, ...rest] = posts;
+
+const counts = Object.fromEntries(
+  CATEGORIES.map((c) => [c, all.filter((p) => p.data.category === c).length])
+);
+
+const hasEmptyState = Boolean(block.emptyTitle);
+---
+
+{
+  (hasEmptyState || posts.length > 0) && (
+    <section class="section" id={block.anchor}>
+      <SectionHead
+        eyebrow={block.eyebrow}
+        title={block.title}
+        linkLabel={block.linkLabel}
+        linkHref={block.linkHref}
+      />
+
+      {block.showFilter && <CategoryBar counts={counts} />}
+
+      {posts.length === 0 ? (
+        /* Honest empty state. Better than a grid of placeholder cards. */
+        <div class="empty" data-reveal>
+          <p class="empty-title">{block.emptyTitle}</p>
+          <p class="empty-body">{block.emptyBody}</p>
+          {block.emptyCtaLabel && block.emptyCtaHref && (
+            <a href={block.emptyCtaHref} class="empty-cta">
+              {block.emptyCtaLabel} <span aria-hidden="true">&rarr;</span>
+            </a>
+          )}
+        </div>
+      ) : (
+        <>
+          <h2 class="visually-hidden">All posts</h2>
+
+          <div class="featured">
+            <PostCard post={featured} featured />
+          </div>
+
+          {rest.length > 0 && (
+            <div class="blog-grid">
+              {rest.map((post) => (
+                <PostCard post={post} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  )
+}
+
+<style>
+  .featured {
+    margin-bottom: 1.25rem;
+  }
+
+  /* --- Empty state ------------------------------------------------------ */
+  .empty {
+    padding: clamp(3rem, 8vw, 6rem) 1.5rem;
+    text-align: center;
+    border: 1px dashed var(--color-line-strong);
+    border-radius: 0.75rem;
+  }
+  .empty-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.4rem, 3vw, 2rem);
+    font-weight: 750;
+    font-stretch: 108%;
+    letter-spacing: -0.022em;
+  }
+  .empty-body {
+    margin: 1rem auto 0;
+    max-width: 42ch;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+  .empty-cta {
+    display: inline-block;
+    margin-top: 1.75rem;
+    font-family: var(--font-label);
+    font-size: 0.75rem;
+    letter-spacing: 0.015em;
+    color: var(--color-accent);
+    text-decoration: none;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid currentColor;
+  }
+</style>

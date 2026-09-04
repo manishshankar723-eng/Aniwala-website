@@ -1,0 +1,84 @@
+---
+/**
+ * Every page built in the Studio.
+ *
+ * A catch-all, so it renders whatever pages exist in the CMS without anyone
+ * adding a route. It is the LOWEST-priority route in Astro: a real file like
+ * `about.astro` or `blog/[slug].astro` always wins, which is why `page.ts`
+ * refuses those prefixes in the Studio — a page filed under `/blog/...` would
+ * be built here and then never served, and the editor would have no way to
+ * tell.
+ *
+ * Draft pages render under `astro dev` and are excluded from a production
+ * build, the same rule the blog follows. So a page can be assembled and
+ * previewed in full before anyone decides it should be public.
+ */
+import { getCollection } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import Footer from '../components/Footer.astro';
+import Blocks from '../components/blocks/Blocks.astro';
+import { ogImageUrl, type SanityImage } from '../lib/sanity/client';
+import { HOME_SLUG } from '../config/pageSlots';
+
+export async function getStaticPaths() {
+  const pages = await getCollection('builtPages', ({ data }) => import.meta.env.DEV || !data.draft);
+
+  return pages
+    /* The homepage has its own route and is rendered at `/`. Without this it
+       would ALSO be built at `/home/`, giving the same page two URLs and
+       splitting whatever search ranking it earns between them. */
+    .filter((page) => page.id !== HOME_SLUG)
+    .map((page) => ({
+    params: { slug: page.id },
+    props: { page },
+  }));
+}
+
+const { page } = Astro.props;
+
+/* A built page carries its own sharing image; without one `Base` falls back to
+   the site-wide card. */
+const ogImage = page.data.ogImage ? ogImageUrl(page.data.ogImage as SanityImage) : undefined;
+
+/*
+ * The hero decides the header treatment, not the page.
+ *
+ * A video hero is full-bleed and dark, so the header has to sit transparently
+ * on top of it. Every other page runs under a solid header — `PageHero` even
+ * carries the top offset for it itself. Deriving this from the first block
+ * rather than offering it as a field means an editor cannot produce the one
+ * broken combination: a solid header overlapping a full-screen video.
+ */
+const first = page.data.blocks[0] as { _type?: string; variant?: string } | undefined;
+const transparentHeader = first?._type === 'heroBlock' && first?.variant === 'video';
+---
+
+<Base
+  title={page.data.seoTitle}
+  description={page.data.seoDescription}
+  ogImage={ogImage}
+  noindex={page.data.noindex}
+  transparentHeader={transparentHeader}
+>
+  {/*
+    The hero sits OUTSIDE `<main>` when it is a video, matching the homepage:
+    a full-bleed arrival is not part of the document's main content, and the
+    skip link should land on the content below it rather than on the video.
+  */}
+  {
+    transparentHeader ? (
+      <>
+        <Blocks blocks={[page.data.blocks[0]] as never} label={`/${page.id}/`} />
+        <main id="main">
+          <Blocks blocks={page.data.blocks.slice(1) as never} label={`/${page.id}/`} />
+        </main>
+      </>
+    ) : (
+      <main id="main">
+        <Blocks blocks={page.data.blocks as never} label={`/${page.id}/`} />
+      </main>
+    )
+  }
+
+  <Footer />
+</Base>

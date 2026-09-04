@@ -20,6 +20,7 @@ import { structureTool } from 'sanity/structure';
 import { visionTool } from '@sanity/vision';
 import { schemaTypes } from './schemas';
 
+
 /* Not secret — the project id appears in every cdn.sanity.io image URL the
    site serves, so it is hardcoded as the default rather than left as a
    placeholder.
@@ -129,6 +130,24 @@ export default defineConfig({
                 S.documentTypeList('milestone')
                   .title('Milestones')
                   .defaultOrdering([{ field: 'order', direction: 'asc' }])
+              ),
+
+            S.divider(),
+
+            /*
+             * Built pages — the page builder.
+             *
+             * A normal document list, because unlike everything else in this
+             * sidebar these ARE created and deleted by the editor. That is the
+             * point of the type.
+             */
+            S.listItem()
+              .title('Built pages')
+              .schemaType('page')
+              .child(
+                S.documentTypeList('page')
+                  .title('Built pages')
+                  .defaultOrdering([{ field: 'title', direction: 'asc' }])
               ),
 
             S.divider(),

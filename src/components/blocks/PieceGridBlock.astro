@@ -1,0 +1,155 @@
+---
+/**
+ * Portfolio piece cards, optionally narrowed to one discipline.
+ *
+ * `showFilter` puts the discipline bar above the grid. That belongs on the
+ * portfolio index and nowhere else: a filter row on a landing page that shows
+ * six pieces would navigate the visitor away from the page they were reading.
+ *
+ * Like the case study list, the empty state exists only where the page's whole
+ * job is the listing. A piece grid dropped onto a marketing page should vanish
+ * when there is nothing to show; the portfolio index should not.
+ */
+import SectionHead from './SectionHead.astro';
+import DisciplineBar from '../DisciplineBar.astro';
+import PieceCard from '../PieceCard.astro';
+import { piecesIn } from '../../lib/pieces';
+
+interface Props {
+  block: {
+    eyebrow?: string;
+    title?: string;
+    anchor?: string;
+    category?: string;
+    limit?: number;
+    showFilter?: boolean;
+    linkLabel?: string;
+    linkHref?: string;
+    emptyTitle?: string;
+    emptyBody?: string;
+    emptyCtaLabel?: string;
+    emptyCtaHref?: string;
+  };
+}
+const { block } = Astro.props;
+
+const all = await piecesIn(block.category || undefined);
+const pieces = block.limit ? all.slice(0, block.limit) : all;
+
+/* Said plainly at the top rather than left for the visitor to work out from
+   six identical badges. Derived, so it disappears the day a client piece is
+   published. */
+const ownCount = pieces.filter((p) => p.kind === 'Studio project').length;
+const allOwn = pieces.length > 0 && ownCount === pieces.length;
+
+const hasEmptyState = Boolean(block.emptyTitle);
+---
+
+{
+  (hasEmptyState || pieces.length > 0) && (
+    <section class="section" id={block.anchor ?? 'work'}>
+      <SectionHead
+        eyebrow={block.eyebrow}
+        title={block.title}
+        linkLabel={block.linkLabel}
+        linkHref={block.linkHref}
+      />
+
+      {block.showFilter && <DisciplineBar />}
+
+      {pieces.length === 0 ? (
+        <div class="empty" data-reveal>
+          <p class="empty-title">{block.emptyTitle}</p>
+          <p class="empty-body">{block.emptyBody}</p>
+          {block.emptyCtaLabel && block.emptyCtaHref && (
+            <a href={block.emptyCtaHref} class="empty-cta">
+              {block.emptyCtaLabel} <span aria-hidden="true">&rarr;</span>
+            </a>
+          )}
+        </div>
+      ) : (
+        <>
+          {allOwn && (
+            <p class="note" data-reveal>
+              Everything below is self-directed studio work: pieces we set ourselves to test a
+              pipeline claim before taking it to a client. Commissioned projects appear here as they
+              clear approval.
+            </p>
+          )}
+
+          <h2 class="visually-hidden">All work</h2>
+
+          <div class="grid">
+            {pieces.map((piece) => (
+              <PieceCard piece={piece} showCategory={!block.category} />
+            ))}
+          </div>
+        </>
+      )}
+    </section>
+  )
+}
+
+<style>
+  .note {
+    max-width: 62ch;
+    margin: 0 0 clamp(2rem, 4vw, 3rem);
+    padding-left: 1rem;
+    border-left: 2px solid var(--color-accent);
+    font-size: 0.95rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+
+  /* Two columns, not three. The tiles carry a title, a blurb and a tool list
+     on top of the art — at three across on a laptop that stack collapses into
+     an unreadable smudge. The wide modifier gives the grid its rhythm back. */
+  .grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 700px) {
+    .grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (min-width: 1600px) {
+    .grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  /* --- Empty state ------------------------------------------------------ */
+  .empty {
+    padding: clamp(3rem, 8vw, 6rem) 1.5rem;
+    text-align: center;
+    border: 1px dashed var(--color-line-strong);
+    border-radius: 0.75rem;
+  }
+  .empty-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.4rem, 3vw, 2rem);
+    font-weight: 750;
+    font-stretch: 108%;
+    letter-spacing: -0.022em;
+  }
+  .empty-body {
+    margin: 1rem auto 0;
+    max-width: 44ch;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+  .empty-cta {
+    display: inline-block;
+    margin-top: 1.75rem;
+    font-family: var(--font-label);
+    font-size: 0.75rem;
+    letter-spacing: 0.015em;
+    color: var(--color-accent);
+    text-decoration: none;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid currentColor;
+  }
+</style>

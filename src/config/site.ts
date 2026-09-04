@@ -45,64 +45,18 @@ export const processSteps: ProcessStep[] = [
 ];
 
 /* ------------------------------------------------------------------ */
-/* Marquee — the scrolling strip directly under the hero               */
+/* Moved to Sanity                                                     */
 /*                                                                     */
-/* Craft specialisms, NOT the five services. The services grid further */
-/* down already sells those; this says what is actually on the desks,  */
-/* at the granularity an art director thinks in. Twelve is enough to   */
-/* fill a wide screen twice over — fewer and the loop shows a gap.     */
+/* The hero marquee and the capabilities list are now fields on the    */
+/* `siteCopy` singleton; testimonials and clients are their own        */
+/* document types. Read them with `getSiteCopy()`, `getTestimonials()` */
+/* and `getClients()` from `lib/studio.ts`.                            */
+/*                                                                     */
+/* The arrays that used to sit here were dead for a while before they  */
+/* were deleted — every page had already moved to the accessors, so    */
+/* editing them changed nothing and there was no way to tell from the  */
+/* file. If you are looking for the text, it is in the Studio.         */
 /* ------------------------------------------------------------------ */
-export const marqueeItems: string[] = [
-  'Character Design',
-  'Creature Design',
-  'Environment Art',
-  'Concept Art',
-  'Storyboarding',
-  '3D Modelling',
-  'Rigging',
-  'Cinematics',
-  'Simulation & FX',
-  'Compositing',
-  'Motion Design',
-  'UI / UX Art',
-];
-
-/* ------------------------------------------------------------------ */
-/* Capabilities — the pipeline facts a first client actually asks about */
-/* ------------------------------------------------------------------ */
-export const capabilities: string[] = [
-  'Maya',
-  'Blender',
-  'Houdini',
-  'ZBrush',
-  'Substance',
-  'Unreal Engine',
-  'Nuke',
-  'After Effects',
-  'Toon Boom Harmony',
-  'Photoshop',
-];
-
-/* ------------------------------------------------------------------ */
-/* Proof — deliberately empty until it is real                         */
-/* ------------------------------------------------------------------ */
-export interface Testimonial {
-  quote: string;
-  name: string;
-  role: string;
-  company: string;
-}
-
-/** Add real ones as they arrive. The section hides itself while empty. */
-export const testimonials: Testimonial[] = [];
-
-export interface Client {
-  name: string;
-  logo?: string;
-}
-
-/** Same rule: an empty logo wall is worse than none. */
-export const clients: Client[] = [];
 
 /* ------------------------------------------------------------------ */
 /* Blog and case studies                                               */

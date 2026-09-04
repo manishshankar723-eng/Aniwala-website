@@ -1,0 +1,137 @@
+---
+/**
+ * A list of titled paragraphs, in one of two densities.
+ *
+ * `numbered` is the about page's principles: two across, big type, an 01/02
+ * counter, and room to argue a point. `compact` is its working practices: four
+ * across, smaller, no counter. They were two separate blocks of markup that
+ * differed only in those respects, so they are one block with a style switch —
+ * a third near-identical copy is how a stylesheet starts to rot.
+ *
+ * The counter is CSS-free and derived from position, so reordering the list in
+ * the Studio renumbers it. A typed-in number would go stale the first time
+ * someone dragged an item.
+ */
+import SectionHead from './SectionHead.astro';
+
+interface Props {
+  block: {
+    eyebrow?: string;
+    title?: string;
+    anchor?: string;
+    variant?: 'numbered' | 'compact';
+    items?: { title: string; body: string }[];
+  };
+}
+const { block } = Astro.props;
+const items = block.items ?? [];
+const numbered = block.variant !== 'compact';
+---
+
+{
+  items.length > 0 && (
+    <section class="section section--bordered" id={block.anchor}>
+      <SectionHead eyebrow={block.eyebrow} title={block.title} />
+
+      <div class:list={[numbered ? 'principles' : 'practices']}>
+        {items.map((p, i) => (
+          <article class:list={[numbered ? 'principle' : 'practice']} data-reveal>
+            {numbered && <span class="principle-n">{String(i + 1).padStart(2, '0')}</span>}
+            <h3 class:list={[numbered ? 'principle-title' : 'practice-title']}>{p.title}</h3>
+            <p class:list={[numbered ? 'principle-body' : 'practice-body']}>{p.body}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+<style>
+  /* --- Numbered ---------------------------------------------------------- */
+  .principles {
+    display: grid;
+    gap: 2.5rem 2rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 800px) {
+    .principles {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  .principle {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--color-line-strong);
+  }
+  .principle-n {
+    font-family: var(--font-label);
+    font-size: 0.72rem;
+    letter-spacing: 0.015em;
+    color: var(--color-accent);
+  }
+  .principle-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.2rem, 2.4vw, 1.6rem);
+    font-weight: 750;
+    font-stretch: 106%;
+    letter-spacing: -0.022em;
+    line-height: 1.15;
+    text-wrap: balance;
+  }
+  .principle-body {
+    margin: 0;
+    max-width: 52ch;
+    font-size: 0.97rem;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+
+  /* --- Compact ----------------------------------------------------------- */
+  .practices {
+    display: grid;
+    gap: 0;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 700px) {
+    .practices {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (min-width: 1400px) {
+    .practices {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+  .practice {
+    padding: 1.75rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    border-top: 1px solid var(--color-line);
+  }
+  @media (min-width: 700px) {
+    .practice {
+      padding: 1.75rem 1.75rem 1.75rem 0;
+    }
+  }
+  .practice-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    font-stretch: 106%;
+    letter-spacing: -0.012em;
+    line-height: 1.25;
+    text-wrap: balance;
+  }
+  .practice-body {
+    margin: 0;
+    font-size: 0.92rem;
+    line-height: 1.6;
+    color: var(--color-ink-muted);
+  }
+</style>

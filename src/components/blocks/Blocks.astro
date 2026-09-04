@@ -1,0 +1,182 @@
+---
+/**
+ * The renderer: turns a page's block array into the page.
+ *
+ * One `switch` on `_type`, and that is the whole dispatch. It is written out
+ * longhand rather than looked up from a map of components because Astro needs
+ * each component imported statically anyway, and a `switch` gives TypeScript
+ * something to narrow on — a map typed loosely enough to hold every block
+ * shape would hand every component `any`.
+ *
+ * AN UNKNOWN BLOCK THROWS. That is the important line in this file.
+ *
+ * The obvious alternative — render nothing and carry on — produces a page with
+ * a silent hole in it: the editor added a section, published, looked at the
+ * site, and the section simply is not there, with no error anywhere to
+ * explain why. That happens whenever a block type exists in the Studio but has
+ * no component here, which is exactly the state a half-finished block leaves
+ * the repo in. Failing the build names the type and the page.
+ *
+ * In dev it warns instead and renders a visible placeholder, so someone
+ * building a new block type can see where it will land before writing it.
+ */
+import HeroBlock from './HeroBlock.astro';
+import StatementBlock from './StatementBlock.astro';
+import RichTextBlock from './RichTextBlock.astro';
+import ImageBlock from './ImageBlock.astro';
+import TagListBlock from './TagListBlock.astro';
+import FactGridBlock from './FactGridBlock.astro';
+import PrincipleListBlock from './PrincipleListBlock.astro';
+import MarqueeBlock from './MarqueeBlock.astro';
+import CtaPanelBlock from './CtaPanelBlock.astro';
+import CtaBandBlock from './CtaBandBlock.astro';
+import WorkGridBlock from './WorkGridBlock.astro';
+import CaseStudyListBlock from './CaseStudyListBlock.astro';
+import ServiceGridBlock from './ServiceGridBlock.astro';
+import EngagementBlock from './EngagementBlock.astro';
+import ProcessBlock from './ProcessBlock.astro';
+import ClientWallBlock from './ClientWallBlock.astro';
+import TestimonialBlock from './TestimonialBlock.astro';
+import PieceGridBlock from './PieceGridBlock.astro';
+import PostListBlock from './PostListBlock.astro';
+import TeamGridBlock from './TeamGridBlock.astro';
+import MilestoneBlock from './MilestoneBlock.astro';
+import FaqBlock from './FaqBlock.astro';
+import ReachBlock from './ReachBlock.astro';
+import BookCallBlock from './BookCallBlock.astro';
+
+export interface Block {
+  _type: string;
+  _key: string;
+  [key: string]: unknown;
+}
+
+interface Props {
+  blocks: Block[];
+  /** For the error message, so a failure names the page and not just the type. */
+  label?: string;
+}
+
+const { blocks, label = 'this page' } = Astro.props;
+
+const KNOWN = new Set([
+  'heroBlock',
+  'statementBlock',
+  'richTextBlock',
+  'imageBlock',
+  'tagListBlock',
+  'factGridBlock',
+  'principleListBlock',
+  'marqueeBlock',
+  'ctaPanelBlock',
+  'ctaBandBlock',
+  'workGridBlock',
+  'caseStudyListBlock',
+  'serviceGridBlock',
+  'engagementBlock',
+  'processBlock',
+  'clientWallBlock',
+  'testimonialBlock',
+  'pieceGridBlock',
+  'postListBlock',
+  'teamGridBlock',
+  'milestoneBlock',
+  'faqBlock',
+  'reachBlock',
+  'bookCallBlock',
+]);
+
+/* Checked up front rather than in the loop, so a page with three unknown
+   blocks reports all three instead of one per rebuild. */
+const unknown = blocks.filter((b) => !KNOWN.has(b._type)).map((b) => b._type);
+
+if (unknown.length && !import.meta.env.DEV) {
+  throw new Error(
+    `${label} uses block type(s) with no renderer: ${[...new Set(unknown)].join(', ')}.\n\n` +
+      `  The block exists in the Studio but nothing here draws it, so the section\n` +
+      `  would be missing from the page with no error on the site.\n\n` +
+      `  Add a component in src/components/blocks/ and register it in Blocks.astro,\n` +
+      `  or remove the block from the page in the Studio.`
+  );
+}
+
+if (unknown.length) {
+  console.warn(
+    `[blocks] ${label}: no renderer for ${[...new Set(unknown)].join(', ')} — ` +
+      `showing a placeholder. This would FAIL a production build.`
+  );
+}
+---
+
+{
+  blocks.map((block, index) => {
+    switch (block._type) {
+      case 'heroBlock':
+        return <HeroBlock block={block as never} />;
+      case 'statementBlock':
+        return <StatementBlock block={block as never} />;
+      case 'richTextBlock':
+        return <RichTextBlock block={block as never} />;
+      case 'imageBlock':
+        return <ImageBlock block={block as never} />;
+      case 'tagListBlock':
+        return <TagListBlock block={block as never} />;
+      case 'factGridBlock':
+        return <FactGridBlock block={block as never} />;
+      case 'principleListBlock':
+        return <PrincipleListBlock block={block as never} />;
+      case 'marqueeBlock':
+        return <MarqueeBlock block={block as never} />;
+      case 'ctaPanelBlock':
+        return <CtaPanelBlock block={block as never} />;
+      case 'ctaBandBlock':
+        return <CtaBandBlock block={block as never} />;
+      case 'workGridBlock':
+        return <WorkGridBlock block={block as never} />;
+      case 'caseStudyListBlock':
+        return <CaseStudyListBlock block={block as never} />;
+      case 'serviceGridBlock':
+        return <ServiceGridBlock block={block as never} />;
+      case 'engagementBlock':
+        return <EngagementBlock block={block as never} />;
+      case 'processBlock':
+        return <ProcessBlock block={block as never} />;
+      case 'clientWallBlock':
+        return <ClientWallBlock block={block as never} />;
+      case 'testimonialBlock':
+        return <TestimonialBlock block={block as never} />;
+      case 'pieceGridBlock':
+        return <PieceGridBlock block={block as never} />;
+      case 'postListBlock':
+        return <PostListBlock block={block as never} />;
+      case 'teamGridBlock':
+        return <TeamGridBlock block={block as never} />;
+      case 'milestoneBlock':
+        return <MilestoneBlock block={block as never} />;
+      case 'faqBlock':
+        return <FaqBlock block={block as never} index={index} />;
+      case 'reachBlock':
+        return <ReachBlock block={block as never} />;
+      case 'bookCallBlock':
+        return <BookCallBlock />;
+      default:
+        /* Dev only — the production build already threw above. */
+        return (
+          <section class="section">
+            <p class="block-missing">Unknown block: {block._type}</p>
+          </section>
+        );
+    }
+  })
+}
+
+<style>
+  .block-missing {
+    padding: 1rem 1.25rem;
+    border: 1px dashed var(--color-line-strong);
+    border-radius: 0.5rem;
+    font-family: var(--font-label);
+    font-size: 0.8rem;
+    color: var(--color-ink-muted);
+  }
+</style>

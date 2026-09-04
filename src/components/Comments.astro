@@ -1,7 +1,7 @@
 ---
 import { commentsEnabled } from '../config/site';
 import { supabaseConfigured } from '../lib/supabase';
-import { email } from '../config/contact';
+import { getContactDetails } from '../lib/studio';
 
 /**
  * Blog comments, stored in Supabase alongside enquiries — one project, one
@@ -20,6 +20,8 @@ interface Props {
   slug: string;
 }
 const { slug } = Astro.props;
+
+const { email } = await getContactDetails();
 
 const live = commentsEnabled && supabaseConfigured;
 
