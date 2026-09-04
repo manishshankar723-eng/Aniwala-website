@@ -7,11 +7,16 @@
  * about a piece, because a portfolio entry is content by any definition — it
  * is added the week the work clears.
  *
+ * THE CATEGORIES MOVED TOO, and this field became a reference because of it.
+ * A dropdown built from a config array went stale the moment disciplines
+ * became documents; a reference cannot, and Sanity additionally refuses to
+ * delete a discipline while a piece is still filed under it. The site sees
+ * the same slug string it always did — the loader dereferences it.
+ *
  * WHAT DID NOT MOVE: the CATEGORIES. Those drive the /portfolio/ URLs and the
  * filter chips, so they stay in code and this picks from them.
  */
 import { defineType, defineField } from 'sanity';
-import { workCategories } from '../../src/config/portfolio';
 
 export default defineType({
   name: 'piece',
@@ -44,10 +49,10 @@ export default defineType({
     defineField({
       name: 'category',
       title: 'Category',
-      type: 'string',
+      type: 'reference',
+      to: [{ type: 'workCategory' }],
       group: 'main',
       description: 'Which discipline it is filed under on /portfolio/.',
-      options: { list: workCategories.map((c) => ({ title: c.title, value: c.slug })) },
       validation: (Rule) => Rule.required(),
     }),
     defineField({

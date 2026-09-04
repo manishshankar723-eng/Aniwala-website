@@ -9,12 +9,19 @@
  * Mirrors the Zod schema in the website's `src/content.config.ts`.
  */
 import { defineType, defineField } from 'sanity';
+import { seoFields } from './seoFields';
 
 
 export default defineType({
   name: 'caseStudy',
   title: 'Case study',
   type: 'document',
+  /* Two tabs. Everything that existed stays on the first one, so adding
+     search settings did not hide the form somebody uses every week. */
+  groups: [
+    { name: 'content', title: 'Content', default: true },
+    { name: 'seo', title: 'Search' },
+  ],
 
   fields: [
     defineField({
@@ -175,6 +182,8 @@ export default defineType({
       type: 'blockContent',
       validation: (Rule) => Rule.required(),
     }),
+
+    ...seoFields,
   ],
 
   preview: {

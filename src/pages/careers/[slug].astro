@@ -97,8 +97,11 @@ const jobSchema = {
 ---
 
 <Base
-  title={`${role.title} — Careers at Aniwala Studios`}
-  description={`${role.summary} ${role.kind}, ${role.location}. ${role.experience}. Apply to Aniwala Studios and get an answer within five working days.`}
+  title={role.seoTitle ?? `${role.title} — Careers at Aniwala Studios`}
+  description={
+    role.seoDescription ??
+    `${role.summary} ${role.kind}, ${role.location}. ${role.experience}. Apply to Aniwala Studios and get an answer within five working days.`
+  }
 >
   <main id="main">
     <PageHero

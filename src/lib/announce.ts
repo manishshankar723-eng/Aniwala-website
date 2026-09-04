@@ -13,6 +13,7 @@
  * of 2.75rem down with a gap above it.
  */
 import { getEntry } from 'astro:content';
+import { previewMode } from './sanity/client';
 
 export interface Announcement {
   enabled: boolean;
@@ -31,7 +32,7 @@ export async function getAnnouncement(): Promise<Announcement> {
 
   /* Unpublished behaves as off in production. The loader marks drafts, and
      showing one would put unfinished marketing copy on every page. */
-  if (entry.data.draft && !import.meta.env.DEV) return OFF;
+  if (entry.data.draft && !previewMode) return OFF;
 
   /* Enabled but with nothing to say is treated as off rather than rendered as
      an empty strip — an easy state to leave behind after clearing the text. */

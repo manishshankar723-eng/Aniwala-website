@@ -26,7 +26,7 @@
  * quietly drop the role out of Google's job index.
  */
 import type { Loader, LoaderContext } from 'astro/loaders';
-import { sanityClient, sanityConfigured, draftsVisible } from './client';
+import { sanityClient, sanityConfigured, draftsVisible, previewMode } from './client';
 import { renderBody, toPlainText } from './portableText';
 
 /**
@@ -168,7 +168,10 @@ function sanityLoader(options: {
       /* In dev both a draft and its published twin come back for the same
          slug. Keep the draft — it is the newer text, and previewing edits is
          the entire reason drafts are loaded at all. */
-      const bySlug = new Map<string, { doc: SanityDoc; isDraft: boolean }>();
+      const bySlug = new Map<
+        string,
+        { doc: SanityDoc; isDraft: boolean; published?: SanityDoc }
+      >();
       for (const doc of docs) {
         const slug = idFrom(doc);
         if (!slug) {
@@ -177,13 +180,56 @@ function sanityLoader(options: {
         }
         const isDraft = doc._id.startsWith('drafts.');
         const existing = bySlug.get(slug);
-        if (!existing || isDraft) bySlug.set(slug, { doc, isDraft });
+
+        if (isDraft) {
+          /* The draft wins, but the published twin is kept beside it. A
+             half-finished draft is normal — someone is mid-edit — and preview
+             needs something to fall back to rather than dying. */
+          bySlug.set(slug, { doc, isDraft: true, published: existing?.doc });
+        } else if (!existing) {
+          bySlug.set(slug, { doc, isDraft: false });
+        } else if (existing.isDraft) {
+          bySlug.set(slug, { ...existing, published: doc });
+        }
       }
 
-      for (const [slug, { doc, isDraft }] of bySlug) {
-        /* Throws on a schema violation, failing the build with the field name
-           and the offending document. This is the guard rail. */
-        const data = await parseData({ id: slug, data: toData(doc, isDraft) });
+      for (const [slug, { doc, isDraft, published }] of bySlug) {
+        /*
+         * Validation, and it behaves differently in a preview.
+         *
+         * On a LIVE build a schema violation throws, naming the field and the
+         * document. That is the guard rail and it must stay: publishing a
+         * document with a required field missing should stop the deploy.
+         *
+         * In a PREVIEW it must not. A draft is unfinished BY DEFINITION —
+         * somebody is typing into it right now — and one incomplete draft
+         * taking down the whole preview site is the fastest way to make the
+         * review workflow useless. So preview falls back to the published
+         * version of that document and says loudly which draft is not ready.
+         * If there is no published version, the entry is skipped.
+         *
+         * This is not a loosening of the rules. The draft still cannot be
+         * published while it fails, because publishing rebuilds the live site,
+         * which validates strictly and refuses it.
+         */
+        let data;
+        try {
+          data = await parseData({ id: slug, data: toData(doc, isDraft) });
+        } catch (error) {
+          if (!previewMode) throw error;
+
+          const why = (error as Error).message.split(String.fromCharCode(10))[0];
+
+          if (published) {
+            logger.warn(
+              `Draft "${slug}" (${type}) is not ready — showing the published version instead. ${why}`
+            );
+            data = await parseData({ id: slug, data: toData(published, false) });
+          } else {
+            logger.warn(`Draft "${slug}" (${type}) is not ready and has never been published — skipped. ${why}`);
+            continue;
+          }
+        }
 
         if (!hasBody) {
           store.set({ id: slug, data });
@@ -216,7 +262,7 @@ export const sanityPosts = (): Loader =>
     type: 'post',
     projection: `
       _id, slug, title, description, pubDate, updatedDate,
-      category, tags, author, tint, cover, body
+      category, tags, author, tint, cover, body, seoTitle, seoDescription
     `,
     toData: (doc, isDraft) => ({
       title: doc.title,
@@ -230,6 +276,8 @@ export const sanityPosts = (): Loader =>
       author: doc.author ?? 'Aniwala Studios',
       tint: doc.tint ?? '210 70% 22%',
       ...(doc.cover ? { cover: doc.cover } : {}),
+      ...(doc.seoTitle ? { seoTitle: doc.seoTitle } : {}),
+      ...(doc.seoDescription ? { seoDescription: doc.seoDescription } : {}),
       draft: isDraft,
     }),
   });
@@ -243,7 +291,8 @@ export const sanityCaseStudies = (): Loader =>
     type: 'caseStudy',
     projection: `
       _id, slug, title, description, kind, client, sector, year,
-      services, deliverables, tools, results, tint, featured, cover, body
+      services, deliverables, tools, results, tint, featured, cover, body,
+      seoTitle, seoDescription
     `,
     toData: (doc, isDraft) => ({
       title: doc.title,
@@ -259,6 +308,8 @@ export const sanityCaseStudies = (): Loader =>
       tint: doc.tint ?? '210 70% 22%',
       featured: doc.featured ?? false,
       ...(doc.cover ? { cover: doc.cover } : {}),
+      ...(doc.seoTitle ? { seoTitle: doc.seoTitle } : {}),
+      ...(doc.seoDescription ? { seoDescription: doc.seoDescription } : {}),
       draft: isDraft,
     }),
   });
@@ -274,7 +325,7 @@ export const sanityRoles = (): Loader =>
     projection: `
       _id, slug, title, discipline, kind, location, experience, openings,
       posted, closes, tint, summary, about, responsibilities, requirements,
-      niceToHave, software, reelNote
+      niceToHave, software, reelNote, seoTitle, seoDescription
     `,
     toData: (doc, isDraft) => ({
       title: doc.title,
@@ -293,6 +344,8 @@ export const sanityRoles = (): Loader =>
       ...(doc.niceToHave?.length ? { niceToHave: doc.niceToHave } : {}),
       software: doc.software ?? [],
       reelNote: doc.reelNote,
+      ...(doc.seoTitle ? { seoTitle: doc.seoTitle } : {}),
+      ...(doc.seoDescription ? { seoDescription: doc.seoDescription } : {}),
       draft: isDraft,
     }),
   });
@@ -371,8 +424,8 @@ export const sanityPieces = (): Loader =>
     type: 'piece',
     hasBody: false,
     projection: `
-      _id, slug, title, category, blurb, image, kind, client, year,
-      tools, caseStudy, tint, wide, order
+      _id, slug, title, "category": category->slug.current, blurb, image, kind,
+      client, year, tools, caseStudy, tint, wide, order
     `,
     toData: (doc, isDraft) => ({
       title: doc.title,
@@ -600,7 +653,7 @@ export const sanityServices = (): Loader =>
     projection: `
       _id, slug, title, label, shortName, article, tagline, intro, tint, order,
       offerings, pipeline, tools, deliverables,
-      "related": related[]->slug.current
+      "related": related[]->slug.current, seoTitle, seoDescription
     `,
     toData: (doc, isDraft) => ({
       title: doc.title,
@@ -626,6 +679,83 @@ export const sanityServices = (): Loader =>
          than kept, because a related-services row linking to nothing is a
          dead card on a live page. */
       related: (doc.related ?? []).filter(Boolean),
+      ...(doc.seoTitle ? { seoTitle: doc.seoTitle } : {}),
+      ...(doc.seoDescription ? { seoDescription: doc.seoDescription } : {}),
+      draft: isDraft,
+    }),
+  });
+
+/* ------------------------------------------------------------------ */
+/* Portfolio disciplines                                               */
+/* ------------------------------------------------------------------ */
+export const sanityWorkCategories = (): Loader =>
+  sanityLoader({
+    name: 'sanity:work-categories',
+    type: 'workCategory',
+    hasBody: false,
+    projection: `
+      _id, slug, title, shortName, blurb, intro, tint, wide, order,
+      "services": services[]->slug.current, seoTitle, seoDescription
+    `,
+    toData: (doc, isDraft) => ({
+      title: doc.title,
+      shortName: doc.shortName,
+      blurb: doc.blurb,
+      intro: doc.intro,
+      tint: doc.tint,
+      wide: doc.wide ?? false,
+      order: doc.order ?? 50,
+      services: (doc.services ?? []).filter(Boolean),
+      ...(doc.seoTitle ? { seoTitle: doc.seoTitle } : {}),
+      ...(doc.seoDescription ? { seoDescription: doc.seoDescription } : {}),
+      draft: isDraft,
+    }),
+  });
+
+/* ------------------------------------------------------------------ */
+/* Book a call (singleton)                                             */
+/* ------------------------------------------------------------------ */
+export const sanityBookingSettings = (): Loader =>
+  sanityLoader({
+    name: 'sanity:booking',
+    type: 'bookingSettings',
+    hasBody: false,
+    idFrom: () => 'bookingSettings',
+    projection: `
+      _id, hostName, hostRole, hostPhoto, callDurations, dayStart, dayEnd,
+      stepMinutes, closedDays, bookingWindowDays, whatToExpect, enquiryTypes
+    `,
+    toData: (doc, isDraft) => ({
+      hostName: doc.hostName,
+      hostRole: doc.hostRole,
+      ...(doc.hostPhoto ? { hostPhoto: doc.hostPhoto } : {}),
+      callDurations: doc.callDurations ?? [15, 30, 45],
+      dayStart: doc.dayStart ?? '09:00',
+      dayEnd: doc.dayEnd ?? '18:00',
+      stepMinutes: doc.stepMinutes ?? 30,
+      closedDays: doc.closedDays ?? [],
+      bookingWindowDays: doc.bookingWindowDays ?? 60,
+      whatToExpect: doc.whatToExpect ?? [],
+      enquiryTypes: doc.enquiryTypes ?? [],
+      draft: isDraft,
+    }),
+  });
+
+/* ------------------------------------------------------------------ */
+/* Loading screen (singleton)                                          */
+/* ------------------------------------------------------------------ */
+export const sanityLoaderSettings = (): Loader =>
+  sanityLoader({
+    name: 'sanity:loader',
+    type: 'loaderSettings',
+    hasBody: false,
+    idFrom: () => 'loaderSettings',
+    projection: `_id, enabled, image, alt, maxDuration`,
+    toData: (doc, isDraft) => ({
+      enabled: doc.enabled ?? true,
+      ...(doc.image ? { image: doc.image } : {}),
+      alt: doc.alt ?? '',
+      maxDuration: doc.maxDuration ?? 2200,
       draft: isDraft,
     }),
   });
@@ -663,12 +793,20 @@ export const sanitySiteCopy = (): Loader =>
     type: 'siteCopy',
     hasBody: false,
     idFrom: () => 'siteCopy',
-    projection: `_id, positioning, teamIntro, marqueeItems, capabilities`,
+    projection: `_id, positioning, teamIntro, marqueeItems, capabilities, processSteps, categoryBlurbs`,
     toData: (doc, isDraft) => ({
       positioning: doc.positioning ?? '',
       teamIntro: doc.teamIntro ?? '',
       marqueeItems: doc.marqueeItems ?? [],
       capabilities: doc.capabilities ?? [],
+      processSteps: (doc.processSteps ?? []).map((p: Record<string, any>) => ({
+        title: p.title,
+        body: p.body,
+      })),
+      categoryBlurbs: (doc.categoryBlurbs ?? []).map((c: Record<string, any>) => ({
+        category: c.category,
+        blurb: c.blurb,
+      })),
       draft: isDraft,
     }),
   });

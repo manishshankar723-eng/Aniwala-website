@@ -2,14 +2,14 @@
 /**
  * The discipline tiles.
  *
- * A data block: the categories come from `config/portfolio.ts` (they drive the
+ * A data block: the categories come from `workCategory` documents (they drive the
  * /portfolio/ URLs, so they are structure) and the pictures from the artwork
  * slots. The editor supplies only the heading — which is the point, since the
  * alternative is a second list of disciplines that immediately disagrees with
  * the one the routes are built from.
  */
 import SectionHead from './SectionHead.astro';
-import { workCategories, categoryHref } from '../../config/portfolio';
+import { getWorkCategories, categoryHref } from '../../lib/workCategories';
 import { portfolioSlot } from '../../config/imageSlots';
 import { getArtworkMap } from '../../lib/artwork';
 
@@ -20,6 +20,7 @@ const { block } = Astro.props;
 
 /* One lookup for the whole grid. `getArtwork` per tile inside the loop would
    read the same collection six times for one section. */
+const workCategories = await getWorkCategories();
 const workArt = await getArtworkMap(workCategories.map((w) => portfolioSlot(w.slug)));
 ---
 

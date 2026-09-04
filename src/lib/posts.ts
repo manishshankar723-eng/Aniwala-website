@@ -4,6 +4,7 @@
  * filter drafts leaks unfinished writing onto the live site.
  */
 import { getCollection, type CollectionEntry } from 'astro:content';
+import { previewMode } from './sanity/client';
 
 export type Post = CollectionEntry<'blog'>;
 
@@ -14,7 +15,7 @@ export type Post = CollectionEntry<'blog'>;
  * are writing, and are dropped from the production build.
  */
 export async function getPosts(): Promise<Post[]> {
-  const posts = await getCollection('blog', ({ data }) => import.meta.env.DEV || !data.draft);
+  const posts = await getCollection('blog', ({ data }) => previewMode || !data.draft);
   return posts.sort((a, b) => b.data.pubDate.getTime() - a.data.pubDate.getTime());
 }
 

@@ -21,7 +21,7 @@ interface Props {
   study: CaseStudy;
 }
 const { study } = Astro.props;
-const { title, description, kind, client, sector, year, deliverables, tools, results, tint } =
+const { title, description, kind, client, sector, year, deliverables, tools, results, tint, seoTitle, seoDescription } =
   study.data;
 
 const { Content } = await render(study);
@@ -52,8 +52,8 @@ const caseSchema = {
 ---
 
 <Base
-  title={`${title} — Case study — Aniwala Studios`}
-  description={description}
+  title={seoTitle ?? `${title} — Case study — Aniwala Studios`}
+  description={seoDescription ?? description}
   canonical={`/case-studies/${study.id}/`}
 >
   <main id="main">

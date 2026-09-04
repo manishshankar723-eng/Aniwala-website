@@ -23,7 +23,7 @@ import { getEntry } from 'astro:content';
 import Base from './Base.astro';
 import Footer from '../components/Footer.astro';
 import Blocks from '../components/blocks/Blocks.astro';
-import { ogImageUrl, type SanityImage } from '../lib/sanity/client';
+import { ogImageUrl, previewMode, type SanityImage } from '../lib/sanity/client';
 
 interface Props {
   /** The `page` document's slug. */
@@ -36,7 +36,7 @@ const { slug, title } = Astro.props;
 
 const page = await getEntry('builtPages', slug);
 
-if (!page || (page.data.draft && !import.meta.env.DEV)) {
+if (!page || (page.data.draft && !previewMode)) {
   throw new Error(
     `There is no published page for "${slug}", so this build would produce that\n` +
       `route with no title, no hero and no content.\n\n` +

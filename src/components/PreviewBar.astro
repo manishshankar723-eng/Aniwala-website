@@ -1,0 +1,65 @@
+---
+/**
+ * The strip that says "this is not the live site".
+ *
+ * A preview looks exactly like production — that is the point of it, and it is
+ * also the danger. Somebody lands on a preview URL from a Slack message three
+ * weeks later, reads unpublished copy, and takes it as fact. Worse, an editor
+ * checks a change here, sees it, and assumes it went live.
+ *
+ * So the bar is deliberately hard to ignore and deliberately not dismissible.
+ * It renders only when `previewMode` is on, which a live build cannot set.
+ *
+ * It sits at the very top of the document and pushes everything down rather
+ * than floating over the header, because a floating bar would cover the
+ * navigation on a phone.
+ */
+import { previewMode, draftsVisible } from '../lib/sanity/client';
+---
+
+{
+  previewMode && (
+    <div class="preview-bar" role="status">
+      <span class="preview-dot" aria-hidden="true" />
+      <strong>Preview</strong>
+      <span class="preview-text">
+        {draftsVisible
+          ? 'Showing unpublished drafts. This is not the live site.'
+          : 'Preview build, but no read token is set — this is showing published content only.'}
+      </span>
+    </div>
+  )
+}
+
+<style>
+  .preview-bar {
+    position: relative;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
+    padding: 0.6rem 1rem;
+    background: #7c2d12;
+    color: #fff7ed;
+    font-family: var(--font-label);
+    font-size: 0.75rem;
+    letter-spacing: 0.015em;
+    text-align: center;
+  }
+  .preview-bar strong {
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .preview-text {
+    opacity: 0.85;
+  }
+  .preview-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 100px;
+    background: #fb923c;
+    flex-shrink: 0;
+  }
+</style>

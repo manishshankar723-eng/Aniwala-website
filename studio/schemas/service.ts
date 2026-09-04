@@ -20,6 +20,7 @@
  * cross-links silently. Rename only if you are willing to chase both.
  */
 import { defineType, defineField, defineArrayMember } from 'sanity';
+import { seoFields } from './seoFields';
 
 const titleBody = (name: string, title: string, description: string, withTools = false) =>
   defineField({
@@ -72,6 +73,7 @@ export default defineType({
     { name: 'main', title: 'Page', default: true },
     { name: 'detail', title: 'Offerings & pipeline' },
     { name: 'meta', title: 'Naming & links' },
+    { name: 'seo', title: 'Search' },
   ],
 
   fields: [
@@ -197,6 +199,8 @@ export default defineType({
       of: [defineArrayMember({ type: 'reference', to: [{ type: 'service' }] })],
       validation: (Rule) => Rule.unique(),
     }),
+
+    ...seoFields,
   ],
 
   orderings: [

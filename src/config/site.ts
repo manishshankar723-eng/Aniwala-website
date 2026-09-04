@@ -1,70 +1,11 @@
 /**
- * Homepage content. Everything here is meant to be edited by hand as the
- * studio grows — that is why it is data, not markup.
+ * The parts of the site that are NOT content.
  *
- * HONESTY RULE: nothing in this file should claim something that is not
- * true yet. Empty arrays render nothing rather than placeholder filler,
- * because a visibly empty "trusted by" row is worse than no row at all.
+ * The process steps, the marquee, the tools list, the testimonials, the
+ * clients and the whole booking widget have all moved to Sanity. What is left
+ * is infrastructure — the Supabase credentials the forms post to — and the one
+ * setting that is dangerous to expose.
  */
-
-/* ------------------------------------------------------------------ */
-/* Work                                                                */
-/*                                                                     */
-/* The portfolio disciplines and the pieces filed under them used to    */
-/* live here. They now live in `src/config/portfolio.ts`, which owns    */
-/* the whole taxonomy — the homepage work grid, `/portfolio/` and every */
-/* `/portfolio/[category]/` page all read from that one file.           */
-/* ------------------------------------------------------------------ */
-
-/* ------------------------------------------------------------------ */
-/* Process — what a new studio can prove when it has no back catalogue */
-/* ------------------------------------------------------------------ */
-export interface ProcessStep {
-  title: string;
-  body: string;
-}
-
-/** A real sequence, so these ARE numbered. */
-export const processSteps: ProcessStep[] = [
-  {
-    title: 'Brief & scope',
-    body: 'We read the brief and ask the awkward questions early. You get back a shot count, a crew, and a date we actually believe.',
-  },
-  {
-    title: 'Look development',
-    body: 'Style frames and a short test before full production starts. The look gets signed off while changing it is still cheap.',
-  },
-  {
-    title: 'Production',
-    body: 'Weekly playblasts and a shared review link. You see the work while it\'s still wet.',
-  },
-  {
-    title: 'Finishing & delivery',
-    body: 'Comp, grade, sound sync and delivery in every format you need, with project files handed over on request.',
-  },
-];
-
-/* ------------------------------------------------------------------ */
-/* Moved to Sanity                                                     */
-/*                                                                     */
-/* The hero marquee and the capabilities list are now fields on the    */
-/* `siteCopy` singleton; testimonials and clients are their own        */
-/* document types. Read them with `getSiteCopy()`, `getTestimonials()` */
-/* and `getClients()` from `lib/studio.ts`.                            */
-/*                                                                     */
-/* The arrays that used to sit here were dead for a while before they  */
-/* were deleted — every page had already moved to the accessors, so    */
-/* editing them changed nothing and there was no way to tell from the  */
-/* file. If you are looking for the text, it is in the Studio.         */
-/* ------------------------------------------------------------------ */
-
-/* ------------------------------------------------------------------ */
-/* Blog and case studies                                               */
-/*                                                                     */
-/* Both are Markdown collections, not data here — see                   */
-/* src/content.config.ts for their frontmatter schemas, and             */
-/* src/lib/posts.ts / src/lib/caseStudies.ts for the read helpers.      */
-/* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
 /* Supabase — the one place visitor-submitted data lives               */
@@ -109,57 +50,14 @@ export const SUPABASE_ANON_KEY = 'PASTE-YOUR-SUPABASE-ANON-PUBLIC-KEY';
 export const commentsEnabled = true;
 
 /* ------------------------------------------------------------------ */
-/* Booking — the multi-step "book a call" widget                       */
+/* Timezone — deliberately NOT editable                                */
+/*                                                                     */
+/* IST is +5:30 and observes no daylight saving, so a fixed offset is   */
+/* exact. That is also the reason it stays here: point this at a        */
+/* timezone that DOES observe DST and every slot the booking widget     */
+/* offers is an hour wrong for half the year, silently, until a client  */
+/* dials in to an empty room. Everything else about the widget — the    */
+/* host, the hours, the durations — is in the Studio.                   */
 /* ------------------------------------------------------------------ */
-
-/** Whose calendar this is. Shown in the left panel. */
-export const bookingHost = {
-  name: 'Manish Shankar Kumar',
-  role: 'Founder, Aniwala Studios',
-  /** Drop a square image in /public and set e.g. '/manish.jpg'. */
-  photo: '',
-};
-
-/** Call lengths offered, in minutes. The middle one is the default. */
-export const callDurations = [15, 30, 45];
-
-/** Studio working hours, in studio-local time. */
-export const workingHours = { start: '09:00', end: '18:00', stepMinutes: 30 };
-
-/**
- * Studio offset from UTC in minutes. IST is +5:30 and observes no DST,
- * so a fixed offset is exact here — do NOT reuse this pattern for a
- * timezone with daylight saving.
- */
 export const studioUtcOffsetMinutes = 330;
 export const studioTimezone = 'Asia/Kolkata';
-
-/** Weekday indexes the studio does not take calls. 0 = Sunday. */
-export const closedDays = [0];
-
-/** How far ahead someone may book. */
-export const bookingWindowDays = 60;
-
-/** The numbered list in the left panel — a real sequence. */
-export const whatToExpect = [
-  'Quick introductions',
-  'Understanding your vision, goals and project scope',
-  'Exploring creative direction, style and references',
-  'Answering your questions and sharing insights',
-];
-
-/**
- * What the enquiry is about. Mirrors the six services in config/services.ts —
- * keep them in step, or someone picks a service off the dropdown that has no
- * page behind it.
- */
-export const enquiryTypes = [
-  '3D Art',
-  '2D Art',
-  'Animation',
-  'VFX',
-  'Integration',
-  'Video Editing',
-  'AI + Animation',
-  'Not sure yet',
-];

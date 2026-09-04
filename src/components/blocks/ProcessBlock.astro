@@ -7,12 +7,15 @@
  * a four-column grid, not something that changes month to month.
  */
 import SectionHead from './SectionHead.astro';
-import { processSteps } from '../../config/site';
+import { getSiteCopy } from '../../lib/studio';
 
 interface Props {
   block: { eyebrow?: string; title?: string; anchor?: string };
 }
 const { block } = Astro.props;
+
+/* One list, shared with the homepage — see the note on the Studio field. */
+const { processSteps } = await getSiteCopy();
 ---
 
 <section class="section section--bordered" id={block.anchor || "process"}>

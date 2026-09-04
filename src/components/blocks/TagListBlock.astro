@@ -6,7 +6,7 @@
 import SectionHead from './SectionHead.astro';
 import { getSiteCopy } from '../../lib/studio';
 import { allServiceTools } from '../../lib/services';
-import { enquiryTypes } from '../../config/site';
+import { getBookingSettings } from '../../lib/studio';
 
 interface Props {
   block: {
@@ -32,7 +32,7 @@ const items =
     : block.source === 'serviceTools'
       ? await allServiceTools()
       : block.source === 'enquiryTypes'
-        ? enquiryTypes
+        ? (await getBookingSettings()).enquiryTypes
         : (await getSiteCopy()).capabilities;
 ---
 

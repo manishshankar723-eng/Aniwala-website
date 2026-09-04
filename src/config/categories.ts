@@ -15,11 +15,9 @@ export const CATEGORIES = ['Craft', 'Pipeline', 'Studio', 'Industry'] as const;
 
 export type Category = (typeof CATEGORIES)[number];
 
-/** What each category is for. Shown on its archive page. */
-export const CATEGORY_BLURBS: Record<Category, string> = {
-  Craft: 'How the work is actually made — technique, timing and the decisions animators argue about.',
-  Pipeline:
-    'The technical spine: budgets, formats, hand-offs and the specifications that stop a project drifting.',
-  Studio: 'How we run — quoting, scheduling, reviewing, and the promises we are willing to make.',
-  Industry: 'The wider trade: tools, shifts in how production works, and what is worth adopting.',
-};
+/*
+ * The DESCRIPTIONS moved to Sanity — see `categoryBlurbs` on the site copy
+ * singleton. The list above did not, and should not: it drives the archive
+ * URLs and validates the category on every post, so a category that exists
+ * only as a document could be renamed out from under published posts.
+ */

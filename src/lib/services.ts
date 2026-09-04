@@ -11,6 +11,7 @@
  * can be written and previewed in full before it is announced.
  */
 import { getCollection, type CollectionEntry } from 'astro:content';
+import { previewMode } from './sanity/client';
 
 export interface Offering {
   title: string;
@@ -40,9 +41,12 @@ export interface Service {
   deliverables: string[];
   /** Slugs. Already dereferenced by the loader. */
   related: string[];
+  /** Optional search-result overrides. Blank means "derive it from the page". */
+  seoTitle?: string;
+  seoDescription?: string;
 }
 
-const live = ({ data }: { data: { draft: boolean } }) => import.meta.env.DEV || !data.draft;
+const live = ({ data }: { data: { draft: boolean } }) => previewMode || !data.draft;
 
 const flatten = (entry: CollectionEntry<'services'>): Service => ({
   slug: entry.id,

@@ -6,7 +6,7 @@ import DisciplineBar from '../../components/DisciplineBar.astro';
 import PieceCard from '../../components/PieceCard.astro';
 import CtaBand from '../../components/CtaBand.astro';
 import Footer from '../../components/Footer.astro';
-import { workCategories, type WorkCategory } from '../../config/portfolio';
+import { getWorkCategories, type WorkCategory } from '../../lib/workCategories';
 import { piecesIn } from '../../lib/pieces';
 import { servicesBySlugs, type Service } from '../../lib/services';
 
@@ -19,8 +19,8 @@ import { servicesBySlugs, type Service } from '../../lib/services';
  * empty gallery says so and offers the next useful thing, rather than 404ing
  * a link the homepage is still advertising.
  */
-export const getStaticPaths = (() =>
-  workCategories.map((category) => ({
+export const getStaticPaths = (async () =>
+  (await getWorkCategories()).map((category) => ({
     params: { category: category.slug },
     props: { category },
   }))) satisfies GetStaticPaths;
@@ -40,7 +40,10 @@ const ownCount = pieces.filter((p) => p.kind === 'Studio project').length;
 const allOwn = pieces.length > 0 && ownCount === pieces.length;
 ---
 
-<Base title={`${category.title} — Portfolio — Aniwala Studios`} description={category.intro}>
+<Base
+  title={category.seoTitle ?? `${category.title} — Portfolio — Aniwala Studios`}
+  description={category.seoDescription ?? category.intro}
+>
   <main id="main">
     <PageHero
       eyebrow="Portfolio"

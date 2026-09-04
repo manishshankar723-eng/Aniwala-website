@@ -432,7 +432,9 @@ async function migratePieces() {
     _type: 'piece',
     title: p.title,
     slug: slugField(p.slug),
-    category: p.category,
+    /* A reference now, not a slug string — the same transaction creates the
+       discipline documents, so it resolves on commit. */
+    category: { _type: 'reference', _ref: idFor('workCategory', p.category) },
     blurb: p.blurb,
     kind: p.kind,
     client: p.client,
@@ -527,11 +529,19 @@ async function migrateContactDetails() {
 }
 
 async function migrateSiteCopy() {
+  const { PROCESS_STEPS, CATEGORY_BLURBS } = await import('./seed-settings.mjs');
+
   return [
     {
       _id: 'siteCopy',
       _type: 'siteCopy',
       ...SEED_COPY,
+      processSteps: PROCESS_STEPS.map((x, i) => ({ _type: 'step', _key: `step-${i}`, ...x })),
+      categoryBlurbs: CATEGORY_BLURBS.map((x, i) => ({
+        _type: 'categoryBlurb',
+        _key: `cat-${i}`,
+        ...x,
+      })),
     },
   ];
 }
@@ -603,6 +613,64 @@ async function migrateServices() {
   });
 }
 
+/**
+ * The loading screen's defaults.
+ *
+ * Seeded with the values that were hardcoded, and NO image — the built-in
+ * mark is the studio's own, so the upload field is there for a rebrand rather
+ * than for getting the site working.
+ */
+/**
+ * Portfolio disciplines.
+ *
+ * `services` becomes references to the service documents, which the same
+ * transaction creates — so they resolve on commit. A slug naming no service
+ * is dropped with a warning rather than written as a reference to a document
+ * that will never exist.
+ */
+async function migrateWorkCategories() {
+  const { WORK_CATEGORIES } = await import('./seed-work-categories.mjs');
+  const { SERVICES } = await import('./seed-services.mjs');
+  const known = new Set(SERVICES.map((s) => s.slug));
+
+  return WORK_CATEGORIES.map((c) => ({
+    _id: idFor('workCategory', c.slug),
+    _type: 'workCategory',
+    slug: slugField(c.slug),
+    title: c.title,
+    shortName: c.shortName,
+    blurb: c.blurb,
+    intro: c.intro,
+    tint: c.tint,
+    wide: c.wide,
+    order: c.order,
+    services: (c.services ?? [])
+      .filter((slug) => {
+        if (known.has(slug)) return true;
+        console.warn(`  ! ${c.slug}: service "${slug}" does not exist — dropped.`);
+        return false;
+      })
+      .map((slug, i) => ({ _type: 'reference', _key: `svc-${i}`, _ref: idFor('service', slug) })),
+  }));
+}
+
+async function migrateBookingSettings() {
+  const { BOOKING } = await import('./seed-settings.mjs');
+  return [{ _id: 'bookingSettings', _type: 'bookingSettings', ...BOOKING }];
+}
+
+async function migrateLoaderSettings() {
+  return [
+    {
+      _id: 'loaderSettings',
+      _type: 'loaderSettings',
+      enabled: true,
+      alt: '',
+      maxDuration: 2200,
+    },
+  ];
+}
+
 async function migrateNavigation() {
   const { NAVIGATION } = await import('./seed-pages.mjs');
 
@@ -655,6 +723,9 @@ async function main() {
     ...(await migrateSiteCopy()),
     ...(await migrateServices()),
     ...(await migrateCareersContent()),
+    ...(await migrateWorkCategories()),
+    ...(await migrateBookingSettings()),
+    ...(await migrateLoaderSettings()),
     ...(await migrateNavigation()),
     ...(await migrateBuiltPages()),
   ];

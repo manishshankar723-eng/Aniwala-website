@@ -13,6 +13,7 @@
  * posting a job should be able to edit by accident.
  */
 import { getCollection, type CollectionEntry } from 'astro:content';
+import { previewMode } from './sanity/client';
 
 export type RoleEntry = CollectionEntry<'roles'>;
 
@@ -44,7 +45,7 @@ export async function getFlatRoles(): Promise<Role[]> {
  * blog uses.
  */
 export async function getRoles(): Promise<RoleEntry[]> {
-  const roles = await getCollection('roles', ({ data }) => import.meta.env.DEV || !data.draft);
+  const roles = await getCollection('roles', ({ data }) => previewMode || !data.draft);
 
   /* `posted` is a validated YYYY-MM-DD string, so a plain string comparison
      sorts it correctly and avoids constructing a Date per comparison. Title

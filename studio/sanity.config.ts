@@ -87,6 +87,14 @@ export default defineConfig({
                   .defaultOrdering([{ field: 'order', direction: 'asc' }])
               ),
             S.listItem()
+              .title('Portfolio disciplines')
+              .schemaType('workCategory')
+              .child(
+                S.documentTypeList('workCategory')
+                  .title('Portfolio disciplines')
+                  .defaultOrdering([{ field: 'order', direction: 'asc' }])
+              ),
+            S.listItem()
               .title('Case studies')
               .schemaType('caseStudy')
               .child(
@@ -206,6 +214,24 @@ export default defineConfig({
                   .schemaType('careersContent')
                   .documentId('careersContent')
                   .title('Careers page')
+              ),
+            S.listItem()
+              .title('Book a call')
+              .id('bookingSettings')
+              .child(
+                S.document()
+                  .schemaType('bookingSettings')
+                  .documentId('bookingSettings')
+                  .title('Book a call')
+              ),
+            S.listItem()
+              .title('Loading screen')
+              .id('loaderSettings')
+              .child(
+                S.document()
+                  .schemaType('loaderSettings')
+                  .documentId('loaderSettings')
+                  .title('Loading screen')
               ),
             S.listItem()
               .title('Menus')

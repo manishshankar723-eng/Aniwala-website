@@ -21,7 +21,7 @@ import { searchIndex, type SearchDoc } from '../config/nav';
 import { getPosts } from './posts';
 import { getCaseStudies } from './caseStudies';
 import { getServices } from './services';
-import { workCategories, categoryHref } from '../config/portfolio';
+import { getWorkCategories, categoryHref } from './workCategories';
 import { getRoles } from './roles';
 
 export async function buildSearchDocs(): Promise<SearchDoc[]> {
@@ -61,7 +61,7 @@ export async function buildSearchDocs(): Promise<SearchDoc[]> {
      Individual pieces are deliberately NOT folded in. The ones worth finding
      already have a case study, which `caseDocs` covers — listing both would
      put two "Kite" rows in the results, pointing at the same place. */
-  const portfolioDocs = workCategories.map((c) => ({
+  const portfolioDocs = (await getWorkCategories()).map((c) => ({
     title: c.title,
     href: categoryHref(c.slug),
     section: 'Portfolio',

@@ -11,6 +11,7 @@ import caseStudy from './caseStudy';
 import role from './role';
 import teamMember from './teamMember';
 import piece from './piece';
+import workCategory from './workCategory';
 import testimonial from './testimonial';
 import client from './client';
 import milestone from './milestone';
@@ -20,6 +21,8 @@ import announcement from './announcement';
 import contactDetails from './contactDetails';
 import siteCopy from './siteCopy';
 import navigation from './navigation';
+import loaderSettings from './loaderSettings';
+import bookingSettings from './bookingSettings';
 import careersContent from './careersContent';
 import page from './page';
 import { blockTypes } from './blocks';
@@ -30,6 +33,7 @@ export const schemaTypes = [
   caseStudy,
   role,
   piece,
+  workCategory,
 
   /* The studio itself */
   teamMember,
@@ -44,6 +48,8 @@ export const schemaTypes = [
   contactDetails,
   siteCopy,
   navigation,
+  loaderSettings,
+  bookingSettings,
   careersContent,
   page,
 

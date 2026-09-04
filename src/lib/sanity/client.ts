@@ -67,7 +67,32 @@ export const sanityConfigured = Boolean(SANITY_PROJECT_ID);
  * behaviour a fresh clone needs. That is why a production build works with no
  * token at all and dev does not.
  */
-const canReadDrafts = import.meta.env?.DEV === true && Boolean(SANITY_READ_TOKEN);
+/**
+ * Whether this build is a PREVIEW — one that shows unpublished work.
+ *
+ * Two ways in. `astro dev` is always a preview, because someone running the
+ * site locally is working on it. A BUILD is a preview only when asked
+ * explicitly with SANITY_PREVIEW=1, which is what the preview deploy sets.
+ *
+ * This exists because the draft rule used to be `import.meta.env.DEV` in
+ * twenty places, which quietly meant "drafts are visible on a laptop and
+ * nowhere else". That is fine until you want an editor to review their own
+ * unpublished work without installing Node — at which point every one of those
+ * twenty checks is wrong, and a preview site built from them would show
+ * exactly what the live site already shows.
+ *
+ * THE LIVE BUILD MUST NEVER SET THIS. The deploy workflow does not, and the
+ * safety net is below: without SANITY_PREVIEW the perspective is `published`,
+ * so the API itself refuses to send a draft.
+ */
+const PREVIEW_REQUESTED = ['1', 'true', 'yes'].includes(env('SANITY_PREVIEW').toLowerCase());
+
+export const previewMode = import.meta.env?.DEV === true || PREVIEW_REQUESTED;
+
+/* Drafts are private, so `raw` needs a token. Without one a preview build
+   still runs — it just shows the same thing the live site does, which is a
+   misconfiguration worth noticing rather than a crash. */
+const canReadDrafts = previewMode && Boolean(SANITY_READ_TOKEN);
 
 const PERSPECTIVE = canReadDrafts ? 'raw' : 'published';
 

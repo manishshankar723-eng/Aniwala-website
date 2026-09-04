@@ -6,7 +6,8 @@ import CategoryBar from '../../../components/CategoryBar.astro';
 import CtaBand from '../../../components/CtaBand.astro';
 import Footer from '../../../components/Footer.astro';
 import { getPosts, categorySlug, type Post } from '../../../lib/posts';
-import { CATEGORIES, CATEGORY_BLURBS, type Category } from '../../../config/categories';
+import { CATEGORIES, type Category } from '../../../config/categories';
+import { getSiteCopy } from '../../../lib/studio';
 
 /**
  * One page per category that actually has posts in it. Empty categories get no
@@ -35,7 +36,10 @@ interface Props {
 }
 const { category, posts, counts } = Astro.props;
 
-const blurb = CATEGORY_BLURBS[category];
+/* Falls back to nothing rather than a placeholder: a category with no
+   description renders without one, which is tidier than inventing a line. */
+const blurb =
+  (await getSiteCopy()).categoryBlurbs.find((c) => c.category === category)?.blurb ?? '';
 
 const count = `${posts.length} ${posts.length === 1 ? 'post' : 'posts'}`;
 ---

@@ -4,6 +4,7 @@
  * once rather than re-derived on each page.
  */
 import { getCollection, type CollectionEntry } from 'astro:content';
+import { previewMode } from './sanity/client';
 import { servicesBySlugs, type Service } from './services';
 
 export type CaseStudy = CollectionEntry<'caseStudies'>;
@@ -16,7 +17,7 @@ export type CaseStudy = CollectionEntry<'caseStudies'>;
  */
 export async function getCaseStudies(): Promise<CaseStudy[]> {
   const studies = await getCollection('caseStudies', ({ data }) =>
-    import.meta.env.DEV ? true : !data.draft
+    previewMode ? true : !data.draft
   );
 
   /* `featured` picks the lead card, year orders the rest, and title breaks

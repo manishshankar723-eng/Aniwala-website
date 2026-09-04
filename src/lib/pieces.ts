@@ -11,6 +11,7 @@
  * rewriting around `.data.` accessors for a change with no behaviour in it.
  */
 import { getCollection, type CollectionEntry } from 'astro:content';
+import { previewMode } from './sanity/client';
 import { imageUrl, imageSrcSet, type SanityImage } from './sanity/client';
 
 export interface Piece {
@@ -60,7 +61,7 @@ const flatten = (entry: CollectionEntry<'pieces'>): Piece => {
  * with its image before it goes live.
  */
 export async function getPieces(): Promise<Piece[]> {
-  const entries = await getCollection('pieces', ({ data }) => import.meta.env.DEV || !data.draft);
+  const entries = await getCollection('pieces', ({ data }) => previewMode || !data.draft);
 
   /* `order` first, then newest, then title — so two pieces sharing an order
      hold a stable position instead of reshuffling between builds. */

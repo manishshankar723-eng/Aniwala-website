@@ -61,8 +61,8 @@ const faqs = await getFaqs(`service:${service.slug}`);
 ---
 
 <Base
-  title={`${service.title} — Aniwala Studios`}
-  description={service.tagline}
+  title={service.seoTitle ?? `${service.title} — Aniwala Studios`}
+  description={service.seoDescription ?? service.tagline}
   canonical={`/services/${service.slug}/`}
 >
   <main id="main">

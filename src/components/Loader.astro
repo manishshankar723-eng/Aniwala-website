@@ -31,8 +31,16 @@
  * gate, and the HTML below it is complete whether or not the script runs.
  */
 
+import { getLoaderSettings } from '../lib/loader';
+
+const { enabled, imageUrl, alt, maxDuration } = await getLoaderSettings();
+
 /* One copy of the mark, drawn twice: a ghost, and the gold fill revealed
-   behind a growing window. Held here so the two can never drift apart. */
+   behind a growing window. Held here so the two can never drift apart.
+
+   Used when no mark has been uploaded, which is the default — the built-in
+   one is the studio's own, so the CMS field is for a rebrand rather than for
+   getting the site working. */
 const MARK =
   'M50.4 78.5a75.1 75.1 0 0 0-28.5 6.9l24.2-65.7c.7-2 1.9-3.2 3.4-3.2h29c1.5 0 2.7 1.2 3.4 3.2l24.2 65.7s-11.6-7-28.5-7L67 45.5c-.4-1.7-1.6-2.8-2.9-2.8-1.3 0-2.5 1.1-2.9 2.7L50.4 78.5Zm-1.1 28.2Zm-4.2-20.2c-2 6.6-.6 15.8 4.2 20.2a17.5 17.5 0 0 1 .2-.7 5.5 5.5 0 0 1 5.7-4.5c2.8.1 4.3 1.5 4.7 4.7.2 1.1.2 2.3.2 3.5v.4c0 2.7.7 5.2 2.2 7.4a13 13 0 0 0 5.7 4.9v-.3l-.2-.3c-1.8-5.6-.5-9.5 4.4-12.8l1.5-1a73 73 0 0 0 3.2-2.2 16 16 0 0 0 6.8-11.4c.3-2 .1-4-.6-6l-.8.6-1.6 1a37 37 0 0 1-22.4 2.7c-5-.7-9.7-2-13.2-6.2Z';
 ---
@@ -44,7 +52,15 @@ const MARK =
   the visitor would see it flash and vanish mid-transition. Persisted, the one
   element outlives the swap and can be lowered again on the other side.
 */}
-<div id="loader" class="ld" role="presentation" aria-hidden="true" transition:persist="loader">
+{ enabled && (
+<div
+  id="loader"
+  class="ld"
+  role="presentation"
+  aria-hidden="true"
+  transition:persist="loader"
+  data-max={String(maxDuration)}
+>
   {/*
     The gold mark is revealed by a window that grows upward from the baseline
     — the mark resolving the way an animator watches a render come in.
@@ -55,18 +71,38 @@ const MARK =
     animates SVG geometry and basic shapes. Animating the height of a block
     box is the dullest possible construction and the one with no edge cases.
   */}
+  {/*
+    An uploaded mark is drawn as two copies of the same image — a faded ghost
+    and a full-strength one revealed by the growing window — which is exactly
+    what the built-in SVG does with its two fills. The reveal animates the
+    height of a block box, so it does not care whether that box holds an SVG
+    path or a PNG.
+  */}
   <div class="ld-mark">
-    <svg class="ld-svg ld-svg--ghost" viewBox="0 0 128 128" aria-hidden="true">
-      <path d={MARK}></path>
-    </svg>
-
-    <span class="ld-reveal">
-      <svg class="ld-svg ld-svg--fill" viewBox="0 0 128 128" aria-hidden="true">
-        <path d={MARK}></path>
-      </svg>
-    </span>
+    {
+      imageUrl ? (
+        <Fragment>
+          <img class="ld-svg ld-img ld-img--ghost" src={imageUrl} alt="" aria-hidden="true" />
+          <span class="ld-reveal">
+            <img class="ld-svg ld-img" src={imageUrl} alt={alt} aria-hidden="true" />
+          </span>
+        </Fragment>
+      ) : (
+        <Fragment>
+          <svg class="ld-svg ld-svg--ghost" viewBox="0 0 128 128" aria-hidden="true">
+            <path d={MARK} />
+          </svg>
+          <span class="ld-reveal">
+            <svg class="ld-svg ld-svg--fill" viewBox="0 0 128 128" aria-hidden="true">
+              <path d={MARK} />
+            </svg>
+          </span>
+        </Fragment>
+      )
+    }
   </div>
 </div>
+) }
 
 <style>
   /*
@@ -194,6 +230,17 @@ const MARK =
     fill: var(--color-accent);
   }
 
+  /* An uploaded mark cannot be recoloured the way an SVG path can, so the
+     ghost is the same picture at low opacity rather than a different fill.
+     `object-fit: contain` letterboxes a non-square upload instead of
+     stretching it. */
+  .ld-img {
+    object-fit: contain;
+  }
+  .ld-img--ghost {
+    opacity: 0.14;
+  }
+
   /*
     The window. Anchored to the bottom and grown to full height, so the mark
     is uncovered from the baseline up. The inner SVG is pinned to the bottom
@@ -253,8 +300,13 @@ const MARK =
        a toll. Must outlast the 1.15s fill or the mark is cut off mid-rise. */
     const MIN = 1400;
     /* Hard ceiling. If `load` has not fired by now something on the network
-       is hanging, and that is not the visitor's problem to wait out. */
-    const MAX = 2200;
+       is hanging, and that is not the visitor's problem to wait out.
+
+       Read off the element rather than inlined, so this stays a module script
+       and keeps its TypeScript — `define:vars` would force it inline. Falls
+       back to the old constant when the attribute is missing or unparseable:
+       a decorative curtain should never be the thing that throws. */
+    const MAX = Number(document.getElementById('loader')?.dataset.max) || 2200;
 
     let done = false;
 

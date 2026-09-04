@@ -7,6 +7,7 @@
  * against a hand-written array.
  */
 import { getCollection, type CollectionEntry } from 'astro:content';
+import { previewMode } from './sanity/client';
 
 export type TeamEntry = CollectionEntry<'team'>;
 
@@ -31,7 +32,7 @@ export type Member = TeamEntry['data'] & { id: string };
  * heading over an empty grid is worse than no section.
  */
 export async function getTeam(): Promise<Member[]> {
-  const members = await getCollection('team', ({ data }) => import.meta.env.DEV || !data.draft);
+  const members = await getCollection('team', ({ data }) => previewMode || !data.draft);
 
   /* `order` first, then name so two members sharing a number hold a stable
      order instead of reshuffling between builds. */

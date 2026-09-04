@@ -17,7 +17,8 @@
     "astro": "astro",
     "check": "astro check",
     "check:links": "node scripts/check-links.mjs",
-    "verify": "astro check && astro build && node scripts/check-links.mjs"
+    "verify": "astro check && astro build && node scripts/check-links.mjs",
+    "build:preview": "node scripts/build-preview.mjs"
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.3",

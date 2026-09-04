@@ -44,6 +44,7 @@ import MilestoneBlock from './MilestoneBlock.astro';
 import FaqBlock from './FaqBlock.astro';
 import ReachBlock from './ReachBlock.astro';
 import BookCallBlock from './BookCallBlock.astro';
+import { previewMode } from '../../lib/sanity/client';
 
 export interface Block {
   _type: string;
@@ -90,7 +91,7 @@ const KNOWN = new Set([
    blocks reports all three instead of one per rebuild. */
 const unknown = blocks.filter((b) => !KNOWN.has(b._type)).map((b) => b._type);
 
-if (unknown.length && !import.meta.env.DEV) {
+if (unknown.length && !previewMode) {
   throw new Error(
     `${label} uses block type(s) with no renderer: ${[...new Set(unknown)].join(', ')}.\n\n` +
       `  The block exists in the Studio but nothing here draws it, so the section\n` +

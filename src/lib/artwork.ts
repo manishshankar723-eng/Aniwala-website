@@ -16,6 +16,7 @@
  * so without this the same lookup would walk the collection dozens of times.
  */
 import { getCollection } from 'astro:content';
+import { previewMode } from './sanity/client';
 import { imageUrl, imageSrcSet, type SanityImage } from './sanity/client';
 
 export interface Artwork {
@@ -31,7 +32,7 @@ let cache: Promise<Map<string, Artwork>> | null = null;
 
 function load(): Promise<Map<string, Artwork>> {
   cache ??= (async () => {
-    const entries = await getCollection('artwork', ({ data }) => import.meta.env.DEV || !data.draft);
+    const entries = await getCollection('artwork', ({ data }) => previewMode || !data.draft);
     const bySlot = new Map<string, Artwork>();
 
     for (const entry of entries) {

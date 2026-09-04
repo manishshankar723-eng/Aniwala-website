@@ -20,6 +20,7 @@
  * next good applicant, and applicants talk.
  */
 import { defineType, defineField } from 'sanity';
+import { seoFields } from './seoFields';
 import { DISCIPLINES, EMPLOYMENT_KINDS } from '../../src/config/disciplines';
 
 export default defineType({
@@ -205,6 +206,8 @@ export default defineType({
         'The single most useful line on a creative job ad and the one almost nobody writes. An animator and a character artist are judged on completely different things — say which, for THIS role, and save everyone a round.',
       validation: (Rule) => Rule.required(),
     }),
+
+    ...seoFields,
   ],
 
   preview: {

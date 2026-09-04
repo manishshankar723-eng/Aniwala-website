@@ -28,7 +28,7 @@ interface Props {
   post: Post;
 }
 const { post } = Astro.props;
-const { title, description, pubDate, updatedDate, category, tags, author, tint, cover } =
+const { title, description, pubDate, updatedDate, category, tags, author, tint, cover, seoTitle, seoDescription } =
   post.data;
 
 const { Content, headings } = await render(post);
@@ -57,8 +57,8 @@ const articleSchema = {
 ---
 
 <Base
-  title={`${title} — Aniwala Studios`}
-  description={description}
+  title={seoTitle ?? `${title} — Aniwala Studios`}
+  description={seoDescription ?? description}
   canonical={`/blog/${post.id}/`}
   ogImage={cover ? ogImageUrl(cover) : undefined}
   ogImageAlt={cover?.alt}

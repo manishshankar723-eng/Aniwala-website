@@ -13,12 +13,19 @@
  * the drift would only show up as a failed build.
  */
 import { defineType, defineField } from 'sanity';
+import { seoFields } from './seoFields';
 import { CATEGORIES } from '../../src/config/categories';
 
 export default defineType({
   name: 'post',
   title: 'Blog post',
   type: 'document',
+  /* Two tabs. Everything that existed stays on the first one, so adding
+     search settings did not hide the form somebody uses every week. */
+  groups: [
+    { name: 'content', title: 'Content', default: true },
+    { name: 'seo', title: 'Search' },
+  ],
 
   fields: [
     defineField({
@@ -135,6 +142,8 @@ export default defineType({
       type: 'blockContent',
       validation: (Rule) => Rule.required(),
     }),
+
+    ...seoFields,
   ],
 
   /**

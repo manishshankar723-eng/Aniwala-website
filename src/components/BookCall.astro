@@ -1,25 +1,40 @@
 ---
-import {
-  bookingHost,
-  callDurations,
-  workingHours,
-  studioUtcOffsetMinutes,
-  studioTimezone,
-  closedDays,
-  bookingWindowDays,
-  whatToExpect,
-  enquiryTypes,
-} from '../config/site';
+/* The timezone stays in code. IST observes no daylight saving, so a fixed
+   offset is exact — and that is precisely why it must not be editable: point
+   it at a timezone that does observe DST and every slot the widget offers is
+   an hour wrong for half the year, silently. */
+import { studioUtcOffsetMinutes, studioTimezone } from '../config/site';
 
 import { supabaseConfigured } from '../lib/supabase';
-import { getContactDetails } from '../lib/studio';
+import { getContactDetails, getBookingSettings } from '../lib/studio';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config/site';
 
 const { email } = await getContactDetails();
 
+const {
+  hostName,
+  hostRole,
+  hostPhoto,
+  callDurations,
+  dayStart,
+  dayEnd,
+  stepMinutes,
+  closedDays,
+  bookingWindowDays,
+  whatToExpect,
+  enquiryTypes,
+} = await getBookingSettings();
+
+/* The shape the client script already expects, rebuilt from the flat fields
+   the CMS stores. Keeping the old shape means the script below did not have
+   to change. */
+const workingHours = { start: dayStart, end: dayEnd, stepMinutes };
+
 const configured = supabaseConfigured;
+/* The middle option is preselected, which is why the Studio tells an editor
+   to order them shortest to longest. */
 const defaultDuration = callDurations[Math.floor(callDurations.length / 2)];
-const initials = bookingHost.name
+const initials = hostName
   .split(' ')
   .map((w) => w[0])
   .slice(0, 2)
@@ -37,16 +52,16 @@ const initials = bookingHost.name
     <aside class="bk-info">
       <div class="bk-avatar" aria-hidden="true">
         {
-          bookingHost.photo ? (
-            <img src={bookingHost.photo} alt="" />
+          hostPhoto ? (
+            <img src={hostPhoto} alt="" />
           ) : (
             <span class="bk-initials">{initials}</span>
           )
         }
       </div>
 
-      <p class="bk-host">{bookingHost.name}</p>
-      <p class="bk-role">{bookingHost.role}</p>
+      <p class="bk-host">{hostName}</p>
+      <p class="bk-role">{hostRole}</p>
 
       <h3 class="bk-title">Ready to hop on a call?</h3>
 

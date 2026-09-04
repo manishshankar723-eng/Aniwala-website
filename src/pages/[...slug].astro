@@ -17,11 +17,11 @@ import { getCollection } from 'astro:content';
 import Base from '../layouts/Base.astro';
 import Footer from '../components/Footer.astro';
 import Blocks from '../components/blocks/Blocks.astro';
-import { ogImageUrl, type SanityImage } from '../lib/sanity/client';
+import { ogImageUrl, previewMode, type SanityImage } from '../lib/sanity/client';
 import { HOME_SLUG } from '../config/pageSlots';
 
 export async function getStaticPaths() {
-  const pages = await getCollection('builtPages', ({ data }) => import.meta.env.DEV || !data.draft);
+  const pages = await getCollection('builtPages', ({ data }) => previewMode || !data.draft);
 
   return pages
     /* The homepage has its own route and is rendered at `/`. Without this it

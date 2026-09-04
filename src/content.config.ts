@@ -19,6 +19,9 @@ import {
   sanitySiteCopy,
   sanityBuiltPages,
   sanityNavigation,
+  sanityLoaderSettings,
+  sanityWorkCategories,
+  sanityBookingSettings,
   sanityServices,
   sanityCareersContent,
 } from './lib/sanity/loader';
@@ -58,6 +61,19 @@ import {
  * machine cannot supply, the Studio schema marks it required too, and an
  * image published without it is an accessibility defect that no test catches.
  */
+/**
+ * Optional search-result overrides.
+ *
+ * Every page derives a perfectly serviceable title and description from its
+ * own content. These exist for the cases where the derived one is wrong for
+ * search specifically — a tagline that reads well under a heading and badly
+ * in a result list. Blank means "derive it", which is what most pages do.
+ */
+const seoOverrides = {
+  seoTitle: z.string().max(70).optional(),
+  seoDescription: z.string().max(300).optional(),
+};
+
 const sanityImage = z
   .object({
     asset: z.object({ _ref: z.string() }).passthrough(),
@@ -109,6 +125,7 @@ const blog = defineCollection({
      * Still used wherever `cover` is unset, and behind a cover while it loads.
      */
     tint: z.string().default('210 70% 22%'),
+    ...seoOverrides,
     /**
      * Set by the loader from Sanity's own draft state, not typed by anyone.
      * Unpublished documents are visible under `astro dev` and excluded from
@@ -154,6 +171,7 @@ const caseStudies = defineCollection({
     tint: z.string().default('210 70% 22%'),
     /** Pins the study to the top of every listing. */
     featured: z.boolean().default(false),
+    ...seoOverrides,
     draft: z.boolean().default(false),
   }),
 });
@@ -227,6 +245,7 @@ const roles = defineCollection({
      * entirely different things, and saying which saves everyone a round.
      */
     reelNote: z.string(),
+    ...seoOverrides,
     draft: z.boolean().default(false),
   }),
 });
@@ -447,6 +466,15 @@ const siteCopy = defineCollection({
     teamIntro: z.string().default(''),
     marqueeItems: z.array(z.string()).default([]),
     capabilities: z.array(z.string()).default([]),
+    /* Shown on the homepage AND the services page, so one list rather than
+       two that drift. Required to be non-empty: both pages render a heading
+       above it unconditionally. */
+    processSteps: z
+      .array(z.object({ title: z.string().min(1), body: z.string().min(1) }))
+      .min(1),
+    categoryBlurbs: z
+      .array(z.object({ category: z.enum(CATEGORIES), blurb: z.string().min(1) }))
+      .default([]),
     draft: z.boolean().default(false),
   }),
 });
@@ -565,6 +593,7 @@ const servicesCollection = defineCollection({
     tools: z.array(z.string()).default([]),
     deliverables: z.array(z.string()).default([]),
     related: z.array(z.string()).default([]),
+    ...seoOverrides,
     draft: z.boolean().default(false),
   }),
 });
@@ -621,6 +650,72 @@ const careers = defineCollection({
   }),
 });
 
+/**
+ * The loading screen. A singleton, and the only one that is genuinely
+ * OPTIONAL — a site with no loaderSettings document simply shows the built-in
+ * mark, because a missing setting here costs nothing and failing a build over
+ * a decorative curtain would be absurd.
+ */
+const loaderSettings = defineCollection({
+  loader: sanityLoaderSettings(),
+  schema: z.object({
+    enabled: z.boolean().default(true),
+    image: sanityImage.omit({ alt: true }).optional(),
+    alt: z.string().default(''),
+    maxDuration: z.number().min(500).max(5000).default(2200),
+    draft: z.boolean().default(false),
+  }),
+});
+
+/**
+ * Portfolio disciplines.
+ *
+ * `services` arrives as plain slugs — the loader dereferences the references
+ * — and is validated as strings for that reason. Sanity's reference field is
+ * what guarantees they point at services that exist, which is why the Studio
+ * uses references rather than free text.
+ */
+const workCategories = defineCollection({
+  loader: sanityWorkCategories(),
+  schema: z.object({
+    title: z.string().min(1),
+    shortName: z.string().min(1),
+    blurb: z.string().min(1),
+    intro: z.string().min(1),
+    tint: z.string(),
+    wide: z.boolean().default(false),
+    order: z.number().int().default(50),
+    services: z.array(z.string()).default([]),
+    ...seoOverrides,
+    draft: z.boolean().default(false),
+  }),
+});
+
+/**
+ * The booking widget. A singleton.
+ *
+ * The timezone is deliberately absent — it stays in code. IST has no daylight
+ * saving, which is exactly why the fixed offset is safe and exactly why an
+ * editor must not be able to point it somewhere that does.
+ */
+const bookingSettings = defineCollection({
+  loader: sanityBookingSettings(),
+  schema: z.object({
+    hostName: z.string().min(1),
+    hostRole: z.string().min(1),
+    hostPhoto: sanityImage.omit({ alt: true }).optional(),
+    callDurations: z.array(z.number().int().positive()).min(1),
+    dayStart: z.string().regex(/^\d{2}:\d{2}$/),
+    dayEnd: z.string().regex(/^\d{2}:\d{2}$/),
+    stepMinutes: z.number().int().min(5).max(120),
+    closedDays: z.array(z.number().int().min(0).max(6)).default([]),
+    bookingWindowDays: z.number().int().min(1).max(365),
+    whatToExpect: z.array(z.string()).default([]),
+    enquiryTypes: z.array(z.string()).default([]),
+    draft: z.boolean().default(false),
+  }),
+});
+
 export const collections = {
   blog,
   caseStudies,
@@ -637,6 +732,9 @@ export const collections = {
   siteCopy,
   builtPages,
   navigation,
+  loaderSettings,
   services: servicesCollection,
   careers,
+  workCategories,
+  bookingSettings,
 };

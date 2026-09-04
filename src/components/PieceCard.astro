@@ -1,6 +1,6 @@
 ---
 import type { Piece } from '../lib/pieces';
-import { categoryBySlug } from '../config/portfolio';
+import { categoryBySlug } from '../lib/workCategories';
 
 /**
  * One portfolio tile.
@@ -23,7 +23,7 @@ interface Props {
 const { piece, showCategory = true } = Astro.props;
 const { title, blurb, kind, client, year, tools, tint, caseStudy } = piece;
 
-const category = categoryBySlug(piece.category);
+const category = await categoryBySlug(piece.category);
 const href = caseStudy ? `/case-studies/${caseStudy}/` : undefined;
 
 /* Same rule the case study cards follow: a self-directed piece must never be

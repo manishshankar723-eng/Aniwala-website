@@ -5,6 +5,8 @@ import { getAnnouncement } from '../lib/announce';
 import Header from '../components/Header.astro';
 import Loader from '../components/Loader.astro';
 import Search from '../components/Search.astro';
+import PreviewBar from '../components/PreviewBar.astro';
+import { previewMode } from '../lib/sanity/client';
 import '../styles/global.css';
 
 interface Props {
@@ -46,6 +48,17 @@ const {
   ogImageAlt,
 } = Astro.props;
 
+/**
+ * A preview build is never indexable, whatever a page asked for.
+ *
+ * This is not belt-and-braces — it is the one thing that makes a public
+ * preview URL safe to have. Without it a crawler finds the preview, indexes
+ * unpublished drafts, and starts serving them as duplicate copies of the live
+ * pages. A page's own `noindex` still applies on the live site; this only
+ * ever adds to it, never removes.
+ */
+const hideFromSearch = noindex || previewMode;
+
 const announce = await getAnnouncement();
 
 const canonicalURL = new URL(canonical, Astro.site);
@@ -84,7 +97,7 @@ const ogImage = ogImageProp ?? new URL('/og-default.jpg', Astro.site).href;
 
     <title>{title}</title>
     <meta name="description" content={description} />
-    {noindex ? <meta name="robots" content="noindex, follow" /> : <link rel="canonical" href={canonicalURL} />}
+    {hideFromSearch ? <meta name="robots" content="noindex, nofollow" /> : <link rel="canonical" href={canonicalURL} />}
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Aniwala Studios" />
@@ -94,7 +107,7 @@ const ogImage = ogImageProp ?? new URL('/og-default.jpg', Astro.site).href;
     {/* Same reasoning as the canonical above: on the 404 this would name the
         URL the visitor mistyped, which is not a page and should not be
         advertised as one. */}
-    {!noindex && <meta property="og:url" content={canonicalURL} />}
+    {!hideFromSearch && <meta property="og:url" content={canonicalURL} />}
     <meta property="og:image" content={ogImage} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
@@ -184,6 +197,10 @@ const ogImage = ogImageProp ?? new URL('/og-default.jpg', Astro.site).href;
   </head>
 
   <body>
+    {/* Renders only in a preview build, and pushes the page down rather than
+        floating over it — a floating bar would cover the nav on a phone. */}
+    <PreviewBar />
+
     {/* First in the body: fixed-position, so the whole document is parsed
         and laid out behind it rather than gated by it. */}
     <Loader />

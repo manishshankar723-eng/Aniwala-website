@@ -12,7 +12,8 @@
  * stay in code where they get a diff. The line between the two is roughly:
  * would you change this because something happened this month?
  */
-import { defineType, defineField } from 'sanity';
+import { defineType, defineField, defineArrayMember } from 'sanity';
+import { CATEGORIES } from '../../src/config/categories';
 
 export default defineType({
   name: 'siteCopy',
@@ -54,6 +55,51 @@ export default defineType({
       description:
         'Software the studio actually works in. A client scans this for the one package they care about, so do not pad it with things nobody here opens.',
       options: { layout: 'tags' },
+    }),
+
+    defineField({
+      name: 'processSteps',
+      title: 'Process steps',
+      type: 'array',
+      description:
+        'The numbered "how we work" sequence, shown on the homepage AND the services page. One list, so the two can never describe different processes. It is a real sequence, so the order is the order.',
+      validation: (Rule) => Rule.min(1),
+      of: [
+        defineArrayMember({
+          type: 'object',
+          name: 'step',
+          fields: [
+            defineField({ name: 'title', title: 'Title', type: 'string', validation: (R) => R.required() }),
+            defineField({ name: 'body', title: 'Body', type: 'text', rows: 3, validation: (R) => R.required() }),
+          ],
+          preview: { select: { title: 'title', subtitle: 'body' } },
+        }),
+      ],
+    }),
+
+    defineField({
+      name: 'categoryBlurbs',
+      title: 'Blog category descriptions',
+      type: 'array',
+      description:
+        'One line per blog category, shown at the top of its archive page and used as the search-result description for it. The categories themselves are set in code, because they drive the URLs and validate every post.',
+      of: [
+        defineArrayMember({
+          type: 'object',
+          name: 'categoryBlurb',
+          fields: [
+            defineField({
+              name: 'category',
+              title: 'Category',
+              type: 'string',
+              options: { list: [...CATEGORIES] },
+              validation: (R) => R.required(),
+            }),
+            defineField({ name: 'blurb', title: 'Description', type: 'text', rows: 2, validation: (R) => R.required() }),
+          ],
+          preview: { select: { title: 'category', subtitle: 'blurb' } },
+        }),
+      ],
     }),
   ],
 

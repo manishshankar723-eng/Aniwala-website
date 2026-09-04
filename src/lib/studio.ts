@@ -20,10 +20,10 @@
  * invented placeholders.
  */
 import { getCollection, getEntry } from 'astro:content';
-import { imageUrl, type SanityImage } from './sanity/client';
+import { imageUrl, previewMode, type SanityImage } from './sanity/client';
 import type { SocialIcon } from '../config/contact';
 
-const live = ({ data }: { data: { draft: boolean } }) => import.meta.env.DEV || !data.draft;
+const live = ({ data }: { data: { draft: boolean } }) => previewMode || !data.draft;
 
 const byOrder = (a: { data: { order: number } }, b: { data: { order: number } }) =>
   a.data.order - b.data.order;
@@ -56,7 +56,7 @@ const byOrder = (a: { data: { order: number } }, b: { data: { order: number } })
  * notice; the other you ship for a year.
  */
 function missingSingleton<T>(type: string, id: string, empty: T): T {
-  if (import.meta.env.DEV) {
+  if (previewMode) {
     console.warn(
       `[content] No "${type}" document — the site will render with that section empty.\n` +
         `          Create it in the Studio (npm run dev in studio/), or seed the dataset.`
@@ -134,6 +134,9 @@ export interface SiteCopy {
   teamIntro: string;
   marqueeItems: string[];
   capabilities: string[];
+  /** The numbered "how we work" sequence. One list, two pages. */
+  processSteps: { title: string; body: string }[];
+  categoryBlurbs: { category: string; blurb: string }[];
 }
 
 /**
@@ -150,11 +153,13 @@ const EMPTY_COPY: SiteCopy = {
   teamIntro: '',
   marqueeItems: [],
   capabilities: [],
+  processSteps: [],
+  categoryBlurbs: [],
 };
 
 export async function getSiteCopy(): Promise<SiteCopy> {
   const entry = await getEntry('siteCopy', 'siteCopy');
-  if (!entry || (entry.data.draft && !import.meta.env.DEV))
+  if (!entry || (entry.data.draft && !previewMode))
     return missingSingleton('siteCopy', 'siteCopy', EMPTY_COPY);
 
   return {
@@ -162,6 +167,8 @@ export async function getSiteCopy(): Promise<SiteCopy> {
     teamIntro: entry.data.teamIntro,
     marqueeItems: entry.data.marqueeItems,
     capabilities: entry.data.capabilities,
+    processSteps: entry.data.processSteps,
+    categoryBlurbs: entry.data.categoryBlurbs,
   };
 }
 
@@ -207,7 +214,7 @@ const EMPTY_CONTACT: ContactDetails = {
 
 export async function getContactDetails(): Promise<ContactDetails> {
   const entry = await getEntry('contactDetails', 'contactDetails');
-  if (!entry || (entry.data.draft && !import.meta.env.DEV))
+  if (!entry || (entry.data.draft && !previewMode))
     return missingSingleton('contactDetails', 'contactDetails', EMPTY_CONTACT);
 
   const { email, careersEmail, addressLines, country, socials } = entry.data;
@@ -221,7 +228,7 @@ export async function getContactDetails(): Promise<ContactDetails> {
     /* An account that does not exist yet is left blank in the Studio, and a
        blank one is dropped rather than rendered as a link to nowhere. Kept
        visible in dev so the row can still be laid out. */
-    publishedSocials: (socials as Social[]).filter((s) => import.meta.env.DEV || s.href !== ''),
+    publishedSocials: (socials as Social[]).filter((s) => previewMode || s.href !== ''),
     mapsUrl: addressLines.length
       ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
           [...addressLines, country].join(', ')
@@ -300,7 +307,7 @@ const EMPTY_NAV: Navigation = {
 
 export async function getNavigation(): Promise<Navigation> {
   const entry = await getEntry('navigation', 'navigation');
-  if (!entry || (entry.data.draft && !import.meta.env.DEV))
+  if (!entry || (entry.data.draft && !previewMode))
     return missingSingleton('navigation', 'navigation', EMPTY_NAV);
 
   const items = entry.data.items as NavItem[];
@@ -342,8 +349,65 @@ export interface HiringStep {
  */
 export async function getCareersContent() {
   const entry = await getEntry('careers', 'careersContent');
-  if (!entry || (entry.data.draft && !import.meta.env.DEV)) {
+  if (!entry || (entry.data.draft && !previewMode)) {
     return missingSingleton('careersContent', 'careersContent', null as never);
   }
   return entry.data;
+}
+
+/* ------------------------------------------------------------------ */
+/* Booking                                                             */
+/* ------------------------------------------------------------------ */
+
+export interface BookingSettings {
+  hostName: string;
+  hostRole: string;
+  /** Ready-to-render URL, or undefined — the panel falls back to initials. */
+  hostPhoto?: string;
+  callDurations: number[];
+  dayStart: string;
+  dayEnd: string;
+  stepMinutes: number;
+  closedDays: number[];
+  bookingWindowDays: number;
+  whatToExpect: string[];
+  enquiryTypes: string[];
+}
+
+/**
+ * The booking widget's settings.
+ *
+ * Required: the widget renders a name, a set of durations and a calendar
+ * unconditionally, so a missing document is a broken form rather than a
+ * hidden section.
+ *
+ * The timezone is NOT here and is not editable. IST observes no daylight
+ * saving, which is exactly why the fixed offset in `config/site.ts` is exact
+ * — and exactly why nobody should be able to point it at a timezone that
+ * does, where every offered slot would be an hour wrong for half the year.
+ */
+const EMPTY_BOOKING: BookingSettings = {
+  hostName: '',
+  hostRole: '',
+  callDurations: [30],
+  dayStart: '09:00',
+  dayEnd: '18:00',
+  stepMinutes: 30,
+  closedDays: [],
+  bookingWindowDays: 60,
+  whatToExpect: [],
+  enquiryTypes: [],
+};
+
+export async function getBookingSettings(): Promise<BookingSettings> {
+  const entry = await getEntry('bookingSettings', 'bookingSettings');
+  if (!entry || (entry.data.draft && !previewMode))
+    return missingSingleton('bookingSettings', 'bookingSettings', EMPTY_BOOKING);
+
+  return {
+    ...entry.data,
+    hostPhoto: entry.data.hostPhoto
+      ? imageUrl(entry.data.hostPhoto as SanityImage, 240)
+      : undefined,
+  };
 }
