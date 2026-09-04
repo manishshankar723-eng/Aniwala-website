@@ -364,6 +364,21 @@ export const ctaPanelBlock = defineType({
   fields: [
     ...headingFields,
     defineField({ name: 'body', title: 'Body', type: 'text', rows: 3 }),
+    defineField({
+      name: 'measure',
+      title: 'Body width',
+      type: 'string',
+      description:
+        'Short is a one- or two-line blurb. Long gives a longer paragraph the extra characters it needs so it does not read as a narrow column.',
+      options: {
+        list: [
+          { title: 'Short', value: 'short' },
+          { title: 'Long', value: 'long' },
+        ],
+        layout: 'radio',
+      },
+      initialValue: 'short',
+    }),
     ...linkFields,
   ],
   preview: preview('Call to action'),

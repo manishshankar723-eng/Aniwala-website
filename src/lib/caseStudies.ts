@@ -4,7 +4,7 @@
  * once rather than re-derived on each page.
  */
 import { getCollection, type CollectionEntry } from 'astro:content';
-import { serviceBySlug, type Service } from '../config/services';
+import { servicesBySlugs, type Service } from './services';
 
 export type CaseStudy = CollectionEntry<'caseStudies'>;
 
@@ -49,6 +49,6 @@ export async function getRelatedCaseStudies(study: CaseStudy, limit = 2): Promis
  * Filtered rather than mapped straight through, so a typo in frontmatter
  * drops the cross-link instead of rendering `undefined` into the page.
  */
-export function servicesFor(study: CaseStudy): Service[] {
-  return study.data.services.map(serviceBySlug).filter((s): s is Service => Boolean(s));
+export function servicesFor(study: CaseStudy): Promise<Service[]> {
+  return servicesBySlugs(study.data.services);
 }

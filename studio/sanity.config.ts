@@ -195,6 +195,24 @@ export default defineConfig({
                   .documentId('contactDetails')
                   .title('Contact details')
               ),
+            /* The header and footer menus. Kept next to the other settings
+               rather than up with the content, because it is opened when the
+               shape of the site changes and not otherwise. */
+            S.listItem()
+              .title('Careers page')
+              .id('careersContent')
+              .child(
+                S.document()
+                  .schemaType('careersContent')
+                  .documentId('careersContent')
+                  .title('Careers page')
+              ),
+            S.listItem()
+              .title('Menus')
+              .id('navigation')
+              .child(
+                S.document().schemaType('navigation').documentId('navigation').title('Menus')
+              ),
             S.listItem()
               .title('Site copy')
               .id('siteCopy')

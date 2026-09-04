@@ -8,7 +8,7 @@ import CtaBand from '../../components/CtaBand.astro';
 import Footer from '../../components/Footer.astro';
 import { workCategories, type WorkCategory } from '../../config/portfolio';
 import { piecesIn } from '../../lib/pieces';
-import { serviceBySlug, type Service } from '../../config/services';
+import { servicesBySlugs, type Service } from '../../lib/services';
 
 /**
  * One page per discipline.
@@ -34,9 +34,7 @@ const pieces = await piecesIn(category.slug);
 
 /* Filtered rather than mapped straight through, so a typo in the config drops
    the cross-link instead of rendering `undefined` into the page. */
-const related: Service[] = category.services
-  .map(serviceBySlug)
-  .filter((s): s is Service => Boolean(s));
+const related: Service[] = await servicesBySlugs(category.services);
 
 const ownCount = pieces.filter((p) => p.kind === 'Studio project').length;
 const allOwn = pieces.length > 0 && ownCount === pieces.length;

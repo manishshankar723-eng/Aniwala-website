@@ -14,8 +14,8 @@
  * each from where it lives beats duplicating either.
  */
 import SectionHead from './SectionHead.astro';
-import { nav } from '../../config/nav';
-import { services } from '../../config/services';
+import { getNavigation } from '../../lib/studio';
+import { getServices } from '../../lib/services';
 
 interface Props {
   block: { eyebrow?: string; title?: string; anchor?: string; layout?: 'grid' | 'rows' };
@@ -23,7 +23,9 @@ interface Props {
 const { block } = Astro.props;
 const rows = block.layout === 'rows';
 
-const navServices = nav.find((i) => i.children)?.children ?? [];
+const { items: nav } = await getNavigation();
+const navServices = nav.find((i) => i.children.length > 0)?.children ?? [];
+const services = await getServices();
 ---
 
 <section class="section" class:list={[!rows && 'section--bordered']} id={block.anchor ?? (rows ? 'disciplines' : 'services')}>

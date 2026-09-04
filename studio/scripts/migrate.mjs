@@ -467,7 +467,11 @@ async function migrateFaqs() {
   const careerFaqs = match ? eval(match[1]) : [];
   if (!match) console.warn('  ! Could not find careerFaqs — skipping the careers FAQs.');
 
-  const { services } = await import('../../src/config/services.ts');
+  /* Was `config/services.ts`, which no longer holds the services — they are
+     documents now. The seed module is the snapshot this script already uses
+     for the service documents themselves, so the FAQ scopes come from the
+     same place and cannot drift from them. */
+  const { SERVICES: services } = await import('./seed-services.mjs');
 
   const docs = [];
 
@@ -539,6 +543,89 @@ async function migrateSiteCopy() {
  * file, not part of a script, and inlining them here buried the migration
  * logic under six hundred lines of copy.
  */
+/**
+ * The six services.
+ *
+ * `related` is a reference field, so a service can only point at another once
+ * BOTH exist. Because the whole migration commits as one transaction, every
+ * document in it is created together and the references resolve on commit —
+ * no second pass is needed, provided every slug referenced is also in this
+ * batch. A slug that is not gets dropped with a warning rather than writing a
+ * reference to a document that will never exist.
+ */
+async function migrateCareersContent() {
+  const { CAREERS } = await import('./seed-careers.mjs');
+
+  return [
+    {
+      _id: 'careersContent',
+      _type: 'careersContent',
+      ...CAREERS,
+      values: CAREERS.values.map((v, i) => ({ _type: 'value', _key: `value-${i}`, ...v })),
+      hiringSteps: CAREERS.hiringSteps.map((h, i) => ({ _type: 'step', _key: `step-${i}`, ...h })),
+    },
+  ];
+}
+
+async function migrateServices() {
+  const { SERVICES } = await import('./seed-services.mjs');
+  const known = new Set(SERVICES.map((s) => s.slug));
+
+  return SERVICES.map((s) => {
+    const related = (s.related ?? []).filter((slug) => {
+      if (known.has(slug)) return true;
+      console.warn(`  ! ${s.slug}: related service "${slug}" does not exist — dropped.`);
+      return false;
+    });
+
+    return {
+      _id: idFor('service', s.slug),
+      _type: 'service',
+      slug: slugField(s.slug),
+      title: s.title,
+      label: s.label,
+      shortName: s.shortName,
+      article: s.article,
+      tagline: s.tagline,
+      intro: s.intro,
+      tint: s.tint,
+      order: s.order,
+      offerings: s.offerings.map((o, i) => ({ _type: 'entry', _key: `off-${i}`, ...o })),
+      pipeline: s.pipeline.map((x, i) => ({ _type: 'entry', _key: `pipe-${i}`, ...x })),
+      tools: s.tools,
+      deliverables: s.deliverables,
+      related: related.map((slug, i) => ({
+        _type: 'reference',
+        _key: `rel-${i}`,
+        _ref: idFor('service', slug),
+      })),
+    };
+  });
+}
+
+async function migrateNavigation() {
+  const { NAVIGATION } = await import('./seed-pages.mjs');
+
+  return [
+    {
+      _id: 'navigation',
+      _type: 'navigation',
+      items: NAVIGATION.items.map((item, i) => ({
+        _type: 'item',
+        _key: `item-${i}`,
+        ...item,
+        children: (item.children ?? []).map((c, j) => ({
+          _type: 'child',
+          _key: `child-${i}-${j}`,
+          ...c,
+        })),
+      })),
+      ctaLabel: NAVIGATION.ctaLabel,
+      ctaHref: NAVIGATION.ctaHref,
+    },
+  ];
+}
+
 async function migrateBuiltPages() {
   const { PAGES, withKeys } = await import('./seed-pages.mjs');
 
@@ -566,6 +653,9 @@ async function main() {
     ...(await migrateFaqs()),
     ...(await migrateContactDetails()),
     ...(await migrateSiteCopy()),
+    ...(await migrateServices()),
+    ...(await migrateCareersContent()),
+    ...(await migrateNavigation()),
     ...(await migrateBuiltPages()),
   ];
 

@@ -9,7 +9,7 @@
  * Mirrors the Zod schema in the website's `src/content.config.ts`.
  */
 import { defineType, defineField } from 'sanity';
-import { services } from '../../src/config/services';
+
 
 export default defineType({
   name: 'caseStudy',
@@ -93,7 +93,12 @@ export default defineType({
       of: [{ type: 'string' }],
       description: 'Drives the cross-links back to the service pages.',
       options: {
-        list: services.map((s) => ({ title: s.label, value: s.slug })),
+        /* Was a hardcoded list built from config/services.ts. Services are
+           documents now, so the list would go stale the moment one was added.
+           Left free-text rather than switched to a reference because the
+           field stores slugs and existing studies already hold them; the
+           site drops a slug that matches no service rather than rendering a
+           dead cross-link. */
       },
     }),
 

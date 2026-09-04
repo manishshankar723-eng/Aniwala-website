@@ -8,13 +8,14 @@ import Faq from '../../components/Faq.astro';
 import ProcessFlow from '../../components/ProcessFlow.astro';
 import CtaBand from '../../components/CtaBand.astro';
 import Footer from '../../components/Footer.astro';
-import { services, serviceBySlug, type Service } from '../../config/services';
+import { getServices, servicesBySlugs, type Service } from '../../lib/services';
 
 /**
  * One page per record in `config/services.ts`. Adding a service there adds a
  * route here — there is no per-service template to keep in sync.
  */
-export function getStaticPaths() {
+export async function getStaticPaths() {
+  const services = await getServices();
   return services.map((service) => ({
     params: { slug: service.slug },
     props: { service },
@@ -28,9 +29,7 @@ const { service } = Astro.props;
 
 /** Cross-links. Filtered, so a typo in `related` drops the card rather than
     rendering an undefined one. */
-const related = service.related
-  .map(serviceBySlug)
-  .filter((s): s is Service => Boolean(s));
+const related = await servicesBySlugs(service.related);
 
 const serviceSchema = {
   '@context': 'https://schema.org',

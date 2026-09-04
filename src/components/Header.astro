@@ -1,5 +1,5 @@
 ---
-import { nav, cta } from '../config/nav';
+import { getNavigation } from '../lib/studio';
 
 interface Props {
   /** True on pages with a full-bleed hero that the header sits on top of. */
@@ -10,7 +10,7 @@ const path = Astro.url.pathname;
 
 /* Some routes are worth a footer link and a search entry but not one of the
    header's few slots. Both the desktop nav and the drawer read this. */
-const headerNav = nav.filter((i) => !i.hiddenInHeader);
+const { headerItems: headerNav, ctaLabel, ctaHref } = await getNavigation();
 
 const isCurrent = (href?: string) =>
   href ? (href === '/' ? path === '/' : path.startsWith(href)) : false;
@@ -46,7 +46,7 @@ const isCurrent = (href?: string) =>
     <nav class="nav-desktop" aria-label="Main">
       {
         headerNav.map((item) =>
-          item.children ? (
+          item.children.length > 0 ? (
             <div class="nav-group">
               {/*
                 A parent with its own page gets two targets: the label
@@ -159,7 +159,7 @@ const isCurrent = (href?: string) =>
         </svg>
       </button>
 
-      <a href={cta.href} class="cta-btn">{cta.label}</a>
+      <a href={ctaHref} class="cta-btn">{ctaLabel}</a>
 
       <button
         type="button"
@@ -188,7 +188,7 @@ const isCurrent = (href?: string) =>
   <nav class="mobile-nav" aria-label="Mobile">
     {
       headerNav.map((item) =>
-        item.children ? (
+        item.children.length > 0 ? (
           <details class="mobile-details">
             <summary class="mobile-summary">
               {/*
@@ -235,7 +235,7 @@ const isCurrent = (href?: string) =>
       )
     }
 
-    <a href={cta.href} class="cta-btn cta-btn--block">{cta.label}</a>
+    <a href={ctaHref} class="cta-btn cta-btn--block">{ctaLabel}</a>
   </nav>
 </div>
 

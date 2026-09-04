@@ -523,6 +523,140 @@ export const sanityBuiltPages = (): Loader =>
   });
 
 
+/* ------------------------------------------------------------------ */
+/* Careers page content (singleton)                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Everything editable on the careers page except the roles themselves.
+ *
+ * The page stays a template — it filters listings, prefills the application
+ * form and emits JobPosting data — so this carries its copy rather than its
+ * shape. See the note on the Studio schema for why it is not a built page.
+ */
+export const sanityCareersContent = (): Loader =>
+  sanityLoader({
+    name: 'sanity:careers',
+    type: 'careersContent',
+    hasBody: false,
+    idFrom: () => 'careersContent',
+    projection: `_id, hiringOpen, heroEyebrow, heroTitle, heroLead, heroStatDays, heroStatDaysLabel, heroStatMonths, heroStatMonthsLabel, heroActRoles, heroActOpen, rolesEyebrow, rolesTitle, rolesTitleEmpty, rolesLinkLabel, emptyOpen, emptyPaused, emptyBody, emptyAct, specEyebrow, specTitle, specBody, specAct, studioEyebrow, studioTitle, studioNote, processEyebrow, processTitle, values, hiringSteps`,
+    toData: (doc, isDraft) => ({
+      hiringOpen: doc.hiringOpen ?? true,
+      heroEyebrow: doc.heroEyebrow ?? '',
+      heroTitle: doc.heroTitle ?? '',
+      heroLead: doc.heroLead ?? '',
+      heroStatDays: doc.heroStatDays ?? '',
+      heroStatDaysLabel: doc.heroStatDaysLabel ?? '',
+      heroStatMonths: doc.heroStatMonths ?? '',
+      heroStatMonthsLabel: doc.heroStatMonthsLabel ?? '',
+      heroActRoles: doc.heroActRoles ?? '',
+      heroActOpen: doc.heroActOpen ?? '',
+      rolesEyebrow: doc.rolesEyebrow ?? '',
+      rolesTitle: doc.rolesTitle ?? '',
+      rolesTitleEmpty: doc.rolesTitleEmpty ?? '',
+      rolesLinkLabel: doc.rolesLinkLabel ?? '',
+      emptyOpen: doc.emptyOpen ?? '',
+      emptyPaused: doc.emptyPaused ?? '',
+      emptyBody: doc.emptyBody ?? '',
+      emptyAct: doc.emptyAct ?? '',
+      specEyebrow: doc.specEyebrow ?? '',
+      specTitle: doc.specTitle ?? '',
+      specBody: doc.specBody ?? '',
+      specAct: doc.specAct ?? '',
+      studioEyebrow: doc.studioEyebrow ?? '',
+      studioTitle: doc.studioTitle ?? '',
+      studioNote: doc.studioNote ?? '',
+      processEyebrow: doc.processEyebrow ?? '',
+      processTitle: doc.processTitle ?? '',
+      values: (doc.values ?? []).map((v: Record<string, any>) => ({
+        title: v.title,
+        body: v.body,
+      })),
+      hiringSteps: (doc.hiringSteps ?? []).map((h: Record<string, any>) => ({
+        title: h.title,
+        when: h.when,
+        body: h.body,
+      })),
+      draft: isDraft,
+    }),
+  });
+
+/* ------------------------------------------------------------------ */
+/* Services — one document per discipline                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * `related` is stored as references, so the projection dereferences them to
+ * plain slugs. The page only ever needs the slug and the label, and resolving
+ * that here means the template does not have to know Sanity has references at
+ * all — it gets the same string array the old config exported.
+ */
+export const sanityServices = (): Loader =>
+  sanityLoader({
+    name: 'sanity:services',
+    type: 'service',
+    hasBody: false,
+    projection: `
+      _id, slug, title, label, shortName, article, tagline, intro, tint, order,
+      offerings, pipeline, tools, deliverables,
+      "related": related[]->slug.current
+    `,
+    toData: (doc, isDraft) => ({
+      title: doc.title,
+      label: doc.label,
+      shortName: doc.shortName,
+      article: doc.article,
+      tagline: doc.tagline,
+      intro: doc.intro,
+      tint: doc.tint,
+      order: doc.order ?? 50,
+      offerings: (doc.offerings ?? []).map((o: Record<string, any>) => ({
+        title: o.title,
+        body: o.body,
+      })),
+      pipeline: (doc.pipeline ?? []).map((p: Record<string, any>) => ({
+        title: p.title,
+        body: p.body,
+        ...(p.tools ? { tools: p.tools } : {}),
+      })),
+      tools: doc.tools ?? [],
+      deliverables: doc.deliverables ?? [],
+      /* A reference that has been deleted comes back as null. Dropped rather
+         than kept, because a related-services row linking to nothing is a
+         dead card on a live page. */
+      related: (doc.related ?? []).filter(Boolean),
+      draft: isDraft,
+    }),
+  });
+
+/* ------------------------------------------------------------------ */
+/* Navigation — header and footer menus (singleton)                    */
+/* ------------------------------------------------------------------ */
+export const sanityNavigation = (): Loader =>
+  sanityLoader({
+    name: 'sanity:navigation',
+    type: 'navigation',
+    hasBody: false,
+    idFrom: () => 'navigation',
+    projection: `_id, items, ctaLabel, ctaHref`,
+    toData: (doc, isDraft) => ({
+      items: (doc.items ?? []).map((i: Record<string, any>) => ({
+        label: i.label,
+        ...(i.href ? { href: i.href } : {}),
+        hiddenInHeader: i.hiddenInHeader ?? false,
+        children: (i.children ?? []).map((c: Record<string, any>) => ({
+          label: c.label,
+          href: c.href ?? '',
+          ...(c.blurb ? { blurb: c.blurb } : {}),
+        })),
+      })),
+      ctaLabel: doc.ctaLabel,
+      ctaHref: doc.ctaHref,
+      draft: isDraft,
+    }),
+  });
+
 export const sanitySiteCopy = (): Loader =>
   sanityLoader({
     name: 'sanity:copy',

@@ -253,3 +253,97 @@ export async function getFaqs(scope: string): Promise<Faq[]> {
     .sort(byOrder)
     .map((e) => ({ q: e.data.question, a: e.data.answer }));
 }
+
+/* ------------------------------------------------------------------ */
+/* Navigation                                                          */
+/* ------------------------------------------------------------------ */
+
+export interface NavChild {
+  label: string;
+  href: string;
+  blurb?: string;
+}
+
+export interface NavItem {
+  label: string;
+  href?: string;
+  hiddenInHeader: boolean;
+  children: NavChild[];
+}
+
+export interface Navigation {
+  /** Everything, in order. The footer and search index use all of it. */
+  items: NavItem[];
+  /** Only what the header shows. */
+  headerItems: NavItem[];
+  ctaLabel: string;
+  ctaHref: string;
+}
+
+/**
+ * The header and footer menus.
+ *
+ * A required singleton, so a missing document fails a production build rather
+ * than silently rendering a site with no navigation at all — see
+ * `missingSingleton` for why that rule exists.
+ *
+ * `headerItems` is derived here rather than filtered at each call site: the
+ * header and the mobile drawer both need it, and having each do its own
+ * `.filter()` is how the two end up disagreeing about which links exist.
+ */
+const EMPTY_NAV: Navigation = {
+  items: [],
+  headerItems: [],
+  ctaLabel: '',
+  ctaHref: '/',
+};
+
+export async function getNavigation(): Promise<Navigation> {
+  const entry = await getEntry('navigation', 'navigation');
+  if (!entry || (entry.data.draft && !import.meta.env.DEV))
+    return missingSingleton('navigation', 'navigation', EMPTY_NAV);
+
+  const items = entry.data.items as NavItem[];
+
+  return {
+    items,
+    headerItems: items.filter((i) => !i.hiddenInHeader),
+    ctaLabel: entry.data.ctaLabel,
+    ctaHref: entry.data.ctaHref,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Careers page                                                        */
+/* ------------------------------------------------------------------ */
+
+export interface CareerValue {
+  title: string;
+  body: string;
+}
+
+export interface HiringStep {
+  title: string;
+  when: string;
+  body: string;
+}
+
+/**
+ * The careers page's copy and its hiring switch.
+ *
+ * The page stays a template — it filters listings client-side, prefills the
+ * application form from whichever role was clicked, and emits the JobPosting
+ * data Google's jobs index reads. What lives here is everything an editor
+ * should be able to change without touching any of that.
+ *
+ * `hiringOpen` is the one that earns its place: turning it off empties the
+ * listings and switches the page to its open-application state, which is the
+ * honest thing to do when hiring pauses and used to need a developer.
+ */
+export async function getCareersContent() {
+  const entry = await getEntry('careers', 'careersContent');
+  if (!entry || (entry.data.draft && !import.meta.env.DEV)) {
+    return missingSingleton('careersContent', 'careersContent', null as never);
+  }
+  return entry.data;
+}

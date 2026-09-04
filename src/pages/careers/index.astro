@@ -5,14 +5,9 @@ import ApplyForm from '../../components/ApplyForm.astro';
 import Faq from '../../components/Faq.astro';
 import CtaBand from '../../components/CtaBand.astro';
 import Footer from '../../components/Footer.astro';
-import {
-  values,
-  hiringSteps,
-  hiringOpen,
-  employmentTypeSchema,
-} from '../../config/careers';
+import { employmentTypeSchema } from '../../config/careers';
 import { getFlatRoles } from '../../lib/roles';
-import { getFaqs, getContactDetails } from '../../lib/studio';
+import { getFaqs, getContactDetails, getCareersContent } from '../../lib/studio';
 
 /**
  * Careers.
@@ -27,6 +22,11 @@ import { getFaqs, getContactDetails } from '../../lib/studio';
  * because that is what decides whether a good applicant bothers. Then the
  * process with real timings, so nobody has to ask. Then the form.
  */
+/* Copy and the hiring switch both come from the CMS now, so pausing hiring
+   is an edit rather than a deploy. */
+const copy = await getCareersContent();
+const { values, hiringSteps, hiringOpen } = copy;
+
 const roles = hiringOpen ? await getFlatRoles() : [];
 
 const careerFaqs = await getFaqs('careers');
@@ -94,9 +94,9 @@ const jobSchema = roles.map((r) => ({
 >
   <main id="main">
     <PageHero
-      eyebrow="Careers"
-      title="We hire off the reel."
-      lead="No four-round culture interview, no take-home that quietly ships. Send the work, and somebody who does the job will tell you within five working days whether there is a seat — and if there isn't one right now, we'll tell you that too."
+      eyebrow={copy.heroEyebrow}
+      title={copy.heroTitle}
+      lead={copy.heroLead}
       crumbs={[{ label: 'Home', href: '/' }, { label: 'Careers' }]}
       tint="265 60% 28%"
     >
@@ -106,18 +106,18 @@ const jobSchema = roles.map((r) => ({
           <span class="hero-stat-l">{totalSeats === 1 ? 'seat open' : 'seats open'}</span>
         </div>
         <div class="hero-stat">
-          <span class="hero-stat-n">05</span>
-          <span class="hero-stat-l">working days to an answer</span>
+          <span class="hero-stat-n">{copy.heroStatDays}</span>
+          <span class="hero-stat-l">{copy.heroStatDaysLabel}</span>
         </div>
         <div class="hero-stat">
-          <span class="hero-stat-n">12</span>
-          <span class="hero-stat-l">months we keep open applications</span>
+          <span class="hero-stat-n">{copy.heroStatMonths}</span>
+          <span class="hero-stat-l">{copy.heroStatMonthsLabel}</span>
         </div>
       </div>
 
       <div class="hero-acts" data-reveal data-reveal-delay="0.28">
-        <a href="#roles" class="hero-act hero-act--primary">See the open roles</a>
-        <a href="#apply" class="hero-act" data-open-application>Nothing listed fits me</a>
+        <a href="#roles" class="hero-act hero-act--primary">{copy.heroActRoles}</a>
+        <a href="#apply" class="hero-act" data-open-application>{copy.heroActOpen}</a>
       </div>
     </PageHero>
 
@@ -127,14 +127,14 @@ const jobSchema = roles.map((r) => ({
          scroll past a manifesto to find it. -->
     <section class="section" id="roles">
       <div class="section-head" data-reveal>
-        <p class="section-eyebrow">Open roles</p>
+        <p class="section-eyebrow">{copy.rolesEyebrow}</p>
         <h2 class="section-title">
-          {roles.length > 0 ? 'What we are hiring for' : 'Nothing open this month'}
+          {roles.length > 0 ? copy.rolesTitle : copy.rolesTitleEmpty}
         </h2>
         {
           roles.length > 0 && (
             <a href={`mailto:${careersEmail}`} class="section-link">
-              Ask about a role <span aria-hidden="true">&rarr;</span>
+              {copy.rolesLinkLabel} <span aria-hidden="true">&rarr;</span>
             </a>
           )
         }
@@ -207,17 +207,10 @@ const jobSchema = roles.map((r) => ({
              instead of apologising. */
           <div class="empty" data-reveal>
             <p class="empty-lead">
-              {hiringOpen
-                ? 'Every seat is filled at the moment, which is a good problem and a temporary one.'
-                : 'Hiring is paused while we finish the projects on the floor.'}
+              {hiringOpen ? copy.emptyOpen : copy.emptyPaused}
             </p>
-            <p class="empty-body">
-              Seats here open because a project lands, not because a plan said one
-              should — so the list is usually behind where the studio is going. Send
-              an open application and you are read first when the next one opens. We
-              keep them for twelve months.
-            </p>
-            <a href="#apply" class="empty-act" data-open-application>Send an open application</a>
+            <p class="empty-body">{copy.emptyBody}</p>
+            <a href="#apply" class="empty-act" data-open-application>{copy.emptyAct}</a>
           </div>
         )
       }
@@ -228,17 +221,12 @@ const jobSchema = roles.map((r) => ({
         roles.length > 0 && (
           <div class="spec" data-reveal>
             <div class="spec-copy">
-              <p class="spec-eyebrow">Not on the list?</p>
-              <h3 class="spec-title">The seat you want probably isn't posted yet.</h3>
-              <p class="spec-body">
-                Lighting, rigging, pipeline, production, business — a studio this size
-                opens a seat when a project lands, not when a plan says it should. Tell
-                us what you would want to be doing and we read it first when that
-                happens. Twelve months on file, and a real answer either way.
-              </p>
+              <p class="spec-eyebrow">{copy.specEyebrow}</p>
+              <h3 class="spec-title">{copy.specTitle}</h3>
+              <p class="spec-body">{copy.specBody}</p>
             </div>
             <a href="#apply" class="spec-act" data-open-application>
-              Register your interest <span aria-hidden="true">&rarr;</span>
+              {copy.specAct} <span aria-hidden="true">&rarr;</span>
             </a>
           </div>
         )
@@ -248,17 +236,14 @@ const jobSchema = roles.map((r) => ({
     <!-- ── Why the seat is worth taking ──────────────────────────────── -->
     <section class="section section--bordered" id="studio">
       <div class="section-head" data-reveal>
-        <p class="section-eyebrow">Working here</p>
-        <h2 class="section-title">What we can actually offer</h2>
+        <p class="section-eyebrow">{copy.studioEyebrow}</p>
+        <h2 class="section-title">{copy.studioTitle}</h2>
         <a href="/about/" class="section-link">
           More about the studio <span aria-hidden="true">&rarr;</span>
         </a>
       </div>
 
-      <p class="studio-note" data-reveal>
-        We are a small studio and we will not out-bid a large one on salary. Pretending
-        otherwise wastes your first round and ours, so here is what is true instead.
-      </p>
+      <p class="studio-note" data-reveal>{copy.studioNote}</p>
 
       <div class="values">
         {
@@ -275,8 +260,8 @@ const jobSchema = roles.map((r) => ({
     <!-- ── How hiring runs ───────────────────────────────────────────── -->
     <section class="section section--bordered" id="process">
       <div class="section-head" data-reveal>
-        <p class="section-eyebrow">The process</p>
-        <h2 class="section-title">Three weeks, five steps, no ghosting</h2>
+        <p class="section-eyebrow">{copy.processEyebrow}</p>
+        <h2 class="section-title">{copy.processTitle}</h2>
       </div>
 
       <ol class="hire">

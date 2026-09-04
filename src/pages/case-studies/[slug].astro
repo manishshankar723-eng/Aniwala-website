@@ -26,7 +26,7 @@ const { title, description, kind, client, sector, year, deliverables, tools, res
 
 const { Content } = await render(study);
 const related = await getRelatedCaseStudies(study);
-const linkedServices = servicesFor(study);
+const linkedServices = await servicesFor(study);
 
 const isStudioProject = kind === 'Studio project';
 

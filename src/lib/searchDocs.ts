@@ -20,7 +20,7 @@
 import { searchIndex, type SearchDoc } from '../config/nav';
 import { getPosts } from './posts';
 import { getCaseStudies } from './caseStudies';
-import { services } from '../config/services';
+import { getServices } from './services';
 import { workCategories, categoryHref } from '../config/portfolio';
 import { getRoles } from './roles';
 
@@ -31,7 +31,7 @@ export async function buildSearchDocs(): Promise<SearchDoc[]> {
 
   /* Derived, not listed by hand — renaming a service in config/services.ts
      must not be able to leave a dead entry behind in search. */
-  const serviceDocs = services.map((s) => ({
+  const serviceDocs = (await getServices()).map((s) => ({
     title: s.label,
     href: `/services/${s.slug}/`,
     section: 'Services',

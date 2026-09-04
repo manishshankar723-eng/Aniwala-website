@@ -9,12 +9,19 @@
  * somebody asks something new, and the answer should go up the same day.
  */
 import { defineType, defineField } from 'sanity';
-import { services } from '../../src/config/services';
 
-const SCOPES = [
-  { title: 'Careers page', value: 'careers' },
-  ...services.map((s) => ({ title: 'Service — ' + s.label, value: 'service:' + s.slug })),
-];
+/*
+ * Which page an FAQ belongs to.
+ *
+ * This was a dropdown built from `config/services.ts`. Services are documents
+ * now, so a static list would be wrong the day a seventh is added — and a
+ * dropdown that silently omits the service you want is worse than a text
+ * field that says what to type.
+ *
+ * Validated by shape instead: `careers`, or `service:<slug>`. A scope that
+ * matches no page renders nowhere, which is invisible but harmless.
+ */
+const SCOPE_HINT = 'Either "careers", or "service:" followed by the service URL — "service:vfx".';
 
 export default defineType({
   name: 'faq',
@@ -26,9 +33,13 @@ export default defineType({
       name: 'scope',
       title: 'Where it appears',
       type: 'string',
-      description: 'Which page this question shows on.',
-      options: { list: SCOPES },
-      validation: (Rule) => Rule.required(),
+      description: SCOPE_HINT,
+      validation: (Rule) =>
+        Rule.required().custom((v) =>
+          v === 'careers' || /^service:[a-z0-9-]+$/.test(String(v))
+            ? true
+            : SCOPE_HINT
+        ),
     }),
     defineField({
       name: 'question',
@@ -70,7 +81,7 @@ export default defineType({
   preview: {
     select: { title: 'question', scope: 'scope', order: 'order' },
     prepare: ({ title, scope, order }) => {
-      const label = SCOPES.find((s) => s.value === scope)?.title ?? scope;
+      const label = scope === 'careers' ? 'Careers page' : String(scope).replace('service:', 'Service — ');
       return { title, subtitle: label + ' · ' + order };
     },
   },

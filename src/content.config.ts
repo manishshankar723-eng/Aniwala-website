@@ -18,6 +18,9 @@ import {
   sanityContactDetails,
   sanitySiteCopy,
   sanityBuiltPages,
+  sanityNavigation,
+  sanityServices,
+  sanityCareersContent,
 } from './lib/sanity/loader';
 
 
@@ -487,6 +490,137 @@ const builtPages = defineCollection({
   }),
 });
 
+/**
+ * The header and footer menus. A singleton.
+ *
+ * The strictest thing here is the href, and it should be: a menu renders on
+ * every page, so one bad path is 65 broken links. Validated as a path or an
+ * absolute URL, exactly as the announcement bar's is, for the same reason.
+ * Whether the path RESOLVES is 's job at the end of the
+ * build, which is the right place for it.
+ */
+const navChild = z.object({
+  label: z.string().min(1),
+  href: z
+    .string()
+    .refine((v) => v === '' || v.startsWith('/') || /^(https?:\/\/|mailto:)/.test(v), {
+      message: 'Use a path starting with / , a full http(s) URL, or a mailto: address.',
+    }),
+  blurb: z.string().optional(),
+});
+
+const navigation = defineCollection({
+  loader: sanityNavigation(),
+  schema: z.object({
+    items: z
+      .array(
+        z.object({
+          label: z.string().min(1),
+          href: z
+            .string()
+            .refine((v) => v.startsWith('/') || /^(https?:\/\/|mailto:)/.test(v), {
+              message: 'Use a path starting with / , a full http(s) URL, or a mailto: address.',
+            })
+            .optional(),
+          hiddenInHeader: z.boolean().default(false),
+          children: z.array(navChild).default([]),
+        })
+      )
+      .min(1, 'A site with no menu has no way to reach any page but the one you are on.'),
+    ctaLabel: z.string().min(1),
+    ctaHref: z.string().refine((v) => v.startsWith('/') || /^(https?:\/\/|mailto:)/.test(v), {
+      message: 'Use a path starting with / , a full http(s) URL, or a mailto: address.',
+    }),
+    draft: z.boolean().default(false),
+  }),
+});
+
+/**
+ * The six disciplines. One document each, one page each.
+ *
+ * `related` is validated as a plain string array because the loader has
+ * already dereferenced it. Whether those slugs point at services that exist
+ * is guaranteed by Sanity's reference field, not by this schema — which is
+ * the reason the Studio uses references there rather than free text.
+ */
+const titleBodyEntry = z.object({
+  title: z.string().min(1),
+  body: z.string().min(1),
+  tools: z.string().optional(),
+});
+
+const servicesCollection = defineCollection({
+  loader: sanityServices(),
+  schema: z.object({
+    title: z.string().min(1),
+    label: z.string().min(1),
+    shortName: z.string().min(1),
+    article: z.enum(['a', 'an']),
+    tagline: z.string().min(1).max(300),
+    intro: z.string().min(1),
+    tint: z.string(),
+    order: z.number().int().default(50),
+    offerings: z.array(titleBodyEntry).min(1),
+    pipeline: z.array(titleBodyEntry).min(1),
+    tools: z.array(z.string()).default([]),
+    deliverables: z.array(z.string()).default([]),
+    related: z.array(z.string()).default([]),
+    draft: z.boolean().default(false),
+  }),
+});
+
+/**
+ * The careers page's copy. A singleton.
+ *
+ * Every string is required and non-empty. That is stricter than it looks
+ * necessary, and it is deliberate: unlike a section that hides itself when
+ * empty, these are headings the template renders unconditionally — a blank one
+ * is a visible hole, not a hidden section. Failing the build names the field.
+ */
+const careers = defineCollection({
+  loader: sanityCareersContent(),
+  schema: z.object({
+    hiringOpen: z.boolean().default(true),
+    heroEyebrow: z.string().min(1),
+    heroTitle: z.string().min(1),
+    heroLead: z.string().min(1),
+    heroStatDays: z.string().min(1),
+    heroStatDaysLabel: z.string().min(1),
+    heroStatMonths: z.string().min(1),
+    heroStatMonthsLabel: z.string().min(1),
+    heroActRoles: z.string().min(1),
+    heroActOpen: z.string().min(1),
+    rolesEyebrow: z.string().min(1),
+    rolesTitle: z.string().min(1),
+    rolesTitleEmpty: z.string().min(1),
+    rolesLinkLabel: z.string().min(1),
+    emptyOpen: z.string().min(1),
+    emptyPaused: z.string().min(1),
+    emptyBody: z.string().min(1),
+    emptyAct: z.string().min(1),
+    specEyebrow: z.string().min(1),
+    specTitle: z.string().min(1),
+    specBody: z.string().min(1),
+    specAct: z.string().min(1),
+    studioEyebrow: z.string().min(1),
+    studioTitle: z.string().min(1),
+    studioNote: z.string().min(1),
+    processEyebrow: z.string().min(1),
+    processTitle: z.string().min(1),
+    values: z.array(z.object({ title: z.string().min(1), body: z.string().min(1) })).min(1),
+    hiringSteps: z
+      .array(
+        z.object({
+          title: z.string().min(1),
+          when: z.string().min(1),
+          body: z.string().min(1),
+        })
+      )
+      .min(1),
+    draft: z.boolean().default(false),
+  }),
+});
+
 export const collections = {
   blog,
   caseStudies,
@@ -502,4 +636,7 @@ export const collections = {
   contactDetails,
   siteCopy,
   builtPages,
+  navigation,
+  services: servicesCollection,
+  careers,
 };

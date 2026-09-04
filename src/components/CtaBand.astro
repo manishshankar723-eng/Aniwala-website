@@ -1,6 +1,6 @@
 ---
-import { cta } from '../config/nav';
-import { getContactDetails } from '../lib/studio';
+
+import { getContactDetails, getNavigation } from '../lib/studio';
 
 /**
  * The closing panel every inner page ends on. One primary action, one quiet
@@ -18,6 +18,8 @@ interface Props {
 /* The studio inbox now comes from the CMS, so the address in the footer and
    the one on every CTA band cannot drift apart. */
 const { email } = await getContactDetails();
+const { ctaLabel, ctaHref } = await getNavigation();
+const cta = { label: ctaLabel, href: ctaHref };
 
 const {
   eyebrow = 'Next step',

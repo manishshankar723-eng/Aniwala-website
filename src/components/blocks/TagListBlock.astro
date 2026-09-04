@@ -5,7 +5,7 @@
  */
 import SectionHead from './SectionHead.astro';
 import { getSiteCopy } from '../../lib/studio';
-import { services } from '../../config/services';
+import { allServiceTools } from '../../lib/services';
 import { enquiryTypes } from '../../config/site';
 
 interface Props {
@@ -30,7 +30,7 @@ const items =
   block.source === 'custom'
     ? (block.items ?? [])
     : block.source === 'serviceTools'
-      ? [...new Set(services.flatMap((s) => s.tools))].sort((a, b) => a.localeCompare(b))
+      ? await allServiceTools()
       : block.source === 'enquiryTypes'
         ? enquiryTypes
         : (await getSiteCopy()).capabilities;

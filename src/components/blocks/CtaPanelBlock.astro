@@ -11,6 +11,7 @@ interface Props {
     body?: string;
     linkLabel?: string;
     linkHref?: string;
+    measure?: 'short' | 'long';
   };
 }
 const { block } = Astro.props;
@@ -22,7 +23,11 @@ const hasLink = Boolean(block.linkLabel && block.linkHref);
     <div>
       {block.eyebrow && <p class="section-eyebrow">{block.eyebrow}</p>}
       {block.title && <h2 class="section-title">{block.title}</h2>}
-      {block.body && <p class="panel-body">{block.body}</p>}
+      {block.body && (
+        <p class:list={['panel-body', block.measure === 'long' && 'panel-body--long']}>
+          {block.body}
+        </p>
+      )}
     </div>
     {
       hasLink && (
@@ -42,11 +47,20 @@ const hasLink = Boolean(block.linkLabel && block.linkHref);
     justify-content: space-between;
     gap: 2rem;
   }
+  /* Two measures, because the two panels on this site hold different
+     amounts of text: a one-line blurb reads better narrow, a three-sentence
+     explanation needs the extra characters or it becomes a column. This is
+     the one place a block exposes a layout choice, and it is bounded to two
+     options rather than a free-form width for that reason. */
   .panel-body {
     margin: 1.25rem 0 0;
     max-width: 44ch;
     color: var(--color-ink-muted);
     line-height: 1.6;
+  }
+  .panel-body--long {
+    max-width: 54ch;
+    line-height: 1.65;
   }
   .panel-cta {
     display: inline-flex;

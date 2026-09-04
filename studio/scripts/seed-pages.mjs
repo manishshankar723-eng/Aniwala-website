@@ -24,6 +24,99 @@
 /** Blocks are keyed by position; a key only has to be stable and unique. */
 export const withKeys = (blocks) => blocks.map((b, i) => ({ _key: `block-${i}`, ...b }));
 
+/**
+ * The header and footer menus, as they stood before they moved to the CMS.
+ *
+ * Transcribed from . The six services in the dropdown are the
+ * ones the site had; adding a seventh is now an edit in the Studio rather
+ * than a commit, which is the whole point of moving it.
+ */
+export const NAVIGATION = {
+    "items": [
+      {
+        "label": "Home",
+        "href": "/",
+        "hiddenInHeader": false,
+        "children": []
+      },
+      {
+        "label": "Portfolio",
+        "href": "/portfolio/",
+        "hiddenInHeader": false,
+        "children": []
+      },
+      {
+        "label": "Case Studies",
+        "href": "/case-studies/",
+        "hiddenInHeader": true,
+        "children": []
+      },
+      {
+        "label": "Services",
+        "href": "/services/",
+        "hiddenInHeader": false,
+        "children": [
+          {
+            "label": "3D Art",
+            "href": "/services/3d-art/",
+            "blurb": "Characters, environments, props and vehicles"
+          },
+          {
+            "label": "2D Art",
+            "href": "/services/2d-art/",
+            "blurb": "Concept, illustration, UI and key art"
+          },
+          {
+            "label": "Animation",
+            "href": "/services/animation/",
+            "blurb": "2D and 3D performance, gameplay and cinematic"
+          },
+          {
+            "label": "VFX",
+            "href": "/services/vfx/",
+            "blurb": "Simulation, compositing and finishing"
+          },
+          {
+            "label": "Integration",
+            "href": "/services/integration/",
+            "blurb": "Engine setup, materials and profiling"
+          },
+          {
+            "label": "Video Editing",
+            "href": "/services/video-editing/",
+            "blurb": "Trailers, cutdowns, titles and grade"
+          }
+        ]
+      },
+      {
+        "label": "About Us",
+        "href": "/about/",
+        "hiddenInHeader": false,
+        "children": []
+      },
+      {
+        "label": "Blog",
+        "href": "/blog/",
+        "hiddenInHeader": false,
+        "children": []
+      },
+      {
+        "label": "Careers",
+        "href": "/careers/",
+        "hiddenInHeader": true,
+        "children": []
+      },
+      {
+        "label": "Contact",
+        "href": "/contact/",
+        "hiddenInHeader": false,
+        "children": []
+      }
+    ],
+    "ctaLabel": "Book Appointment",
+    "ctaHref": "/contact/"
+  };
+
 export const PAGES = [
   {
     slug: 'home',
@@ -208,6 +301,7 @@ export const PAGES = [
         title: "We're looking for artists",
         anchor: 'careers',
         body: 'Animators, modellers, riggers and FX artists. Being early at a small studio is a genuine trade-off: more say in how things get done, less certainty about next year. If that sounds like a good deal, send a reel. We watch all of them and reply either way.',
+        measure: 'long',
         linkLabel: 'Send a reel',
         linkHref: 'mailto:contact@aniwala.com?subject=Reel',
       },

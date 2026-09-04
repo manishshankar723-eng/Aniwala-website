@@ -1,95 +1,17 @@
 /**
- * Site navigation. Header and mobile drawer both read this, so a link
- * never has to be added in two places.
- */
-export interface NavChild {
-  label: string;
-  href: string;
-  /** Optional one-liner shown under the label in the dropdown. */
-  blurb?: string;
-}
-
-export interface NavItem {
-  label: string;
-  href?: string;
-  children?: NavChild[];
-  /**
-   * Keep the item out of the header, but still list it in the footer and in
-   * search. For pages that deserve a route and a link without spending one of
-   * the six slots a header can carry before it starts to read as a directory.
-   */
-  hiddenInHeader?: boolean;
-}
-
-/**
- * An item may have BOTH `href` and `children`. The header then renders the
- * label as a link to `href` and the caret beside it as the dropdown toggle,
- * and the mobile drawer adds an "All <label>" row at the top of the sublist.
- * So a parent page never needs a hand-written row of its own in `children`.
- */
-
-export const nav: NavItem[] = [
-  { label: 'Home', href: '/' },
-  { label: 'Portfolio', href: '/portfolio/' },
-  /* Reachable from the homepage section, the footer and search — the header
-     stays short. */
-  { label: 'Case Studies', href: '/case-studies/', hiddenInHeader: true },
-  {
-    label: 'Services',
-    href: '/services/',
-    children: [
-      {
-        label: '3D Art',
-        href: '/services/3d-art/',
-        blurb: 'Characters, environments, props and vehicles',
-      },
-      { label: '2D Art', href: '/services/2d-art/', blurb: 'Concept, illustration, UI and key art' },
-      {
-        label: 'Animation',
-        href: '/services/animation/',
-        blurb: '2D and 3D performance, gameplay and cinematic',
-      },
-      { label: 'VFX', href: '/services/vfx/', blurb: 'Simulation, compositing and finishing' },
-      {
-        label: 'Integration',
-        href: '/services/integration/',
-        blurb: 'Engine setup, materials and profiling',
-      },
-      {
-        label: 'Video Editing',
-        href: '/services/video-editing/',
-        blurb: 'Trailers, cutdowns, titles and grade',
-      },
-    ],
-  },
-  { label: 'About Us', href: '/about/' },
-  { label: 'Blog', href: '/blog/' },
-  /* Footer and search only. Careers earns a route and a link, but not one of
-     the six header slots — a header carrying seven items starts to read as a
-     directory, and the people looking for this page look in the footer. */
-  { label: 'Careers', href: '/careers/', hiddenInHeader: true },
-  { label: 'Contact', href: '/contact/' },
-];
-
-/*
- * The announcement strip moved to the CMS.
+ * The part of the site's navigation that is NOT content.
  *
- * It is a single line of marketing copy that changes with whatever the studio
- * is currently pushing, and needing a developer and a deploy to edit one
- * sentence at the top of every page was exactly the friction the CMS exists
- * to remove. See the `announcement` singleton in content.config.ts, and
- * lib/announce.ts for the accessor.
+ * The header and footer menus moved to Sanity as the `navigation` singleton —
+ * see `getNavigation()` in `lib/studio.ts`. Adding a page to the menu should
+ * not need a developer, and the two guards that make that safe live elsewhere:
+ * the schema refuses a malformed href, and `check-links.mjs` fails the build
+ * if a path does not resolve.
  *
- * It is currently OFF. It had been live and pointing at `/ai-animation/`, a
- * page that was never built, so all 64 pages carried a link to a 404 and
- * `scripts/check-links.mjs` was failing every deploy over it. Turn it back on
- * from the Studio once there is a real page to point at — and note that the
- * link checker will still fail the build if the target does not exist, which
- * is the behaviour you want.
+ * What stays here is the search index below, which is a different thing: a
+ * list of pages whose text lives in markup rather than in a document, so the
+ * search box can find them. It is maintained alongside the templates, not by
+ * an editor.
  */
-
-/** The gold call-to-action button at the end of the header. */
-export const cta = { label: 'Book Appointment', href: '/contact/' };
 
 /**
  * The hand-kept part of the search index: pages whose text is written in

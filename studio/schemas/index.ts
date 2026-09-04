@@ -19,6 +19,8 @@ import artwork from './artwork';
 import announcement from './announcement';
 import contactDetails from './contactDetails';
 import siteCopy from './siteCopy';
+import navigation from './navigation';
+import careersContent from './careersContent';
 import page from './page';
 import { blockTypes } from './blocks';
 
@@ -41,6 +43,8 @@ export const schemaTypes = [
   announcement,
   contactDetails,
   siteCopy,
+  navigation,
+  careersContent,
   page,
 
   /* Field types, not documents */
