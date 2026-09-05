@@ -10,6 +10,7 @@ import { getWorkCategories, type WorkCategory } from '../../lib/workCategories';
 import { piecesIn } from '../../lib/pieces';
 import { servicesBySlugs, type Service } from '../../lib/services';
 import { getUiCopy } from '../../lib/studio';
+import { shareCard } from '../../lib/sanity/client';
 import { fill } from '../../lib/copy';
 
 /**
@@ -48,6 +49,9 @@ const words = { name: category.shortName, title: category.title };
 <Base
   title={category.seoTitle ?? `${category.title} — ${ui.crumbPortfolio} — ${ui.siteName}`}
   description={category.seoDescription ?? category.intro}
+  canonical={category.canonicalUrl ?? `/portfolio/${category.slug}/`}
+  ogImage={shareCard(category.ogImage)}
+  noindex={category.noindex}
 >
   <main id="main">
     <PageHero

@@ -7,7 +7,7 @@ import BlogSidebar from '../../components/BlogSidebar.astro';
 import Comments from '../../components/Comments.astro';
 import CtaBand from '../../components/CtaBand.astro';
 import Footer from '../../components/Footer.astro';
-import { imageUrl, imageSrcSet, ogImageUrl } from '../../lib/sanity/client';
+import { imageUrl, imageSrcSet, shareCard } from '../../lib/sanity/client';
 import { getUiCopy } from '../../lib/studio';
 import {
   getPosts,
@@ -29,8 +29,19 @@ interface Props {
   post: Post;
 }
 const { post } = Astro.props;
-const { title, description, pubDate, updatedDate, category, tags, author, tint, cover, seoTitle, seoDescription } =
+const { title, description, pubDate, updatedDate, category, tags, author, tint, cover, seoTitle, seoDescription, noindex } =
   post.data;
+
+/*
+ * The card a pasted link shows.
+ *
+ * The cover is the right one nine times out of ten, so the sharing image only
+ * has to be set when it is the tenth — a still that crops badly to 1200x630,
+ * say. The alt text follows the same fork: only the cover has alt text an
+ * editor wrote, so a purpose-made sharing image passes none and Base falls
+ * back to the studio name.
+ */
+const seoImage = post.data.ogImage;
 
 const ui = await getUiCopy();
 
@@ -62,9 +73,13 @@ const articleSchema = {
 <Base
   title={seoTitle ?? `${title} — ${ui.siteName}`}
   description={seoDescription ?? description}
-  canonical={`/blog/${post.id}/`}
-  ogImage={cover ? ogImageUrl(cover) : undefined}
-  ogImageAlt={cover?.alt}
+  canonical={post.data.canonicalUrl ?? `/blog/${post.id}/`}
+  ogType="article"
+  publishedTime={isoDate(pubDate)}
+  modifiedTime={isoDate(updatedDate ?? pubDate)}
+  ogImage={shareCard(seoImage, cover)}
+  ogImageAlt={seoImage ? undefined : cover?.alt}
+  noindex={noindex}
 >
   <main id="main">
     <PageHero

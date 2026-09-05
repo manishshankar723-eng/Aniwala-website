@@ -4,6 +4,7 @@ import PageHero from '../../components/PageHero.astro';
 import { serviceSlot } from '../../config/imageSlots';
 import { getArtwork } from '../../lib/artwork';
 import { getFaqs, getUiCopy } from '../../lib/studio';
+import { shareCard } from '../../lib/sanity/client';
 import { fill } from '../../lib/copy';
 import Faq from '../../components/Faq.astro';
 import ProcessFlow from '../../components/ProcessFlow.astro';
@@ -70,7 +71,9 @@ const faqs = await getFaqs(`service:${service.slug}`);
 <Base
   title={service.seoTitle ?? `${service.title} — ${ui.siteName}`}
   description={service.seoDescription ?? service.tagline}
-  canonical={`/services/${service.slug}/`}
+  canonical={service.canonicalUrl ?? `/services/${service.slug}/`}
+  ogImage={shareCard(service.ogImage)}
+  noindex={service.noindex}
 >
   <main id="main">
     <PageHero

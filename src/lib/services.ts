@@ -11,7 +11,7 @@
  * can be written and previewed in full before it is announced.
  */
 import { getCollection, type CollectionEntry } from 'astro:content';
-import { previewMode } from './sanity/client';
+import { previewMode, type SanityImage } from './sanity/client';
 
 export interface Offering {
   title: string;
@@ -44,6 +44,11 @@ export interface Service {
   /** Optional search-result overrides. Blank means "derive it from the page". */
   seoTitle?: string;
   seoDescription?: string;
+  /** Optional social card. Blank falls back to the studio default. */
+  ogImage?: SanityImage;
+  noindex: boolean;
+  /** Set only when this page deliberately duplicates another. */
+  canonicalUrl?: string;
 }
 
 const live = ({ data }: { data: { draft: boolean } }) => previewMode || !data.draft;

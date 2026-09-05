@@ -69,6 +69,7 @@ const label = `/${slug === 'home' ? '' : slug + '/'}`;
   title={title ?? page.data.seoTitle}
   description={page.data.seoDescription}
   ogImage={ogImage}
+  canonical={page.data.canonicalUrl}
   noindex={page.data.noindex}
   transparentHeader={transparentHeader}
 >

@@ -52,6 +52,37 @@ const {
   compact = false,
   image,
 } = Astro.props;
+
+/**
+ * The same trail, as structured data.
+ *
+ * The visible crumbs told a reader where they were and told a search engine
+ * nothing — so results for an inner page showed a bare URL where they could
+ * have shown "Home › Services › 3D Art". This is the one piece of structured
+ * data that is pure duplication of visible markup, which is exactly the
+ * condition Google asks for: the trail it describes is the trail on the page.
+ *
+ * Only when there is a trail worth describing. A single crumb is not a path,
+ * and `position` is 1-based because the vocabulary says so.
+ */
+const crumbSchema =
+  crumbs.length > 1
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: crumbs.map((crumb, i) => ({
+          '@type': 'ListItem',
+          position: i + 1,
+          name: crumb.label,
+          /* The last crumb is the page you are on. Omitting its `item` is
+             what marks it as the current page rather than a link to
+             somewhere else. */
+          ...(crumb.href && i < crumbs.length - 1
+            ? { item: new URL(crumb.href, Astro.site).href }
+            : {}),
+        })),
+      }
+    : null;
 ---
 
 <section class:list={['page-hero', compact && 'page-hero--compact']} style={`--tint:${tint}`}>
@@ -73,6 +104,10 @@ const {
     )
   }
   <div class="page-hero-wash" aria-hidden="true"></div>
+
+  {crumbSchema && (
+    <script type="application/ld+json" set:html={JSON.stringify(crumbSchema)} is:inline />
+  )}
 
   <div class="page-hero-inner">
     {

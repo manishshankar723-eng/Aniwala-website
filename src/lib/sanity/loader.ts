@@ -262,7 +262,7 @@ export const sanityPosts = (): Loader =>
     type: 'post',
     projection: `
       _id, slug, title, description, pubDate, updatedDate,
-      category, tags, author, tint, cover, body, seoTitle, seoDescription
+      category, tags, author, tint, cover, body, seoTitle, seoDescription, ogImage, noindex, canonicalUrl
     `,
     toData: (doc, isDraft) => ({
       title: doc.title,
@@ -278,6 +278,9 @@ export const sanityPosts = (): Loader =>
       ...(doc.cover ? { cover: doc.cover } : {}),
       ...(doc.seoTitle ? { seoTitle: doc.seoTitle } : {}),
       ...(doc.seoDescription ? { seoDescription: doc.seoDescription } : {}),
+      ...(doc.ogImage ? { ogImage: doc.ogImage } : {}),
+      noindex: doc.noindex ?? false,
+      ...(doc.canonicalUrl ? { canonicalUrl: doc.canonicalUrl } : {}),
       draft: isDraft,
     }),
   });
@@ -292,7 +295,7 @@ export const sanityCaseStudies = (): Loader =>
     projection: `
       _id, slug, title, description, kind, client, sector, year,
       services, deliverables, tools, results, tint, featured, cover, body,
-      seoTitle, seoDescription
+      seoTitle, seoDescription, ogImage, noindex, canonicalUrl
     `,
     toData: (doc, isDraft) => ({
       title: doc.title,
@@ -310,6 +313,9 @@ export const sanityCaseStudies = (): Loader =>
       ...(doc.cover ? { cover: doc.cover } : {}),
       ...(doc.seoTitle ? { seoTitle: doc.seoTitle } : {}),
       ...(doc.seoDescription ? { seoDescription: doc.seoDescription } : {}),
+      ...(doc.ogImage ? { ogImage: doc.ogImage } : {}),
+      noindex: doc.noindex ?? false,
+      ...(doc.canonicalUrl ? { canonicalUrl: doc.canonicalUrl } : {}),
       draft: isDraft,
     }),
   });
@@ -325,7 +331,7 @@ export const sanityRoles = (): Loader =>
     projection: `
       _id, slug, title, discipline, kind, location, experience, openings,
       posted, closes, tint, summary, about, responsibilities, requirements,
-      niceToHave, software, reelNote, seoTitle, seoDescription
+      niceToHave, software, reelNote, seoTitle, seoDescription, ogImage, noindex, canonicalUrl
     `,
     toData: (doc, isDraft) => ({
       title: doc.title,
@@ -346,6 +352,9 @@ export const sanityRoles = (): Loader =>
       reelNote: doc.reelNote,
       ...(doc.seoTitle ? { seoTitle: doc.seoTitle } : {}),
       ...(doc.seoDescription ? { seoDescription: doc.seoDescription } : {}),
+      ...(doc.ogImage ? { ogImage: doc.ogImage } : {}),
+      noindex: doc.noindex ?? false,
+      ...(doc.canonicalUrl ? { canonicalUrl: doc.canonicalUrl } : {}),
       draft: isDraft,
     }),
   });
@@ -563,7 +572,7 @@ export const sanityBuiltPages = (): Loader =>
     type: 'page',
     hasBody: false,
     projection: `
-      _id, title, slug, blocks, seoTitle, seoDescription, ogImage, noindex
+      _id, title, slug, blocks, seoTitle, seoDescription, ogImage, noindex, canonicalUrl
     `,
     toData: (doc, isDraft) => ({
       title: doc.title,
@@ -572,6 +581,7 @@ export const sanityBuiltPages = (): Loader =>
       seoDescription: doc.seoDescription,
       ...(doc.ogImage ? { ogImage: doc.ogImage } : {}),
       noindex: doc.noindex ?? false,
+      ...(doc.canonicalUrl ? { canonicalUrl: doc.canonicalUrl } : {}),
       draft: isDraft,
     }),
   });
@@ -666,7 +676,7 @@ export const sanityServices = (): Loader =>
     projection: `
       _id, slug, title, label, shortName, article, tagline, intro, tint, order,
       offerings, pipeline, tools, deliverables,
-      "related": related[]->slug.current, seoTitle, seoDescription
+      "related": related[]->slug.current, seoTitle, seoDescription, ogImage, noindex, canonicalUrl
     `,
     toData: (doc, isDraft) => ({
       title: doc.title,
@@ -694,6 +704,9 @@ export const sanityServices = (): Loader =>
       related: (doc.related ?? []).filter(Boolean),
       ...(doc.seoTitle ? { seoTitle: doc.seoTitle } : {}),
       ...(doc.seoDescription ? { seoDescription: doc.seoDescription } : {}),
+      ...(doc.ogImage ? { ogImage: doc.ogImage } : {}),
+      noindex: doc.noindex ?? false,
+      ...(doc.canonicalUrl ? { canonicalUrl: doc.canonicalUrl } : {}),
       draft: isDraft,
     }),
   });
@@ -708,7 +721,7 @@ export const sanityWorkCategories = (): Loader =>
     hasBody: false,
     projection: `
       _id, slug, title, shortName, blurb, intro, tint, wide, order,
-      "services": services[]->slug.current, seoTitle, seoDescription
+      "services": services[]->slug.current, seoTitle, seoDescription, ogImage, noindex, canonicalUrl
     `,
     toData: (doc, isDraft) => ({
       title: doc.title,
@@ -721,6 +734,9 @@ export const sanityWorkCategories = (): Loader =>
       services: (doc.services ?? []).filter(Boolean),
       ...(doc.seoTitle ? { seoTitle: doc.seoTitle } : {}),
       ...(doc.seoDescription ? { seoDescription: doc.seoDescription } : {}),
+      ...(doc.ogImage ? { ogImage: doc.ogImage } : {}),
+      noindex: doc.noindex ?? false,
+      ...(doc.canonicalUrl ? { canonicalUrl: doc.canonicalUrl } : {}),
       draft: isDraft,
     }),
   });
@@ -870,6 +886,7 @@ export const sanityBrand = (): Loader =>
     idFrom: () => 'brand',
     projection: `
       _id, logoDark, logoLight, showWordmark, wordmark, wordmarkSub,
+      accentDark, accentLight, buttonFill, buttonInk,
       favicon, themeColor, themeColorLight, backgroundColor,
       appName, appShortName, appDescription
     `,
@@ -879,6 +896,10 @@ export const sanityBrand = (): Loader =>
       showWordmark: doc.showWordmark ?? true,
       wordmark: doc.wordmark ?? '',
       wordmarkSub: doc.wordmarkSub ?? '',
+      accentDark: doc.accentDark ?? '',
+      accentLight: doc.accentLight ?? '',
+      buttonFill: doc.buttonFill ?? '',
+      buttonInk: doc.buttonInk ?? '',
       ...(doc.favicon ? { favicon: doc.favicon } : {}),
       themeColor: doc.themeColor ?? '',
       themeColorLight: doc.themeColorLight ?? '',
@@ -934,7 +955,7 @@ export const sanityPrivacyPage = (): Loader =>
     idFrom: () => 'privacyPage',
     projection: `
       _id, eyebrow, title, lead, tint, lastUpdated, lastUpdatedLabel, body,
-      contactHeading, contactLead, seoTitle, seoDescription
+      contactHeading, contactLead, seoTitle, seoDescription, ogImage, noindex, canonicalUrl
     `,
     toData: (doc, isDraft) => ({
       eyebrow: doc.eyebrow,
@@ -948,6 +969,9 @@ export const sanityPrivacyPage = (): Loader =>
       contactLead: doc.contactLead,
       ...(doc.seoTitle ? { seoTitle: doc.seoTitle } : {}),
       ...(doc.seoDescription ? { seoDescription: doc.seoDescription } : {}),
+      ...(doc.ogImage ? { ogImage: doc.ogImage } : {}),
+      noindex: doc.noindex ?? false,
+      ...(doc.canonicalUrl ? { canonicalUrl: doc.canonicalUrl } : {}),
       draft: isDraft,
     }),
   });

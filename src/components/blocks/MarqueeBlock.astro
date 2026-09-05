@@ -10,7 +10,12 @@ import Marquee from '../Marquee.astro';
 import { getSiteCopy } from '../../lib/studio';
 
 interface Props {
-  block: { source?: 'marquee' | 'custom'; items?: string[] };
+  block: {
+    source?: 'marquee' | 'custom';
+    items?: string[];
+    speed?: number;
+    reverse?: boolean;
+  };
 }
 const { block } = Astro.props;
 
@@ -18,4 +23,7 @@ const items =
   block.source === 'custom' ? (block.items ?? []) : (await getSiteCopy()).marqueeItems;
 ---
 
-{items.length > 0 && <Marquee items={items} />}
+{/* Speed and direction fall through to the component's own defaults when the
+    block leaves them unset, so an existing marquee keeps behaving exactly as
+    it did before these two fields existed. */}
+{items.length > 0 && <Marquee items={items} speed={block.speed} reverse={block.reverse} />}

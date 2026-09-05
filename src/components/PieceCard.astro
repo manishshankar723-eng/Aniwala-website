@@ -24,7 +24,7 @@ interface Props {
 const ui = await getUiCopy();
 
 const { piece, showCategory = true } = Astro.props;
-const { title, blurb, kind, client, year, tools, tint, caseStudy } = piece;
+const { title, blurb, kind, client, year, tools, tint, caseStudy, image, imageAlt } = piece;
 
 const category = await categoryBySlug(piece.category);
 const href = caseStudy ? `/case-studies/${caseStudy}/` : undefined;
@@ -43,8 +43,26 @@ const Tag = href ? 'a' : 'div';
   data-reveal
 >
   <Tag class="piece-inner" href={href}>
-    {/* Placeholder art. Swap for <Image /> via astro:assets once stills exist. */}
+    {/*
+      The piece itself, over its tint.
+
+      A portfolio tile is the one card on this site whose whole job is the
+      picture, so this is the most consequential of the three. Decorative in
+      the markup for the usual reason — the tile's own title is right below it
+      — except on a tile that is NOT a link, where there is no heading in an
+      anchor to read instead and the alt text is all a screen reader has.
+    */}
     <span class="piece-art" aria-hidden="true"></span>
+    {image && (
+      <img
+        class="piece-img"
+        src={image}
+        alt={href ? '' : imageAlt}
+        aria-hidden={href ? 'true' : undefined}
+        loading="lazy"
+        decoding="async"
+      />
+    )}
     <span class="piece-scrim" aria-hidden="true"></span>
 
     <span class="piece-top">
@@ -133,6 +151,17 @@ const Tag = href ? 'a' : 'div';
       linear-gradient(160deg, hsl(var(--tint) / 0.55), #0b0c10 75%);
     transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
   }
+  .piece-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .piece--linked:hover .piece-img {
+    transform: scale(1.05);
+  }
   .piece--linked:hover .piece-art {
     transform: scale(1.06);
   }
@@ -171,8 +200,8 @@ const Tag = href ? 'a' : 'div';
     backdrop-filter: blur(6px);
   }
   .piece-kind--own {
-    border-color: color-mix(in srgb, #e4c24c 55%, transparent);
-    color: #e4c24c;
+    border-color: color-mix(in srgb, var(--color-accent-on-dark) 55%, transparent);
+    color: var(--color-accent-on-dark);
   }
 
   /* --- Body ------------------------------------------------------------- */
@@ -210,7 +239,7 @@ const Tag = href ? 'a' : 'div';
     }
   }
   .piece--linked:hover .piece-title {
-    color: #e4c24c;
+    color: var(--color-accent-on-dark);
   }
 
   .piece-blurb {
@@ -233,7 +262,7 @@ const Tag = href ? 'a' : 'div';
     font-family: var(--font-label);
     font-size: 0.72rem;
     letter-spacing: 0.015em;
-    color: #e4c24c;
+    color: var(--color-accent-on-dark);
   }
   .piece-more span {
     display: inline-block;

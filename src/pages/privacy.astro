@@ -4,6 +4,7 @@ import PageHero from '../components/PageHero.astro';
 import Footer from '../components/Footer.astro';
 import { getContactDetails, getPrivacyPage, getUiCopy } from '../lib/studio';
 import { renderBody } from '../lib/sanity/portableText';
+import { shareCard } from '../lib/sanity/client';
 import { fillRendered, fillHtml } from '../lib/copy';
 
 /**
@@ -59,6 +60,9 @@ const contactLead = fillHtml(policy.contactLead, { legalName }, links);
 <Base
   title={policy.seoTitle ?? `${policy.title} — ${ui.siteName}`}
   description={policy.seoDescription ?? policy.lead}
+  canonical={policy.canonicalUrl ?? '/privacy/'}
+  ogImage={shareCard(policy.ogImage)}
+  noindex={policy.noindex}
 >
   <main id="main">
     <PageHero

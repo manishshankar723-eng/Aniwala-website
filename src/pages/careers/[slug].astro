@@ -6,6 +6,7 @@ import Footer from '../../components/Footer.astro';
 import { employmentTypeSchema } from '../../config/careers';
 import { getFlatRoles, type Role } from '../../lib/roles';
 import { getContactDetails, getCareersContent, getUiCopy } from '../../lib/studio';
+import { shareCard } from '../../lib/sanity/client';
 import { fill, plural } from '../../lib/copy';
 
 /**
@@ -38,6 +39,10 @@ interface Props {
 }
 
 const { role, others } = Astro.props;
+
+/* `role.noindex` also drops the listing out of Google's jobs results, which
+   is where most applicants come from. The Studio field says so; nothing here
+   can stop somebody meaning it. */
 
 const { careersEmail, addressLines } = await getContactDetails();
 
@@ -107,6 +112,9 @@ const jobSchema = {
     role.seoDescription ??
     `${role.summary} ${role.kind}, ${role.location}. ${role.experience}.`
   }
+  canonical={role.canonicalUrl ?? `/careers/${role.slug}/`}
+  ogImage={shareCard(role.ogImage)}
+  noindex={role.noindex}
 >
   <main id="main">
     <PageHero

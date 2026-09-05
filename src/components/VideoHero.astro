@@ -7,13 +7,64 @@ interface Props {
   eyebrow?: string;
   headline: string;
   sub?: string;
-  /** Path under /public, e.g. "/video/showreel-loop.mp4". Omit for poster only. */
+  /**
+   * The background loop. A full https:// URL to a video host, or a path under
+   * `public/`. Omit for poster only, which is what this renders when nobody
+   * has set one — see the note on `videoUrl` in the Studio for why it is a
+   * link rather than an upload.
+   */
   src?: string;
   /** Still frame shown before the video paints, and the fallback if it can't play. */
   poster?: string;
 }
 
 const { eyebrow, headline, sub, src, poster } = Astro.props;
+
+/**
+ * The MIME type, from the extension.
+ *
+ * `<source>` was hardcoded to `video/mp4`. That is a promise to the browser
+ * about what it is being handed, and Safari in particular refuses a source
+ * whose declared type does not match — so a WebM pasted into the URL field
+ * would silently show the poster and nothing else, with no error anywhere.
+ * The query string is stripped first, because a CDN link routinely carries one.
+ */
+const videoType = (() => {
+  const ext = (src ?? '').split(/[?#]/)[0].split('.').pop()?.toLowerCase();
+  if (ext === 'webm') return 'video/webm';
+  if (ext === 'ogv' || ext === 'ogg') return 'video/ogg';
+  return 'video/mp4';
+})();
+
+/**
+ * Honour "reduce motion".
+ *
+ * A full-screen video playing on its own behind the headline is the clearest
+ * case there is for that setting, and CSS cannot help: `autoplay` has already
+ * fired by the time a media query could apply. Pausing leaves the poster
+ * showing — the same picture, holding still.
+ *
+ * Inline and unbundled, because it has to run before the first frame paints
+ * and a module script is deferred until the document is parsed — long enough
+ * to show the motion somebody asked not to see.
+ *
+ * Passed through `set:html` rather than written between the script tags.
+ * Astro treats a script's children as raw text, so an expression written
+ * there is emitted with its braces and backticks intact and the browser gets
+ * a syntax error. That shipped once; it builds perfectly and breaks only in a
+ * browser, which is the worst combination.
+ */
+const REDUCED_MOTION_SCRIPT = `(() => {
+  const q = matchMedia('(prefers-reduced-motion: reduce)');
+  const v = document.currentScript.closest('.hero').querySelector('video.hero-video');
+  const apply = () => {
+    if (!v) return;
+    if (q.matches) { v.pause(); v.removeAttribute('autoplay'); }
+    else { v.play().catch(() => {}); }
+  };
+  apply();
+  q.addEventListener('change', apply);
+})();`;
 ---
 
 <section class="hero">
@@ -31,7 +82,7 @@ const { eyebrow, headline, sub, src, poster } = Astro.props;
           aria-hidden="true"
           tabindex="-1"
         >
-          <source src={src} type="video/mp4" />
+          <source src={src} type={videoType} />
         </video>
       ) : poster ? (
         <img class="hero-video" src={poster} alt="" aria-hidden="true" />
@@ -53,6 +104,8 @@ const { eyebrow, headline, sub, src, poster } = Astro.props;
     }
     <slot />
   </div>
+
+  {src && <script is:inline set:html={REDUCED_MOTION_SCRIPT} />}
 
   <a class="hero-scroll" href="#main" data-reveal data-reveal-delay="0.3">
     <span class="hero-scroll-label">{ui.heroScrollLabel}</span>
@@ -114,7 +167,7 @@ const { eyebrow, headline, sub, src, poster } = Astro.props;
     font-family: var(--font-label);
     font-size: 0.72rem;
     letter-spacing: 0.015em;
-    color: #e4c24c;
+    color: var(--color-accent-on-dark);
     margin: 0 0 1.25rem;
   }
 
@@ -172,7 +225,7 @@ const { eyebrow, headline, sub, src, poster } = Astro.props;
     content: '';
     position: absolute;
     inset: 0;
-    background: #e4c24c;
+    background: var(--color-accent-on-dark);
     animation: scroll-cue 2s ease-in-out infinite;
   }
   @keyframes scroll-cue {

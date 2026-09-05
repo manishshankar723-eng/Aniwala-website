@@ -7,7 +7,8 @@ import Loader from '../components/Loader.astro';
 import Search from '../components/Search.astro';
 import PreviewBar from '../components/PreviewBar.astro';
 import { previewMode } from '../lib/sanity/client';
-import { getUiCopy, getBrand } from '../lib/studio';
+import { getUiCopy, getBrand, getContactDetails } from '../lib/studio';
+import SiteSchema from '../components/SiteSchema.astro';
 import '../styles/global.css';
 
 interface Props {
@@ -37,10 +38,97 @@ interface Props {
   ogImage?: string;
   /** Alt text for the social card. */
   ogImageAlt?: string;
+  /**
+   * Open Graph type. `article` on anything with an author and a date — a blog
+   * post — and `website` on everything else.
+   *
+   * It was hardcoded to `website` on every page including the seven posts,
+   * which is the one place it is actually wrong: a link preview for an
+   * article is allowed to carry a byline and a date, and a "website" is not.
+   */
+  ogType?: 'website' | 'article';
+  /** ISO dates, emitted only on an article. */
+  publishedTime?: string;
+  modifiedTime?: string;
 }
 
 const ui = await getUiCopy();
 const brand = await getBrand();
+
+/**
+ * The X handle, derived from the social link rather than typed again.
+ *
+ * `twitter:site` wants `@name`, and the studio's profile URL already
+ * contains it. Deriving it means the handle cannot disagree with the link in
+ * the footer.
+ *
+ * `profileSocials`, not `publishedSocials`: the X link is still a placeholder
+ * pointing at x.com itself, and the last path segment of that is "x.com" —
+ * so the naive version of this emitted `@x.com`. No profile, no tag.
+ */
+/**
+ * Brand-colour overrides, as CSS custom properties.
+ *
+ * `--color-accent-on-dark` deliberately takes the DARK-theme accent in both
+ * themes: it paints the video hero, the transparent header over it and the
+ * portfolio tiles, all of which stay dark whatever the visitor's theme. That
+ * distinction used to be ten hardcoded hexes across five components, which is
+ * precisely why changing the brand colour did nothing to half the site.
+ */
+const brandVars: [string, string][] = [
+  ['--color-accent', brand.accentDark],
+  ['--color-accent-on-dark', brand.accentDark],
+  ['--color-cta', brand.accentDark],
+  ['--color-marquee', brand.accentDark],
+  ['--color-cta-ink', brand.buttonInk],
+  ['--color-marquee-ink', brand.buttonInk],
+];
+
+const brandVarsLight: [string, string][] = [
+  ['--color-accent', brand.accentLight],
+  /* Repeated here, not inherited. The stylesheet redefines this token inside
+     its own light-theme block, which is as specific as the override above and
+     comes later in the cascade — so without restating it, the video hero and
+     the portfolio tiles snapped back to the old gold the moment somebody
+     switched theme. */
+  ['--color-accent-on-dark', brand.accentDark],
+  ['--color-cta', brand.buttonFill],
+  ['--color-marquee', brand.buttonFill],
+];
+
+const rule = (selector: string, pairs: [string, string][]) => {
+  const set = pairs.filter(([, value]) => value).map(([name, value]) => `${name}:${value}`);
+  /* The hover shade rides along with the fill it belongs to. */
+  if (pairs.some(([name, value]) => name === '--color-cta' && value)) {
+    set.push('--color-cta-hover:color-mix(in srgb, var(--color-cta) 82%, #fff)');
+  }
+  return set.length ? `${selector}{${set.join(';')}}` : '';
+};
+
+/*
+ * `:root:root`, not `:root`.
+ *
+ * The stylesheet defines these same properties on `:root`, and Astro emits
+ * its <link> tags after this inline block — so at equal specificity the
+ * stylesheet wins on source order and the override does nothing at all. That
+ * is precisely what happened: the colour was set, the CSS was in the page,
+ * and every element stayed gold.
+ *
+ * Repeating the selector raises specificity from (0,1,0) to (0,2,0) without
+ * changing what it matches, so this wins wherever it lands in the head. The
+ * alternative — relying on being emitted after the stylesheets — depends on
+ * Astro's asset ordering, which is not ours to promise.
+ */
+const brandCss =
+  rule(':root:root', brandVars) +
+  rule(':root:root[data-theme="light"]', brandVarsLight);
+
+const { profileSocials } = await getContactDetails();
+const xHandle = profileSocials
+  .find((s) => s.icon === 'x')
+  ?.href.replace(/\/+$/, '')
+  .split('/')
+  .pop();
 
 const {
   title,
@@ -52,6 +140,9 @@ const {
   noindex = false,
   ogImage: ogImageProp,
   ogImageAlt,
+  ogType = 'website',
+  publishedTime,
+  modifiedTime,
 } = Astro.props;
 
 /**
@@ -136,11 +227,40 @@ const ogImage = ogImageProp ?? new URL('/og-default.jpg', Astro.site).href;
       media="(prefers-color-scheme: light)"
     />
 
+    {/*
+      The brand colour, when one is set.
+
+      A handful of custom properties redefined on :root, which every colour in
+      the site already resolves through — so this reaches the buttons, the
+      links, the eyebrows, the marquee and the hero without any component
+      knowing the colour is configurable.
+
+      IN THE HEAD, before the stylesheet's own :root is overridden by nothing
+      else and before first paint. Later would mean the page rendering gold
+      and then repainting.
+
+      Each line is emitted only when its field is filled in, so a blank field
+      leaves the stylesheet's value exactly where it was — rather than
+      overriding it with an empty string, which invalidates the declaration
+      and silently reverts the colour in a way that looks like a broken field.
+
+      The hover shade is DERIVED rather than asked for. It is a mechanical
+      lightening of the fill, nobody has an opinion about it, and asking would
+      be a fifth colour well for something the browser can work out.
+    */}
+    {brandCss && <style is:inline set:html={brandCss} />}
+
     <title>{title}</title>
     <meta name="description" content={description} />
     {hideFromSearch ? <meta name="robots" content="noindex, nofollow" /> : <link rel="canonical" href={canonicalURL} />}
 
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={ogType} />
+    {ogType === 'article' && publishedTime && (
+      <meta property="article:published_time" content={publishedTime} />
+    )}
+    {ogType === 'article' && modifiedTime && (
+      <meta property="article:modified_time" content={modifiedTime} />
+    )}
     <meta property="og:site_name" content={ui.siteName} />
     <meta property="og:locale" content="en_IN" />
     <meta property="og:title" content={title} />
@@ -154,6 +274,11 @@ const ogImage = ogImageProp ?? new URL('/og-default.jpg', Astro.site).href;
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content={ogImageAlt ?? ui.siteName} />
     <meta name="twitter:card" content="summary_large_image" />
+    {xHandle && <meta name="twitter:site" content={`@${xHandle}`} />}
+
+    {/* The studio itself, as a machine-readable record. On every page,
+        because that is where a consumer looks for it. */}
+    <SiteSchema />
 
     {/*
       Fonts are served from this origin — see the @font-face block at the top

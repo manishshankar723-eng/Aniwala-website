@@ -84,6 +84,12 @@ import {
 const line = (...names: string[]) =>
   Object.fromEntries(names.map((name) => [name, z.string().min(1)]));
 
+/** A six-digit hex colour, or blank to mean "leave the stylesheet alone". */
+const hexColour = z
+  .string()
+  .regex(/^(#[0-9a-fA-F]{6})?$/, 'Use a hex colour like #e4c24c, or leave it blank.')
+  .default('');
+
 /**
  * Optional search-result overrides.
  *
@@ -92,17 +98,28 @@ const line = (...names: string[]) =>
  * search specifically — a tagline that reads well under a heading and badly
  * in a result list. Blank means "derive it", which is what most pages do.
  */
-const seoOverrides = {
-  seoTitle: z.string().max(70).optional(),
-  seoDescription: z.string().max(300).optional(),
-};
-
 const sanityImage = z
   .object({
     asset: z.object({ _ref: z.string() }).passthrough(),
     alt: z.string().min(1, 'Every image needs alt text.'),
   })
   .passthrough();
+
+const seoOverrides = {
+  seoTitle: z.string().max(70).optional(),
+  seoDescription: z.string().max(300).optional(),
+  /* The card a pasted link shows. Blank means "use this page's own cover",
+     which is what nearly every page wants — see the Studio schema. No `alt`:
+     the sharing card carries the page title as its own alt text, so asking an
+     editor to retype it would only create a second copy to keep in step. */
+  ogImage: sanityImage.omit({ alt: true }).optional(),
+  /* Off everywhere by default. The one field here that can quietly cost
+     traffic, so it is never inferred — only ever set on purpose. */
+  noindex: z.boolean().default(false),
+  /* Blank means "this page is its own canonical", which is what nearly every
+     page wants. See the Studio schema for the one case that is not. */
+  canonicalUrl: z.string().optional(),
+};
 
 /**
  * The blog.
@@ -553,6 +570,7 @@ const builtPages = defineCollection({
     seoDescription: z.string().min(1).max(300),
     ogImage: sanityImage.omit({ alt: true }).optional(),
     noindex: z.boolean().default(false),
+    canonicalUrl: z.string().optional(),
     blocks: z
       .array(
         z
@@ -895,6 +913,19 @@ const brand = defineCollection({
     showWordmark: z.boolean().default(true),
     wordmark: z.string().default(''),
     wordmarkSub: z.string().default(''),
+    /* Blank means "keep the site's own gold". A malformed value is rejected
+       rather than defaulted, because a bad hex in a custom property makes the
+       whole declaration invalid and the colour silently reverts — which looks
+       exactly like the field not working.
+
+       Written out rather than generated in a loop: four is few enough that
+       the loop saves nothing, and a spread of computed keys does not survive
+       into the inferred type, so the templates would lose autocomplete on
+       every one of them. */
+    accentDark: hexColour,
+    accentLight: hexColour,
+    buttonFill: hexColour,
+    buttonInk: hexColour,
     favicon: sanityImage.omit({ alt: true }).optional(),
     /* Hex or blank. Validated in the Studio too, where the editor can see the
        message; the pattern here is what stops a malformed one reaching the

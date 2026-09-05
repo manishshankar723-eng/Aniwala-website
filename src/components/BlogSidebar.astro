@@ -550,7 +550,9 @@ const blogIndex = allPosts.map((p) => ({
     font-family: var(--font-label);
     font-size: 0.72rem;
     letter-spacing: 0.015em;
-    color: #e4c24c;
+    /* Follows the theme, unlike the hero's gold: this sits on a card that
+       turns pale in light mode, where the dark-theme gold was unreadable. */
+    color: var(--color-accent);
   }
   .rail-promo-cta span {
     display: inline-block;

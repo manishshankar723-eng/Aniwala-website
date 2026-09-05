@@ -1,0 +1,102 @@
+---
+/**
+ * The sitewide structured data — the studio itself, as a machine-readable
+ * record, on every page.
+ *
+ * WHY THIS EXISTS
+ *
+ * The site emitted plenty of structured data before this: a `BlogPosting` per
+ * article, a `JobPosting` per role, `Service` on each discipline, `FAQPage`
+ * where there are questions. What it never emitted was anything describing
+ * the STUDIO — no `Organization`, no `WebSite`, on any page including the
+ * homepage. So every one of those records named "Aniwala Studios" as a bare
+ * string and there was nothing anywhere tying that string to a real entity
+ * with an address, a logo and a set of social profiles.
+ *
+ * That is the thing a search engine uses to decide the studio is a known
+ * organisation rather than a name in some markup, and it is what WordPress
+ * sites get from Yoast without thinking about it.
+ *
+ * WHY A @graph AND TWO @ids
+ *
+ * `Organization` and `WebSite` are separate things that refer to each other —
+ * the site is published BY the studio. Emitting them as two loose blocks
+ * leaves a consumer to guess they are related; a `@graph` with stable `@id`s
+ * states it. The ids are URL fragments on the real domain, which is the
+ * convention every consumer already expects, and they are stable forever
+ * because nothing dereferences them.
+ *
+ * EVERY VALUE IS READ, NOT TYPED. The name, address and social profiles come
+ * from Contact details; the logo from Logo & icons. That is the whole point:
+ * a structured-data block with its own hardcoded copy of the address is the
+ * one that goes stale when the studio moves, and nobody ever notices because
+ * nobody reads their own JSON-LD.
+ */
+import { getContactDetails, getUiCopy, getBrand } from '../lib/studio';
+
+const { legalName, email, addressLines, country, profileSocials } = await getContactDetails();
+const ui = await getUiCopy();
+const brand = await getBrand();
+
+const site = Astro.site?.href ?? 'https://aniwala.com/';
+
+/**
+ * The logo, as an absolute URL.
+ *
+ * The uploaded icon when there is one, and the committed fallback otherwise —
+ * the same order the browser-tab icon uses, so the two can never show
+ * different marks. Google wants a square logo of at least 112px; 512 is what
+ * the icon set already produces.
+ */
+const logo = brand.icon?.png512 ?? new URL('/icon-512.png', site).href;
+
+/**
+ * The profiles that prove the studio is the studio.
+ *
+ * `sameAs` is how a search engine connects this site to a LinkedIn page or an
+ * ArtStation profile — and it is read as an identity claim, not as a link. So
+ * this uses `profileSocials` rather than the footer's list: the accounts that
+ * do not exist yet still point at each platform's own homepage, and
+ * `sameAs: ["https://x.com"]` states that the studio is X Corp.
+ *
+ * Which means this is empty today, and should be. It fills itself in as the
+ * real profile URLs are pasted into Contact details.
+ */
+const sameAs = profileSocials.map((s) => s.href);
+
+const organisation = {
+  '@type': 'Organization',
+  '@id': `${site}#organization`,
+  name: ui.siteName,
+  /* The trading name, when it differs from the display name — a search engine
+     uses it to match the site against a company record. */
+  ...(legalName && legalName !== ui.siteName ? { legalName } : {}),
+  url: site,
+  logo: { '@type': 'ImageObject', url: logo },
+  ...(email ? { email } : {}),
+  ...(sameAs.length ? { sameAs } : {}),
+  ...(addressLines.length
+    ? {
+        address: {
+          '@type': 'PostalAddress',
+          streetAddress: addressLines.join(', '),
+          addressCountry: country,
+        },
+      }
+    : {}),
+};
+
+const website = {
+  '@type': 'WebSite',
+  '@id': `${site}#website`,
+  url: site,
+  name: ui.siteName,
+  description: ui.defaultDescription,
+  publisher: { '@id': `${site}#organization` },
+  inLanguage: 'en-IN',
+};
+
+const graph = { '@context': 'https://schema.org', '@graph': [organisation, website] };
+---
+
+<script type="application/ld+json" set:html={JSON.stringify(graph)} is:inline />

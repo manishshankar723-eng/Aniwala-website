@@ -1,6 +1,7 @@
 ---
 import type { CaseStudy } from '../lib/caseStudies';
 import { getUiCopy } from '../lib/studio';
+import { imageUrl, imageSrcSet } from '../lib/sanity/client';
 
 const ui = await getUiCopy();
 
@@ -11,7 +12,7 @@ interface Props {
 }
 
 const { study, featured = false } = Astro.props;
-const { title, description, kind, client, sector, year, results, tint } = study.data;
+const { title, description, kind, client, sector, year, results, tint, cover } = study.data;
 const href = `/case-studies/${study.id}/`;
 
 /* A self-directed piece must never read as commissioned work, so the client
@@ -22,9 +23,32 @@ const attribution = isStudioProject ? sector : `${client} · ${sector}`;
 
 <article class:list={['case', featured && 'case--featured']} style={`--tint:${tint}`} data-reveal>
   <a href={href} class="case-link">
-    {/* Placeholder art. Swap for <Image /> via astro:assets once stills exist. */}
+    {/*
+      The cover, or the tint placeholder when a study has none.
+
+      `aria-hidden` and `alt=""` are both correct HERE: the image sits inside a
+      link that already carries the title, so announcing it as well would make
+      a screen reader read every card twice. Sanity requires alt text on the
+      cover anyway — it is written once and used on the page itself, where the
+      same image IS content.
+
+      The tint stays UNDER the cover rather than being replaced by it, so the
+      card holds its colour while the image loads instead of flashing an empty
+      box. Same arrangement as the blog cards.
+    */}
     <span class="case-media" aria-hidden="true">
       <span class="case-art"></span>
+      {cover && (
+        <img
+          class="case-media-img"
+          src={imageUrl(cover, 800)}
+          srcset={imageSrcSet(cover, [400, 600, 800, 1200])}
+          sizes={featured ? '(min-width: 900px) 50vw, 100vw' : '(min-width: 900px) 33vw, 100vw'}
+          alt=""
+          loading="lazy"
+          decoding="async"
+        />
+      )}
     </span>
 
     <span class="case-body">
@@ -111,6 +135,17 @@ const attribution = isStudioProject ? sector : `${client} · ${sector}`;
     transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .case:hover .case-art {
+    transform: scale(1.05);
+  }
+  .case-media-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .case:hover .case-media-img {
     transform: scale(1.05);
   }
 

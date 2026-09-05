@@ -106,10 +106,12 @@ export const heroBlock = defineType({
       title: 'Style',
       type: 'string',
       description:
-        'Video fills the screen with the showreel and is meant for the homepage — one per site, or it stops being an arrival. Standard is the compact band every inner page uses.',
+        'Full screen fills the window and is meant for the homepage — one per site, or it stops being an arrival. It shows the video below when one is set and the still on its own when it is not. Standard is the compact band every inner page uses.',
       options: {
         list: [
-          { title: 'Video — full screen', value: 'video' },
+          /* The stored value stays 'video' — renaming it would orphan every
+             page already using it. Only the label an editor reads changes. */
+          { title: 'Full screen — video or still', value: 'video' },
           { title: 'Standard — compact band', value: 'page' },
         ],
         layout: 'radio',
@@ -169,6 +171,41 @@ export const heroBlock = defineType({
       initialValue: false,
       hidden: ({ parent }) => parent?.variant === 'video',
     }),
+    /**
+     * The background video, as a URL rather than an upload.
+     *
+     * NOT a Sanity file field, and the reason is worth writing down. Sanity
+     * serves an uploaded file byte-for-byte: no transcoding, no adaptive
+     * bitrate, no second encoding for browsers that want one. A 60MB export
+     * would be a 60MB download on a phone, and it would come out of the
+     * project's metered CDN bandwidth every time somebody opened the
+     * homepage. Sanity's own guidance is to use a video host and store the
+     * link, which is exactly what this is.
+     *
+     * So: encode the loop properly, put it anywhere that serves files over
+     * https — Bunny, Cloudflare R2, Mux, or `public/` in the site repo — and
+     * paste the address. Swapping hosts later is a change to this one field.
+     */
+    defineField({
+      name: 'videoUrl',
+      title: 'Background video',
+      type: 'string',
+      description:
+        'Direct link to an .mp4 or .webm — the file itself, not a YouTube or Vimeo page. It plays muted and on a loop behind the headline, so keep it short and heavily compressed: under about 5MB, or a phone spends its data allowance on decoration. Leave blank to show only the still below.',
+      hidden: ({ parent }) => parent?.variant !== 'video',
+      validation: (Rule) =>
+        Rule.custom((v: string | undefined) => {
+          if (!v) return true;
+          if (!/^(https?:\/\/|\/)/.test(v))
+            return 'Use a full https:// address, or a path starting with / for a file in the site itself.';
+          if (/youtube\.com|youtu\.be|vimeo\.com/i.test(v))
+            return 'That is a page to watch a video on, not a video file. A background loop needs a direct .mp4 or .webm link.';
+          if (!/\.(mp4|webm|ogv|ogg)(\?|#|$)/i.test(v))
+            return 'That does not look like a video file. It should end in .mp4 or .webm.';
+          return true;
+        }),
+    }),
+
     defineField({
       name: 'posterSlot',
       title: 'Still image',
@@ -350,10 +387,46 @@ export const marqueeBlock = defineType({
       type: 'array',
       of: [{ type: 'string' }],
       options: { layout: 'tags' },
+      description: 'Short noun phrases. Ten to twenty reads best — too few and the loop is obvious.',
       hidden: ({ parent }) => parent?.source !== 'custom',
     }),
+
+    /**
+     * How the strip moves.
+     *
+     * The component always took these; the block never passed them, so every
+     * marquee on the site ran at the same speed in the same direction whether
+     * that suited the page or not. Two marquees on one page moving the same
+     * way read as one broken element.
+     */
+    defineField({
+      name: 'speed',
+      title: 'Seconds per loop',
+      type: 'number',
+      description:
+        'How long one full pass takes. HIGHER IS SLOWER. Around 45 is a calm drift; below about 20 it is fast enough to be hard to read and to pull the eye off whatever is next to it.',
+      initialValue: 45,
+      validation: (Rule) => Rule.min(10).max(200),
+    }),
+    defineField({
+      name: 'reverse',
+      title: 'Scroll the other way',
+      type: 'boolean',
+      description:
+        'Left to right instead of right to left. Worth using when two strips sit near each other — moving them oppositely reads as deliberate, where two identical ones read as a mistake.',
+      initialValue: false,
+    }),
   ],
-  preview: { prepare: () => ({ title: 'Marquee' }) },
+  preview: {
+    select: { source: 'source', items: 'items' },
+    prepare: ({ source, items }) => ({
+      title: 'Marquee',
+      subtitle:
+        source === 'custom'
+          ? `${(items ?? []).length} custom item(s)`
+          : 'The studio marquee list',
+    }),
+  },
 });
 
 export const ctaPanelBlock = defineType({

@@ -17,6 +17,7 @@ import testimonial from './testimonial';
 import client from './client';
 import milestone from './milestone';
 import engagementModel from './engagementModel';
+import redirect from './redirect';
 import faq from './faq';
 import artwork from './artwork';
 import announcement from './announcement';
@@ -56,6 +57,7 @@ export const schemaTypes = [
   siteCopy,
   uiCopy,
   brand,
+  redirect,
   privacyPage,
   navigation,
   loaderSettings,

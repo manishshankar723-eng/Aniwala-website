@@ -213,6 +213,31 @@ export interface Social {
   href: string;
 }
 
+/**
+ * Is this a link to a PROFILE, or just to the platform?
+ *
+ * The social links currently point at each platform's homepage — a deliberate
+ * placeholder from before the studio had accounts, so the footer row could be
+ * laid out. Harmless as a footer link; actively wrong anywhere that treats the
+ * URL as an identity claim.
+ *
+ * `sameAs` in structured data is exactly that: a statement that this
+ * organisation IS the thing at that URL. Publishing `sameAs: ["https://x.com"]`
+ * tells Google the studio is X Corp. The same goes for the `twitter:site`
+ * handle, which would come out as `@x.com`.
+ *
+ * A real profile always has a path — `/company/aniwala`, `/@aniwala`. A bare
+ * origin never does. That is the whole test, and it needs no list of platforms
+ * to maintain.
+ */
+export const isProfileUrl = (href: string): boolean => {
+  try {
+    return new URL(href).pathname.replace(/\/+$/, '') !== '';
+  } catch {
+    return false;
+  }
+};
+
 export interface ContactDetails {
   email: string;
   careersEmail: string;
@@ -224,6 +249,13 @@ export interface ContactDetails {
   socials: Social[];
   /** Only those with a real URL — what the live site should show. */
   publishedSocials: Social[];
+  /**
+   * Only those pointing at an actual profile.
+   *
+   * A narrower list than `publishedSocials`, for the places where the URL is
+   * read as an identity claim rather than as a link — see `isProfileUrl`.
+   */
+  profileSocials: Social[];
   /**
    * Built from the address rather than stored.
    *
@@ -243,6 +275,7 @@ const EMPTY_CONTACT: ContactDetails = {
   country: '',
   socials: [],
   publishedSocials: [],
+  profileSocials: [],
   mapsUrl: '',
 };
 
@@ -264,6 +297,10 @@ export async function getContactDetails(): Promise<ContactDetails> {
        blank one is dropped rather than rendered as a link to nowhere. Kept
        visible in dev so the row can still be laid out. */
     publishedSocials: (socials as Social[]).filter((s) => previewMode || s.href !== ''),
+    /* Never relaxed in preview, unlike the line above. A placeholder link in a
+       footer is a laid-out row; a placeholder identity claim is wrong in every
+       build it appears in. */
+    profileSocials: (socials as Social[]).filter((s) => isProfileUrl(s.href)),
     mapsUrl: addressLines.length
       ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
           [...addressLines, country].join(', ')
@@ -633,6 +670,17 @@ export interface Brand {
   showWordmark: boolean;
   wordmark: string;
   wordmarkSub: string;
+  /**
+   * The brand colours, or '' to keep the stylesheet's own.
+   *
+   * Four rather than one because the site has two themes: a gold that reads
+   * as text on near-black is too pale on cream, and one dark enough for cream
+   * is muddy as a button fill. See the Studio schema.
+   */
+  accentDark: string;
+  accentLight: string;
+  buttonFill: string;
+  buttonInk: string;
   /** Ready-to-render icon URLs at the sizes the head and manifest declare. */
   icon?: { svg?: string; png32: string; png180: string; png192: string; png512: string };
   /** Never blank — the browser-bar tags always render, so these fall back
@@ -668,6 +716,10 @@ const EMPTY_BRAND: Brand = {
   showWordmark: true,
   wordmark: '',
   wordmarkSub: '',
+  accentDark: '',
+  accentLight: '',
+  buttonFill: '',
+  buttonInk: '',
   themeColor: DARK_GROUND,
   themeColorLight: LIGHT_GROUND,
   backgroundColor: '',
@@ -694,6 +746,10 @@ export async function getBrand(): Promise<Brand> {
     showWordmark: d.showWordmark,
     wordmark: d.wordmark,
     wordmarkSub: d.wordmarkSub,
+    accentDark: d.accentDark,
+    accentLight: d.accentLight,
+    buttonFill: d.buttonFill,
+    buttonInk: d.buttonInk,
     /* Every size the head and the manifest declare, resolved once here so
        neither has to know the image lives on a CDN. An SVG upload also gets
        its own entry, because the CDN does not transform SVGs and the `type`
@@ -737,6 +793,11 @@ export interface PrivacyPage {
   contactLead: string;
   seoTitle?: string;
   seoDescription?: string;
+  /* The sharing card and the search-visibility switch, shared with every
+     other content type — see seoFields in the Studio. */
+  ogImage?: SanityImage;
+  noindex: boolean;
+  canonicalUrl?: string;
 }
 
 /**
@@ -757,6 +818,7 @@ const EMPTY_PRIVACY: PrivacyPage = {
   body: [],
   contactHeading: '',
   contactLead: '',
+  noindex: false,
 };
 
 export async function getPrivacyPage(): Promise<PrivacyPage> {

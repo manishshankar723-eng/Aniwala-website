@@ -17,6 +17,8 @@ interface Props {
   reverse?: boolean;
 }
 
+/* Defaults apply to `undefined`, which is what the block passes when its
+   optional fields are blank — so an unset field means "as it was". */
 const { items, speed = 45, reverse = false } = Astro.props;
 
 /* The duplicate is decorative repetition, so it is hidden from assistive tech —

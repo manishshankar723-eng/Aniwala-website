@@ -20,6 +20,7 @@
  */
 import { defineType, defineField } from 'sanity';
 import { blockArrayMembers } from './blocks';
+import { SeoPanel } from '../components/SeoPanel';
 
 /**
  * Prefixes owned by a real template.
@@ -102,6 +103,46 @@ export default defineType({
     /* ---------------------------------------------------------------- */
     /* Search and sharing                                                */
     /* ---------------------------------------------------------------- */
+    /**
+     * The focus keyphrase.
+     *
+     * STORED, NEVER PUBLISHED. `<meta name="keywords">` has been ignored by
+     * Google since 2009, and this does not become one — it exists so the panel
+     * below has something to check the page against. Yoast's focus keyphrase
+     * works exactly the same way, which surprises almost everybody.
+     *
+     * One phrase, not a list. The checks ask whether the page is ABOUT this
+     * thing — is it in the title, the first paragraph, a heading — and a comma-
+     * separated list of six makes every one of those questions meaningless.
+     */
+    defineField({
+      name: 'focusKeyphrase',
+      title: 'Focus keyphrase',
+      type: 'string',
+      group: 'seo',
+      description:
+        'What somebody would type into Google to find this page — "3d character art outsourcing", not "art". Never published: it only drives the checks below.',
+      validation: (Rule) =>
+        Rule.max(60).warning('That reads more like a sentence than something anybody searches for.'),
+    }),
+
+    /**
+     * The preview and the checks.
+     *
+     * A synthetic field: it stores nothing, and its input component reads the
+     * whole document instead. `readOnly` keeps the form machinery from
+     * expecting a value, and the empty title stops the Studio drawing a label
+     * above a panel that is clearly its own thing.
+     */
+    defineField({
+      name: 'seoPreview',
+      title: 'Preview and checks',
+      type: 'string',
+      group: 'seo',
+      readOnly: true,
+      components: { input: SeoPanel },
+    }),
+
     defineField({
       name: 'seoTitle',
       title: 'Search-result title',
@@ -133,6 +174,20 @@ export default defineType({
       options: { hotspot: true },
       description:
         'Shown when the page is pasted into WhatsApp, Slack or LinkedIn. Cropped to 1200x630 — set the hotspot so the crop keeps what matters.',
+    }),
+    defineField({
+      name: 'canonicalUrl',
+      title: 'Canonical URL',
+      type: 'string',
+      group: 'seo',
+      description:
+        'Leave blank unless this page duplicates another on purpose. Then put the URL of the one that should rank — a full https:// address, or a path on this site.',
+      validation: (Rule) =>
+        Rule.custom((v: string | undefined) =>
+          !v || /^(\/|https?:\/\/)/.test(v)
+            ? true
+            : 'Use a path starting with / or a full http(s) URL.'
+        ),
     }),
     defineField({
       name: 'noindex',

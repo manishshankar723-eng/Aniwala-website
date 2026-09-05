@@ -17,8 +17,10 @@
  */
 import { defineConfig } from 'sanity';
 import { structureTool } from 'sanity/structure';
+import { presentationTool } from 'sanity/presentation';
 import { visionTool } from '@sanity/vision';
 import { schemaTypes } from './schemas';
+import { locations } from './resolve';
 
 
 /* Not secret — the project id appears in every cdn.sanity.io image URL the
@@ -33,6 +35,26 @@ import { schemaTypes } from './schemas';
    project without editing this file. */
 const projectId = process.env.SANITY_STUDIO_PROJECT_ID ?? '20wlzfea';
 const dataset = process.env.SANITY_STUDIO_DATASET ?? 'production';
+
+/**
+ * Where the Presentation tool points its preview pane.
+ *
+ * OPTIONAL, and the tool is only registered when it is set. That is
+ * deliberate: an unset URL would give an editor a "Preview" tab containing a
+ * broken iframe, which is worse than no tab — they would reasonably conclude
+ * the site was down rather than that a build step was missing.
+ *
+ * WHAT TO POINT IT AT. A build of the site made with `npm run build:preview`,
+ * hosted somewhere. That build asks Sanity for the `raw` perspective, so it
+ * shows UNPUBLISHED work, and it renders the preview bar on every page so
+ * nobody mistakes it for the live site. Pointing this at aniwala.com instead
+ * would technically work and would show only published content, which is the
+ * one thing a preview is not for.
+ *
+ * It cannot be the local dev server for anybody but a developer — that is the
+ * whole reason this exists. See README.
+ */
+const previewUrl = process.env.SANITY_STUDIO_PREVIEW_URL;
 
 export default defineConfig({
   name: 'aniwala',
@@ -189,13 +211,90 @@ export default defineConfig({
                     { field: 'order', direction: 'asc' },
                   ])
               ),
+            /*
+             * Images, in one place.
+             *
+             * Most pictures on this site are NOT their own document — a blog
+             * post's cover belongs to the post, a piece's still belongs to the
+             * piece. That is right: an image without the thing it illustrates
+             * is an orphan, and a separate "media" document type would mean
+             * every cover needing two documents and a reference between them.
+             *
+             * But it left no way to answer "what does the site look like right
+             * now", or "which case studies still have no picture" — you had to
+             * open thirty documents to find out. So this is a VIEW rather than
+             * a place: each row below is the same list you would reach from the
+             * sidebar, showing the image as its thumbnail. A row with no
+             * thumbnail is a gap, which is the question people actually have.
+             *
+             * Clicking through opens the document itself, so the image is
+             * edited where it belongs, next to the words it sits with.
+             *
+             * Worth knowing separately: Sanity has a browser for every asset
+             * ever uploaded, whether or not anything still uses it. It is
+             * behind the "Select" button on any image field.
+             */
             S.listItem()
               .title('Images')
-              .schemaType('artwork')
+              .id('images')
               .child(
-                S.documentTypeList('artwork')
+                S.list()
                   .title('Images')
-                  .defaultOrdering([{ field: 'slot', direction: 'asc' }])
+                  .items([
+                    /* The only images that ARE their own documents: site
+                       furniture, filed against a slot a page asks for by name. */
+                    S.listItem()
+                      .title('Site artwork')
+                      .id('images-artwork')
+                      .child(
+                        S.documentTypeList('artwork')
+                          .title('Site artwork')
+                          .defaultOrdering([{ field: 'slot', direction: 'asc' }])
+                      ),
+
+                    S.divider(),
+
+                    S.listItem()
+                      .title('Blog covers')
+                      .id('images-posts')
+                      .child(
+                        S.documentTypeList('post')
+                          .title('Blog covers')
+                          .defaultOrdering([{ field: 'pubDate', direction: 'desc' }])
+                      ),
+                    S.listItem()
+                      .title('Case study covers')
+                      .id('images-case-studies')
+                      .child(
+                        S.documentTypeList('caseStudy')
+                          .title('Case study covers')
+                          .defaultOrdering([{ field: 'year', direction: 'desc' }])
+                      ),
+                    S.listItem()
+                      .title('Portfolio pieces')
+                      .id('images-pieces')
+                      .child(
+                        S.documentTypeList('piece')
+                          .title('Portfolio pieces')
+                          .defaultOrdering([{ field: 'order', direction: 'asc' }])
+                      ),
+                    S.listItem()
+                      .title('Team photos')
+                      .id('images-team')
+                      .child(
+                        S.documentTypeList('teamMember')
+                          .title('Team photos')
+                          .defaultOrdering([{ field: 'order', direction: 'asc' }])
+                      ),
+                    S.listItem()
+                      .title('Client logos')
+                      .id('images-clients')
+                      .child(
+                        S.documentTypeList('client')
+                          .title('Client logos')
+                          .defaultOrdering([{ field: 'order', direction: 'asc' }])
+                      ),
+                  ])
               ),
 
             S.divider(),
@@ -257,6 +356,22 @@ export default defineConfig({
               .child(
                 S.document().schemaType('navigation').documentId('navigation').title('Menus')
               ),
+            /*
+             * Redirects.
+             *
+             * A list, not a singleton, and filed with the settings rather than
+             * the content: it is opened when a URL changes and not otherwise.
+             * The build refuses to ship a rule that would hide a real page —
+             * see src/integrations/redirects.mjs.
+             */
+            S.listItem()
+              .title('Redirects')
+              .schemaType('redirect')
+              .child(
+                S.documentTypeList('redirect')
+                  .title('Redirects')
+                  .defaultOrdering([{ field: 'from', direction: 'asc' }])
+              ),
             /* The header logo and the browser icon. Next to the other
                settings rather than up with the content: it is opened when the
                brand changes and not otherwise. */
@@ -297,6 +412,24 @@ export default defineConfig({
               ),
           ]),
     }),
+
+    /**
+     * The preview pane.
+     *
+     * Registered only when a preview URL is configured — see `previewUrl`.
+     * `resolve.locations` is what makes it useful rather than decorative: it
+     * tells the tool which page a document appears on, so opening a blog post
+     * lands on that post instead of the home page and asking the editor to
+     * navigate to their own work.
+     *
+     * There is no `previewMode` block. That enables Sanity's draft-mode
+     * handshake, which needs a server route to set a cookie — and this site is
+     * static output on Apache, with no server to route to. Drafts are visible
+     * because the preview BUILD asks for them, not because the browser did.
+     */
+    ...(previewUrl
+      ? [presentationTool({ previewUrl, resolve: { locations } })]
+      : []),
 
     /* GROQ playground. Useful when the loaders in the website repo need
        debugging; harmless for an editor who never opens it. */

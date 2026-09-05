@@ -123,16 +123,27 @@ const MARK =
     z-index: 200;
     place-items: center;
     background: var(--color-ground);
-    /* Composited transform on exit, so lifting the curtain cannot jank the
-       first frame of the page underneath. */
-    transform: translateY(0);
-    transition:
-      transform 0.75s cubic-bezier(0.76, 0, 0.24, 1),
-      opacity 0.4s ease 0.35s;
+    /* Opacity only, which the compositor handles on its own thread — so the
+       curtain clearing cannot jank the first frame of the page underneath. */
+    transition: opacity 0.45s ease;
   }
 
+  /*
+    Arrival used to LIFT: the curtain slid up and off the top of the screen.
+    It now fades where it stands, the same as it does between pages.
+
+    The argument for lifting was that a panel pulling away reads as the site
+    opening. The argument against it won: the mark finishes, then travels
+    upward, and the eye follows it off the screen instead of landing on the
+    page that just arrived — which is the exact objection the note below
+    already made about doing it during navigation. It was no more true on the
+    first load; it was simply the first thing anybody saw, so it read as
+    intentional.
+
+    One behaviour, one place, and a reader who is looking at the page rather
+    than at the ceiling.
+  */
   :global(html[data-loader='done']) .ld {
-    transform: translateY(-100%);
     opacity: 0;
     pointer-events: none;
   }
@@ -145,20 +156,13 @@ const MARK =
     this component's own notes warn about. Same curtain, same mark, roughly a
     third of the running time.
 
-    And it FADES where it stands rather than sliding up.
-
-    Lifting it is right on a first load, where the panel pulling away reads as
-    the site opening. Between pages it reads as the wrong thing entirely: the
-    mark finishes, then travels off the top, and the eye follows it upward
-    instead of landing on the page that just arrived. The point of the curtain
-    here is to hand over to the new page, so it gets out of the way in place
-    and leaves the reader looking at the content.
+    Both states fade now; this one just fades FASTER, because there is less to
+    hand over between two pages of a site somebody is already reading.
   */
   :global(html[data-loader='nav']) .ld {
     transition: opacity 0.28s ease;
   }
   :global(html[data-loader='nav'][data-loader-exit]) .ld {
-    transform: none;
     opacity: 0;
   }
   :global(html[data-loader='nav']) .ld-reveal {

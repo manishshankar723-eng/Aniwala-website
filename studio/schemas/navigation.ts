@@ -153,8 +153,8 @@ export default defineType({
               title: 'Path',
               type: 'string',
               validation: (R) =>
-                R.required().custom((v: string) =>
-                  /^\//.test(v) ? true : 'Use a path starting with /.'
+                R.required().custom((v: string | undefined) =>
+                  v === undefined || /^\//.test(v) ? true : 'Use a path starting with /.'
                 ),
             }),
             defineField({

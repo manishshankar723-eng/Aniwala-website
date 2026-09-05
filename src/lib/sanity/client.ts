@@ -151,6 +151,22 @@ export function imageSrcSet(source: SanityImage, widths = [480, 768, 1200, 1800]
 }
 
 /**
+ * The first of these that is actually an image, as a social card.
+ *
+ * Every page asks the same question in the same order — "is there a sharing
+ * image set on this document, and if not is there a cover?" — and answering
+ * it inline at seven call sites is how one of them ends up checking only one
+ * of the two. `undefined` when none of them is set, which is what `Base`
+ * expects: it falls back to the studio's default card.
+ */
+export function shareCard(...sources: (SanityImage | undefined)[]): string | undefined {
+  for (const source of sources) {
+    if (source?.asset) return ogImageUrl(source);
+  }
+  return undefined;
+}
+
+/**
  * A square icon, forced to PNG.
  *
  * NOT `imageUrl`, and the difference matters. That one calls `.auto('format')`

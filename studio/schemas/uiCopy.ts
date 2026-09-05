@@ -170,8 +170,8 @@ export default defineType({
               title: 'Path',
               type: 'string',
               validation: (Rule) =>
-                Rule.required().custom((v: string) =>
-                  /^(\/|https?:\/\/)/.test(v) ? true : 'Use a path starting with / or a full URL.'
+                Rule.required().custom((v: string | undefined) =>
+                  v === undefined || /^(\/|https?:\/\/)/.test(v) ? true : 'Use a path starting with / or a full URL.'
                 ),
             }),
           ],
@@ -1075,8 +1075,8 @@ export default defineType({
       type: 'string',
       group: 'listing',
       validation: (Rule) =>
-        Rule.required().custom((v: string) =>
-          /^(\/|https?:\/\/)/.test(v) ? true : 'Use a path starting with / or a full URL.'
+        Rule.required().custom((v: string | undefined) =>
+          v === undefined || /^(\/|https?:\/\/)/.test(v) ? true : 'Use a path starting with / or a full URL.'
         ),
     }),
 
@@ -1511,8 +1511,8 @@ export default defineType({
               title: 'Path',
               type: 'string',
               validation: (Rule) =>
-                Rule.required().custom((v: string) =>
-                  /^(\/|https?:\/\/)/.test(v) ? true : 'Use a path starting with / or a full URL.'
+                Rule.required().custom((v: string | undefined) =>
+                  v === undefined || /^(\/|https?:\/\/)/.test(v) ? true : 'Use a path starting with / or a full URL.'
                 ),
             }),
             defineField({ name: 'blurb', title: 'Blurb', type: 'string', validation: req }),

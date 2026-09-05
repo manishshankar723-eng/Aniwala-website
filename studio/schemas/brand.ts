@@ -30,6 +30,28 @@
  * for without being told to.
  */
 import { defineType, defineField } from 'sanity';
+import { contrastWarning } from '../components/contrast';
+
+/** A hex field, with the same shape and message every time. */
+const hex = (
+  name: string,
+  title: string,
+  description: string,
+  validate?: (value: string | undefined, doc: Record<string, unknown>) => true | string
+) =>
+  defineField({
+    name,
+    title,
+    type: 'string',
+    group: 'colour',
+    description,
+    validation: (Rule) =>
+      Rule.custom((v: string | undefined, ctx) => {
+        if (!v) return true;
+        if (!/^#[0-9a-fA-F]{6}$/.test(v)) return 'Use a six-digit hex colour, like #e4c24c.';
+        return validate ? validate(v, (ctx.document ?? {}) as Record<string, unknown>) : true;
+      }),
+  });
 
 /**
  * Neither logo needs alt text.
@@ -56,6 +78,7 @@ export default defineType({
 
   groups: [
     { name: 'logo', title: 'Header logo', default: true },
+    { name: 'colour', title: 'Brand colour' },
     { name: 'icon', title: 'Browser icon' },
   ],
 
@@ -94,6 +117,47 @@ export default defineType({
       group: 'logo',
       description: 'The smaller line under it.',
     }),
+
+    /* ================================================================= */
+    /* Brand colour                                                      */
+    /*                                                                   */
+    /* FOUR fields rather than one, and the reason is contrast.          */
+    /*                                                                   */
+    /* The site has two themes. A gold that reads well as text on the    */
+    /* near-black dark theme is too pale to read on the cream light one, */
+    /* and a gold dark enough for cream looks muddy as a button fill.    */
+    /* One colour cannot do all of it, which is why the palette already  */
+    /* used different values per theme before any of this was editable.  */
+    /*                                                                   */
+    /* Leave them all blank and the site keeps its own gold. Every       */
+    /* shade the CSS needs beyond these — the button hover, mixes and    */
+    /* transparencies — is derived from them.                            */
+    /* ================================================================= */
+
+    hex(
+      'accentDark',
+      'Accent — dark theme',
+      'Links, eyebrows, active states and the button fill while the site is dark. This is THE brand colour; the three below adjust it for the places it cannot be used as-is. Also used on the video hero and the portfolio tiles, which stay dark in both themes.'
+    ),
+    hex(
+      'accentLight',
+      'Accent — light theme',
+      'The same colour, dark enough to READ as text on the cream light theme. Usually a deeper version of the one above — the bright original is unreadable on pale backgrounds.',
+      (v, doc) =>
+        contrastWarning(v, (doc.groundLight as string) || '#faf9f5', 4.5, 'Accent text on the light background')
+    ),
+    hex(
+      'buttonFill',
+      'Button fill — light theme',
+      'Buttons in the light theme, where the accent above is too dark to work as a filled block. Can be brighter than the accent, because the text on it is dark rather than pale.',
+      (v, doc) => contrastWarning((doc.buttonInk as string) || '#14161d', v, 4.5, 'Button text on the fill')
+    ),
+    hex(
+      'buttonInk',
+      'Button text',
+      'The text and icon colour inside a filled button, in both themes. Nearly always a very dark or very light neutral — this is the one that decides whether a button can be read at all.',
+      (v, doc) => contrastWarning(v, (doc.accentDark as string) || '#e4c24c', 4.5, 'Button text on the dark-theme fill')
+    ),
 
     /* ---------------------------------------------------------------- */
 

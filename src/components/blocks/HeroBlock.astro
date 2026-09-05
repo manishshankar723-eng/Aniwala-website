@@ -28,6 +28,7 @@ interface Props {
     crumbLabel?: string;
     tint?: string;
     compact?: boolean;
+    videoUrl?: string;
     posterSlot?: string;
   };
 }
@@ -52,7 +53,13 @@ const hasCta = Boolean(block.ctaLabel && block.ctaHref);
 
 {
   isVideo ? (
-    <VideoHero poster={poster?.src} eyebrow={block.eyebrow} headline={block.headline} sub={block.sub}>
+    <VideoHero
+      src={isVideo ? block.videoUrl : undefined}
+      poster={poster?.src}
+      eyebrow={block.eyebrow}
+      headline={block.headline}
+      sub={block.sub}
+    >
       {hasCta && (
         <a href={block.ctaHref} class="hero-cta" data-reveal data-reveal-delay="0.24">
           {block.ctaLabel}
@@ -107,8 +114,8 @@ const hasCta = Boolean(block.ctaLabel && block.ctaHref);
     transition: transform 0.25s ease;
   }
   .hero-cta:hover {
-    background: #e4c24c;
-    border-color: #e4c24c;
+    background: var(--color-accent-on-dark);
+    border-color: var(--color-accent-on-dark);
     color: #14161d;
   }
   .hero-cta:hover svg {

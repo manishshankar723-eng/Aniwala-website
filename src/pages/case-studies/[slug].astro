@@ -12,6 +12,7 @@ import {
   type CaseStudy,
 } from '../../lib/caseStudies';
 import { getUiCopy } from '../../lib/studio';
+import { shareCard } from '../../lib/sanity/client';
 
 export async function getStaticPaths() {
   const studies = await getCaseStudies();
@@ -22,8 +23,12 @@ interface Props {
   study: CaseStudy;
 }
 const { study } = Astro.props;
-const { title, description, kind, client, sector, year, deliverables, tools, results, tint, seoTitle, seoDescription } =
+const { title, description, kind, client, sector, year, deliverables, tools, results, tint, cover, seoTitle, seoDescription, noindex } =
   study.data;
+
+/* This page used to pass no sharing image at all, so a case study with a
+   cover still pasted into WhatsApp as the generic studio card. */
+const seoImage = study.data.ogImage;
 
 const { Content } = await render(study);
 const related = await getRelatedCaseStudies(study);
@@ -59,7 +64,10 @@ const caseSchema = {
 <Base
   title={seoTitle ?? `${title} — ${ui.caseEyebrow} — ${ui.siteName}`}
   description={seoDescription ?? description}
-  canonical={`/case-studies/${study.id}/`}
+  canonical={study.data.canonicalUrl ?? `/case-studies/${study.id}/`}
+  ogImage={shareCard(seoImage, cover)}
+  ogImageAlt={seoImage ? undefined : cover?.alt}
+  noindex={noindex}
 >
   <main id="main">
     <PageHero

@@ -950,8 +950,10 @@ export default defineType({
       type: 'string',
       group: 'closing',
       validation: (Rule) =>
-        Rule.required().custom((v: string) =>
-          /^(\/|https?:\/\/|mailto:)/.test(v)
+        /* `required()` reports an empty field; this one only judges a value
+           that is actually there. */
+        Rule.required().custom((v: string | undefined) =>
+          !v || /^(\/|https?:\/\/|mailto:)/.test(v)
             ? true
             : 'Use a path starting with / , a full URL, or a mailto: address.'
         ),
@@ -969,8 +971,10 @@ export default defineType({
       type: 'string',
       group: 'closing',
       validation: (Rule) =>
-        Rule.required().custom((v: string) =>
-          /^(\/|https?:\/\/|mailto:)/.test(v)
+        /* `required()` reports an empty field; this one only judges a value
+           that is actually there. */
+        Rule.required().custom((v: string | undefined) =>
+          !v || /^(\/|https?:\/\/|mailto:)/.test(v)
             ? true
             : 'Use a path starting with / , a full URL, or a mailto: address.'
         ),

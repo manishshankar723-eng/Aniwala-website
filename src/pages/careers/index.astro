@@ -9,6 +9,7 @@ import { employmentTypeSchema } from '../../config/careers';
 import { getFlatRoles } from '../../lib/roles';
 import { getFaqs, getContactDetails, getCareersContent, getUiCopy } from '../../lib/studio';
 import { fill, plural } from '../../lib/copy';
+import { shareCard } from '../../lib/sanity/client';
 
 /**
  * Careers.
@@ -94,6 +95,9 @@ const jobSchema = roles.map((r) => ({
 <Base
   title={copy.seoTitle ?? `${ui.crumbCareers} — ${ui.siteName}`}
   description={copy.seoDescription ?? copy.heroLead}
+  canonical={copy.canonicalUrl ?? '/careers/'}
+  ogImage={shareCard(copy.ogImage)}
+  noindex={copy.noindex}
 >
   <main id="main">
     <PageHero

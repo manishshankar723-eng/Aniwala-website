@@ -123,6 +123,30 @@ html {
   -webkit-tap-highlight-color: transparent;
   tab-size: 4;
   line-height: 1.5;
+
+  /*
+    Reserve the scrollbar's space, always.
+
+    Three things on this site hide the page's overflow: the loading curtain,
+    the mobile drawer and the search overlay. On a desktop with a classic
+    scrollbar, hiding overflow removes that scrollbar — the viewport gets
+    about fifteen pixels wider, and EVERY centred element on the page jumps
+    sideways. Then it jumps back when the overlay closes.
+
+    It was most obvious on first load: the curtain cleared and the whole
+    homepage shifted left as the scrollbar returned.
+
+    `scrollbar-gutter: stable` keeps the gutter reserved whether or not a
+    scrollbar is in it, so hiding overflow changes nothing about the width and
+    nothing moves. It is a one-line fix for a class of bug that is otherwise
+    chased with JavaScript measuring scrollbar widths and setting padding.
+
+    Browsers without it — Safari before 18.2 — behave exactly as they did
+    before, which is to say no worse. Overlay scrollbars (every phone, and
+    macOS by default) take up no space at all, so there was never a shift
+    there to fix.
+  */
+  scrollbar-gutter: stable;
 }
 
 /* Headings are sized by the component that owns them, never by the
@@ -302,6 +326,23 @@ summary {
 
   /* Gold: the brand accent, used for links, eyebrows and active states. */
   --color-accent: #e4c24c;
+
+  /*
+    The accent on a surface that is dark in BOTH themes.
+
+    The video hero, the header while it sits transparent over that hero, and
+    the portfolio tiles all put type on their own dark scrim regardless of the
+    visitor's theme. `--color-accent` is wrong there: in light mode it becomes
+    a deep gold chosen for contrast against cream, which on a black scrim is
+    almost unreadable.
+
+    This was ten raw `#e4c24c` literals scattered across five components — in
+    direct violation of the rule six lines above this one. They worked, which
+    is why nobody noticed, right up until somebody wanted to change the brand
+    colour and found that half the site ignored them.
+  */
+  --color-accent-on-dark: #e4c24c;
+
   /* Button fill. Text on it is always --color-cta-ink. */
   --color-cta: #e4c24c;
   --color-cta-ink: #14161d;
@@ -364,6 +405,9 @@ html[data-announce='off'] {
   /* Bright gold fails contrast as text on white, so light mode uses a
      deeper bronze for type while the button keeps a rich gold fill. */
   --color-accent: #8a6a10;
+  /* Unchanged from the dark theme on purpose — see the note on the token.
+     The surfaces this paints are dark in both themes. */
+  --color-accent-on-dark: #e4c24c;
   --color-cta: #d4ac2b;
   --color-cta-ink: #14161d;
   --color-cta-hover: #c09a1f;
