@@ -20,7 +20,7 @@
  * invented placeholders.
  */
 import { getCollection, getEntry } from 'astro:content';
-import { imageUrl, previewMode, type SanityImage } from './sanity/client';
+import { imageUrl, iconUrl, isSvgAsset, previewMode, type SanityImage } from './sanity/client';
 import type { SocialIcon } from '../config/contact';
 import {
   UI_COPY_FIELDS,
@@ -114,6 +114,30 @@ export async function getClients(): Promise<Client[]> {
   return entries.sort(byOrder).map((e) => ({
     name: e.data.name,
     logo: e.data.logo ? imageUrl(e.data.logo as SanityImage, 320) : undefined,
+  }));
+}
+
+/**
+ * How a client can hire the studio.
+ *
+ * Sorted like the other ordered lists here. Unlike them it is NOT allowed to
+ * be empty in practice: the block that draws it renders a heading above it,
+ * so nothing published means a heading over blank space. Nothing enforces
+ * that — an empty list is a decision somebody has to make on purpose, and the
+ * block's own description in the Studio says where the models live.
+ */
+export interface EngagementModel {
+  title: string;
+  body: string;
+  bestFor: string;
+}
+
+export async function getEngagementModels(): Promise<EngagementModel[]> {
+  const entries = await getCollection('engagementModels', live);
+  return entries.sort(byOrder).map((e) => ({
+    title: e.data.title,
+    body: e.data.body,
+    bestFor: e.data.bestFor,
   }));
 }
 
@@ -289,6 +313,14 @@ export interface NavItem {
   children: NavChild[];
 }
 
+/** One hand-listed page in the search index — see `searchPages` below. */
+export interface SearchPage {
+  title: string;
+  href: string;
+  section: string;
+  keywords: string;
+}
+
 export interface Navigation {
   /** Everything, in order. The footer and search index use all of it. */
   items: NavItem[];
@@ -296,6 +328,14 @@ export interface Navigation {
   headerItems: NavItem[];
   ctaLabel: string;
   ctaHref: string;
+  /**
+   * Pages whose text lives in a template rather than in a document, and which
+   * search therefore cannot find on its own. Everything with a document
+   * behind it is folded into the index from that document — see
+   * `lib/searchDocs.ts` — so this is only the handful that has nothing to be
+   * read off.
+   */
+  searchPages: SearchPage[];
 }
 
 /**
@@ -314,6 +354,7 @@ const EMPTY_NAV: Navigation = {
   headerItems: [],
   ctaLabel: '',
   ctaHref: '/',
+  searchPages: [],
 };
 
 export async function getNavigation(): Promise<Navigation> {
@@ -328,6 +369,7 @@ export async function getNavigation(): Promise<Navigation> {
     headerItems: items.filter((i) => !i.hiddenInHeader),
     ctaLabel: entry.data.ctaLabel,
     ctaHref: entry.data.ctaHref,
+    searchPages: entry.data.searchPages as SearchPage[],
   };
 }
 
@@ -577,6 +619,103 @@ export async function getUiCopy(): Promise<UiCopy> {
   );
 
   return { ...data, ...notFound } as UiCopy;
+}
+
+/* ------------------------------------------------------------------ */
+/* Logo and icons                                                      */
+/* ------------------------------------------------------------------ */
+
+export interface Brand {
+  /** Ready-to-render logo URLs, or undefined — the header falls back to the
+      built-in inline mark, which flips with the theme on its own. */
+  logoDark?: string;
+  logoLight?: string;
+  showWordmark: boolean;
+  wordmark: string;
+  wordmarkSub: string;
+  /** Ready-to-render icon URLs at the sizes the head and manifest declare. */
+  icon?: { svg?: string; png32: string; png180: string; png192: string; png512: string };
+  /** Never blank — the browser-bar tags always render, so these fall back
+      to the site palette rather than emitting an empty `content`. */
+  themeColor: string;
+  themeColorLight: string;
+  backgroundColor: string;
+  appName: string;
+  appShortName: string;
+  appDescription: string;
+}
+
+/**
+ * The logo and the browser icon.
+ *
+ * OPTIONAL — the only other one is the loading screen, and for the same
+ * reason. Every default here is already correct: the built-in inline mark,
+ * and the icon set committed in `public/`. A missing document costs nothing,
+ * so it returns the empty shape in a production build rather than throwing.
+ *
+ * The two logos are handed back as a PAIR or not at all. The Studio refuses
+ * to publish one without the other, and this is the second line of the same
+ * defence: with only one, the header would be blank for every visitor using
+ * the other theme — which is invisible to whoever uploaded it.
+ */
+/* The site palette's two page backgrounds, from styles/global.css. The only
+   hardcoded colours left here, and they are the fallback for two tags that
+   render unconditionally — see the note on the interface. */
+const DARK_GROUND = '#0b0c10';
+const LIGHT_GROUND = '#faf9f5';
+
+const EMPTY_BRAND: Brand = {
+  showWordmark: true,
+  wordmark: '',
+  wordmarkSub: '',
+  themeColor: DARK_GROUND,
+  themeColorLight: LIGHT_GROUND,
+  backgroundColor: '',
+  appName: '',
+  appShortName: '',
+  appDescription: '',
+};
+
+export async function getBrand(): Promise<Brand> {
+  const entry = await getEntry('brand', 'brand');
+  if (!entry || (entry.data.draft && !previewMode)) return EMPTY_BRAND;
+
+  const d = entry.data;
+  const bothLogos = Boolean(d.logoDark && d.logoLight);
+  const favicon = d.favicon as SanityImage | undefined;
+
+  return {
+    ...(bothLogos
+      ? {
+          logoDark: imageUrl(d.logoDark as SanityImage, 320),
+          logoLight: imageUrl(d.logoLight as SanityImage, 320),
+        }
+      : {}),
+    showWordmark: d.showWordmark,
+    wordmark: d.wordmark,
+    wordmarkSub: d.wordmarkSub,
+    /* Every size the head and the manifest declare, resolved once here so
+       neither has to know the image lives on a CDN. An SVG upload also gets
+       its own entry, because the CDN does not transform SVGs and the `type`
+       attribute has to say what is actually served. */
+    ...(favicon
+      ? {
+          icon: {
+            ...(isSvgAsset(favicon) ? { svg: imageUrl(favicon, 512) } : {}),
+            png32: iconUrl(favicon, 32),
+            png180: iconUrl(favicon, 180),
+            png192: iconUrl(favicon, 192),
+            png512: iconUrl(favicon, 512),
+          },
+        }
+      : {}),
+    themeColor: d.themeColor || DARK_GROUND,
+    themeColorLight: d.themeColorLight || LIGHT_GROUND,
+    backgroundColor: d.backgroundColor,
+    appName: d.appName,
+    appShortName: d.appShortName,
+    appDescription: d.appDescription,
+  };
 }
 
 /* ------------------------------------------------------------------ */

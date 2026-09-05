@@ -116,6 +116,67 @@ export default defineType({
       validation: (Rule) => Rule.required(),
     }),
     hrefField('Where the gold button goes.', 'ctaHref'),
+
+    /*
+     * The pages search cannot find on its own.
+     *
+     * Everything with a document behind it — posts, services, case studies,
+     * roles, disciplines — is folded into the index automatically from that
+     * document, so it can never fall out of step with the site. These are the
+     * ones whose text lives in a template instead, and they have to be listed
+     * by hand because there is nothing to read them off.
+     *
+     * A page missing from here still works; it is simply not findable by
+     * search, which is the quietest kind of broken. Adding a page to the menu
+     * is usually a reason to add it here too.
+     */
+    defineField({
+      name: 'searchPages',
+      title: 'Pages in search',
+      type: 'array',
+      description:
+        'Pages whose text is written into the template rather than into a document. Everything else — posts, services, case studies, roles — is added to search automatically.',
+      of: [
+        defineArrayMember({
+          type: 'object',
+          name: 'searchPage',
+          fields: [
+            defineField({
+              name: 'title',
+              title: 'Title',
+              type: 'string',
+              description: 'As it should read in the results list.',
+              validation: (R) => R.required(),
+            }),
+            defineField({
+              name: 'href',
+              title: 'Path',
+              type: 'string',
+              validation: (R) =>
+                R.required().custom((v: string) =>
+                  /^\//.test(v) ? true : 'Use a path starting with /.'
+                ),
+            }),
+            defineField({
+              name: 'section',
+              title: 'Section',
+              type: 'string',
+              description: 'The grey label beside the result. Groups results in the list.',
+              validation: (R) => R.required(),
+            }),
+            defineField({
+              name: 'keywords',
+              title: 'Also matches',
+              type: 'text',
+              rows: 2,
+              description:
+                'Words somebody might search that are not in the title — "jobs hiring vacancies" for the careers page. Space-separated, lowercase, never shown.',
+            }),
+          ],
+          preview: { select: { title: 'title', subtitle: 'href' } },
+        }),
+      ],
+    }),
   ],
 
   preview: { prepare: () => ({ title: 'Menus' }) },

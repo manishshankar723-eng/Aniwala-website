@@ -16,11 +16,13 @@ import workCategory from './workCategory';
 import testimonial from './testimonial';
 import client from './client';
 import milestone from './milestone';
+import engagementModel from './engagementModel';
 import faq from './faq';
 import artwork from './artwork';
 import announcement from './announcement';
 import contactDetails from './contactDetails';
 import siteCopy from './siteCopy';
+import brand from './brand';
 import uiCopy from './uiCopy';
 import privacyPage from './privacyPage';
 import navigation from './navigation';
@@ -44,6 +46,7 @@ export const schemaTypes = [
   testimonial,
   client,
   milestone,
+  engagementModel,
 
   /* Copy and settings */
   faq,
@@ -52,6 +55,7 @@ export const schemaTypes = [
   contactDetails,
   siteCopy,
   uiCopy,
+  brand,
   privacyPage,
   navigation,
   loaderSettings,

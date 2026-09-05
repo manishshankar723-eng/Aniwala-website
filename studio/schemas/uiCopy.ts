@@ -939,6 +939,51 @@ export default defineType({
       validation: req,
     }),
 
+    /* --- The page-builder blocks ----------------------------------------
+       Text the blocks print around content they read from elsewhere. It
+       lives here rather than on each block for the reason the whole
+       document exists: the same words appear on several pages, and a copy
+       per block is how they stop matching. */
+    defineField({
+      name: 'engagementBestFor',
+      title: 'Engagement — "best for" label',
+      type: 'string',
+      group: 'detail',
+      description: 'The small label above each model’s "best for" line.',
+      validation: req,
+    }),
+    defineField({
+      name: 'blockWorkHeading',
+      title: 'Hidden heading — portfolio grid',
+      type: 'string',
+      group: 'detail',
+      description:
+        'Not visible. It gives the grid a heading in the document outline, which is how somebody using a screen reader skips to it.',
+      validation: req,
+    }),
+    defineField({
+      name: 'blockPostsHeading',
+      title: 'Hidden heading — post list',
+      type: 'string',
+      group: 'detail',
+      validation: req,
+    }),
+    defineField({
+      name: 'blockCaseStudiesHeading',
+      title: 'Hidden heading — case study list',
+      type: 'string',
+      group: 'detail',
+      validation: req,
+    }),
+    defineField({
+      name: 'heroScrollLabel',
+      title: 'Homepage scroll hint',
+      type: 'string',
+      group: 'detail',
+      description: 'Under the video hero, on the link down to the page.',
+      validation: req,
+    }),
+
     /* ================================================================= */
     /* Listings                                                          */
     /* ================================================================= */
@@ -1207,6 +1252,33 @@ export default defineType({
       title: 'Careers — about the studio link',
       type: 'string',
       group: 'listing',
+      validation: req,
+    }),
+
+    /* --- The /admin redirect ---------------------------------------------
+       A one-second staging post between aniwala.com/admin and the Studio.
+       Nobody reads it on purpose, but somebody reads it every time the
+       Studio is slow to answer. */
+    defineField({
+      name: 'adminTitle',
+      title: 'Admin redirect — browser-tab title',
+      type: 'string',
+      group: 'chrome',
+      validation: req,
+    }),
+    defineField({
+      name: 'adminLead',
+      title: 'Admin redirect — message',
+      type: 'string',
+      group: 'chrome',
+      validation: req,
+    }),
+    defineField({
+      name: 'adminLinkLabel',
+      title: 'Admin redirect — manual link',
+      type: 'string',
+      group: 'chrome',
+      description: 'The link offered in case the redirect does not fire.',
       validation: req,
     }),
 

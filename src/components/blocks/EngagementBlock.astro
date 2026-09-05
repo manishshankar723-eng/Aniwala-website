@@ -3,14 +3,17 @@
  * How you actually hire the studio.
  *
  * The question every producer asks on the first call, answered before they
- * have to ask it. A data block: the models live in `config/services.ts`
- * alongside the services themselves, because "fixed-scope / team extension /
- * co-development" is how the business is structured rather than copy that
- * changes month to month — and because the same three have to mean the same
- * thing on every page that mentions them.
+ * have to ask it. A data block: the models are their own documents, so the
+ * same three mean the same thing on every page that mentions them — fields on
+ * this block would let two pages each carry an edited copy of "team
+ * extension", which is how a client ends up quoting one page's terms back at
+ * you while you are reading the other.
  */
 import SectionHead from './SectionHead.astro';
-import { engagementModels } from '../../config/services';
+import { getEngagementModels, getUiCopy } from '../../lib/studio';
+
+const models = await getEngagementModels();
+const ui = await getUiCopy();
 
 interface Props {
   block: { eyebrow?: string; title?: string; anchor?: string };
@@ -23,12 +26,12 @@ const { block } = Astro.props;
 
   <div class="models">
     {
-      engagementModels.map((m) => (
+      models.map((m) => (
         <div class="model" data-reveal>
           <h3 class="model-title">{m.title}</h3>
           <p class="model-body">{m.body}</p>
           <p class="model-best">
-            <span>Best for</span>
+            <span>{ui.engagementBestFor}</span>
             {m.bestFor}
           </p>
         </div>

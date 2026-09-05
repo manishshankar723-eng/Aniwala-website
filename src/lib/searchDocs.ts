@@ -12,12 +12,17 @@
  * somebody opens the search bar, which for most visitors is never.
  *
  * The derivation rule is the point of this file: everything except the handful
- * of hand-written entries in `nav.ts` is read from the same config and content
- * the pages themselves are built from. A hand-kept index fails silently — it
- * stops matching the site and nobody notices until a search for a real page
- * returns nothing.
+ * of hand-listed pages is read from the same content the pages themselves are
+ * built from. A hand-kept index fails silently — it stops matching the site
+ * and nobody notices until a search for a real page returns nothing.
+ *
+ * Those hand-listed pages now live on the `navigation` document beside the
+ * menus, which is the right neighbourhood: both answer "which pages exist and
+ * how do you reach them", and somebody adding a page to the menu is usually
+ * the same person who should add it to search.
  */
-import { searchIndex, type SearchDoc } from '../config/nav';
+import type { SearchDoc } from '../config/nav';
+import { getNavigation } from './studio';
 import { getPosts } from './posts';
 import { getCaseStudies } from './caseStudies';
 import { getServices } from './services';
@@ -25,6 +30,7 @@ import { getWorkCategories, categoryHref } from './workCategories';
 import { getRoles } from './roles';
 
 export async function buildSearchDocs(): Promise<SearchDoc[]> {
+  const searchIndex = (await getNavigation()).searchPages;
   const posts = await getPosts();
   const studies = await getCaseStudies();
   const roles = await getRoles();

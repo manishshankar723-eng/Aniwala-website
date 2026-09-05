@@ -12,8 +12,8 @@ import Footer from '../../components/Footer.astro';
 import { getServices, servicesBySlugs, type Service } from '../../lib/services';
 
 /**
- * One page per record in `config/services.ts`. Adding a service there adds a
- * route here — there is no per-service template to keep in sync.
+ * One page per service document. Publishing a service adds a route here —
+ * there is no per-service template to keep in sync.
  */
 export async function getStaticPaths() {
   const services = await getServices();
@@ -114,7 +114,7 @@ const faqs = await getFaqs(`service:${service.slug}`);
     {/*
       PIPELINE — the discipline-specific route through the studio, drawn as a
       connected flow rather than listed. Same data as before (the `pipeline`
-      array in config/services.ts); the component owns the drawing.
+      `pipeline` array on the service document); the component owns the drawing.
     */}
     <ProcessFlow
       steps={service.pipeline}

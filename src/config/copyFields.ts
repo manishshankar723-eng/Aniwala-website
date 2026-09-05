@@ -58,6 +58,9 @@ export const UI_COPY_FIELDS = [
   'ctaSecondaryLabel',
   'faqEyebrow',
   'faqTitle',
+  'adminTitle',
+  'adminLead',
+  'adminLinkLabel',
   'crumbHome',
   'crumbBlog',
   'crumbPortfolio',
@@ -146,6 +149,13 @@ export const UI_COPY_FIELDS = [
   'portfolioCtaEyebrow',
   'portfolioCtaTitle',
   'portfolioCtaBody',
+
+  /* --- Page-builder blocks -------------------------------------------- */
+  'engagementBestFor',
+  'blockWorkHeading',
+  'blockPostsHeading',
+  'blockCaseStudiesHeading',
+  'heroScrollLabel',
 
   /* --- Listings ------------------------------------------------------ */
   'railSearchTitle',
@@ -285,6 +295,7 @@ export const APPLY_COPY_FIELDS = [
   'applyExperienceLabel',
   'applyAvailabilityLabel',
   'applyChoosePlaceholder',
+  'applyAreaOther',
   'applyPortfolioLabel',
   'applyPortfolioPlaceholder',
   'applyPortfolioHint',
@@ -381,6 +392,8 @@ export const BOOKING_COPY_FIELDS = [
   'errUnreachable',
   'doneTitle',
   'doneBody',
+  'emailSubject',
+  'emailFromName',
   'a11yDurations',
   'a11yPrevMonth',
   'a11yNextMonth',

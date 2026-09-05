@@ -151,6 +151,35 @@ export function imageSrcSet(source: SanityImage, widths = [480, 768, 1200, 1800]
 }
 
 /**
+ * A square icon, forced to PNG.
+ *
+ * NOT `imageUrl`, and the difference matters. That one calls `.auto('format')`
+ * so a browser that accepts WebP gets WebP — right for photographs, wrong
+ * here: the manifest and the `<link>` tags declare `type="image/png"`, and a
+ * declared type that lies is worse than no type at all. Some icon consumers
+ * are not browsers and do not content-negotiate at all.
+ *
+ * Cropped square rather than scaled, because every consumer of these treats
+ * them as square and a 3:2 upload otherwise arrives letterboxed or stretched
+ * depending on who is drawing it.
+ */
+export function iconUrl(source: SanityImage, size: number): string {
+  if (!builder || !source?.asset) return '';
+  return builder.image(source).width(size).height(size).fit('crop').format('png').url();
+}
+
+/**
+ * Is this asset an SVG?
+ *
+ * Read off the reference, which Sanity shapes as
+ * `image-<hash>-<width>x<height>-<ext>`. It is worth knowing because the
+ * image CDN does not transform SVGs — asking for a 32px PNG of one returns
+ * the original SVG unchanged, so the `type` attribute has to say so.
+ */
+export const isSvgAsset = (source: SanityImage | undefined): boolean =>
+  /-svg$/.test(source?.asset?._ref ?? '');
+
+/**
  * A 1200x630 social card cropped from an image.
  *
  * Open Graph wants exactly this ratio, and the `og:image:width/height` tags

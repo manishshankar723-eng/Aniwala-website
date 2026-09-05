@@ -1,5 +1,5 @@
 ---
-import { getNavigation, getUiCopy } from '../lib/studio';
+import { getNavigation, getUiCopy, getBrand } from '../lib/studio';
 import { fill } from '../lib/copy';
 
 interface Props {
@@ -13,6 +13,7 @@ const path = Astro.url.pathname;
    header's few slots. Both the desktop nav and the drawer read this. */
 const { headerItems: headerNav, ctaLabel, ctaHref } = await getNavigation();
 const ui = await getUiCopy();
+const brand = await getBrand();
 
 const isCurrent = (href?: string) =>
   href ? (href === '/' ? path === '/' : path.startsWith(href)) : false;
@@ -24,24 +25,53 @@ const isCurrent = (href?: string) =>
   class:list={['site-header', overlay ? 'is-transparent' : 'is-solid']}
 >
   <div class="header-inner">
-    {/* Brand. The mark is inline SVG so it inherits currentColor and flips
-        with the theme; a real logo file would need two of them. Replace the
-        <path>s below rather than swapping in an <img>. */}
+    {/*
+      Brand.
+
+      Two ways to draw the mark, and the fallback is the interesting one.
+
+      With nothing uploaded it is inline SVG using `currentColor`, which is
+      how it flips between the light and dark themes for free — one file, both
+      themes, no request.
+
+      An uploaded logo cannot do that: a PNG is the colour it was exported as.
+      So the Studio takes two, and BOTH are rendered here with CSS showing
+      whichever the theme calls for. Not a single <img> whose src is swapped by
+      script: that would flash the wrong logo on every page load before the
+      theme is known, and would show nothing at all with JavaScript off.
+
+      Both images are decorative — the <a> already carries the accessible name,
+      so announcing them too would read the destination twice.
+    */}
     <a href="/" class="brand" aria-label={ui.brandHome}>
-      <svg class="brand-icon" viewBox="0 0 40 40" fill="none" aria-hidden="true">
-        <path d="M20 5L30.5 32H25.2L20 17.4L14.8 32H9.5L20 5Z" fill="currentColor"></path>
-        <path
-          d="M4 27.5C12 23 28 23 36 27.5"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          opacity="0.85"></path>
-        <path d="M32 8l1 2.6 2.6 1-2.6 1L32 15l-1-2.4-2.6-1 2.6-1L32 8Z" fill="currentColor"></path>
-      </svg>
-      <span class="brand-text">
-        <span class="brand-name">ANIWALA</span>
-        <span class="brand-sub">Studios</span>
-      </span>
+      {
+        brand.logoDark && brand.logoLight ? (
+          <>
+            <img class="brand-icon brand-icon--dark" src={brand.logoDark} alt="" aria-hidden="true" />
+            <img class="brand-icon brand-icon--light" src={brand.logoLight} alt="" aria-hidden="true" />
+          </>
+        ) : (
+          <svg class="brand-icon" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+            <path d="M20 5L30.5 32H25.2L20 17.4L14.8 32H9.5L20 5Z" fill="currentColor" />
+            <path
+              d="M4 27.5C12 23 28 23 36 27.5"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              opacity="0.85"
+            />
+            <path d="M32 8l1 2.6 2.6 1-2.6 1L32 15l-1-2.4-2.6-1 2.6-1L32 8Z" fill="currentColor" />
+          </svg>
+        )
+      }
+      {
+        brand.showWordmark && (
+          <span class="brand-text">
+            <span class="brand-name">{brand.wordmark}</span>
+            <span class="brand-sub">{brand.wordmarkSub}</span>
+          </span>
+        )
+      }
     </a>
 
     <!-- Desktop nav -->
@@ -337,6 +367,42 @@ const isCurrent = (href?: string) =>
     width: 2.1rem;
     height: 2.1rem;
     flex-shrink: 0;
+  }
+
+  /*
+   * The uploaded pair.
+   *
+   * An <img> has its own aspect ratio, unlike the square inline SVG, so it is
+   * constrained by HEIGHT and left to be as wide as it needs — a wordmark-
+   * shaped logo would otherwise be squashed into a 2.1rem box.
+   */
+  img.brand-icon {
+    width: auto;
+    max-width: 11rem;
+    object-fit: contain;
+  }
+
+  /*
+   * Which of the two is showing.
+   *
+   * Dark is the site's default theme and carries no attribute — light is the
+   * opt-in, set as data-theme="light" on <html> by the toggle. So the dark
+   * logo is the default here and the light one is swapped in under that
+   * attribute, which mirrors how every other themed rule in this codebase is
+   * written.
+   *
+   * Done in CSS rather than by picking one in the template, because the theme
+   * is a per-visitor choice restored from localStorage AFTER the HTML is
+   * built. A static site cannot know it at build time; CSS can.
+   */
+  .brand-icon--light {
+    display: none;
+  }
+  :global(:root[data-theme='light']) .brand-icon--dark {
+    display: none;
+  }
+  :global(:root[data-theme='light']) .brand-icon--light {
+    display: block;
   }
   .brand-text {
     display: flex;

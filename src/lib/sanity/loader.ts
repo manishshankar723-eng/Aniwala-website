@@ -783,7 +783,7 @@ export const sanityNavigation = (): Loader =>
     type: 'navigation',
     hasBody: false,
     idFrom: () => 'navigation',
-    projection: `_id, items, ctaLabel, ctaHref`,
+    projection: `_id, items, ctaLabel, ctaHref, searchPages`,
     toData: (doc, isDraft) => ({
       items: (doc.items ?? []).map((i: Record<string, any>) => ({
         label: i.label,
@@ -797,6 +797,12 @@ export const sanityNavigation = (): Loader =>
       })),
       ctaLabel: doc.ctaLabel,
       ctaHref: doc.ctaHref,
+      searchPages: (doc.searchPages ?? []).map((p: Record<string, any>) => ({
+        title: p.title,
+        href: p.href,
+        section: p.section,
+        keywords: p.keywords ?? '',
+      })),
       draft: isDraft,
     }),
   });
@@ -821,6 +827,65 @@ export const sanitySiteCopy = (): Loader =>
         category: c.category,
         blurb: c.blurb,
       })),
+      draft: isDraft,
+    }),
+  });
+
+/* ------------------------------------------------------------------ */
+/* Engagement models                                                   */
+/* ------------------------------------------------------------------ */
+export const sanityEngagementModels = (): Loader =>
+  sanityLoader({
+    name: 'sanity:engagement',
+    type: 'engagementModel',
+    hasBody: false,
+    idFrom: (doc) => doc._id.replace(/^drafts\./, ''),
+    projection: `_id, title, body, bestFor, order`,
+    toData: (doc, isDraft) => ({
+      title: doc.title,
+      body: doc.body,
+      bestFor: doc.bestFor,
+      order: doc.order ?? 50,
+      draft: isDraft,
+    }),
+  });
+
+/* ------------------------------------------------------------------ */
+/* Logo and icons (singleton)                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * OPTIONAL, like the loading screen and unlike everything else here.
+ *
+ * A site with no `brand` document renders the built-in mark and the icons
+ * committed in `public/` — which is exactly what it did before this document
+ * existed. Failing a build over an absent logo would be failing over a
+ * setting whose default is already correct.
+ */
+export const sanityBrand = (): Loader =>
+  sanityLoader({
+    name: 'sanity:brand',
+    type: 'brand',
+    hasBody: false,
+    idFrom: () => 'brand',
+    projection: `
+      _id, logoDark, logoLight, showWordmark, wordmark, wordmarkSub,
+      favicon, themeColor, themeColorLight, backgroundColor,
+      appName, appShortName, appDescription
+    `,
+    toData: (doc, isDraft) => ({
+      ...(doc.logoDark ? { logoDark: doc.logoDark } : {}),
+      ...(doc.logoLight ? { logoLight: doc.logoLight } : {}),
+      showWordmark: doc.showWordmark ?? true,
+      wordmark: doc.wordmark ?? '',
+      wordmarkSub: doc.wordmarkSub ?? '',
+      ...(doc.favicon ? { favicon: doc.favicon } : {}),
+      themeColor: doc.themeColor ?? '',
+      themeColorLight: doc.themeColorLight ?? '',
+      backgroundColor: doc.backgroundColor ?? '',
+      appName: doc.appName ?? '',
+      appShortName: doc.appShortName ?? '',
+      appDescription: doc.appDescription ?? '',
       draft: isDraft,
     }),
   });

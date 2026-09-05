@@ -7,20 +7,24 @@
  * the schema refuses a malformed href, and `check-links.mjs` fails the build
  * if a path does not resolve.
  *
- * What stays here is the search index below, which is a different thing: a
- * list of pages whose text lives in markup rather than in a document, so the
- * search box can find them. It is maintained alongside the templates, not by
- * an editor.
+ * The hand-kept part of the search index went the same way, onto the same
+ * `navigation` document — see `searchPages` there. It sat here on the
+ * argument that it is "maintained alongside the templates", and that turned
+ * out to be the wrong test: adding a page to the menu and adding it to search
+ * are the same decision made by the same person, and only one of them needed
+ * a developer.
+ *
+ * What is left is the SHAPE of an entry, which several modules build and one
+ * renders, and which is code because it is a type rather than a value.
  */
 
 /**
- * The hand-kept part of the search index: pages whose text is written in
- * markup rather than content files.
+ * One entry in the search index.
  *
- * Blog posts are NOT listed here — Search.astro reads the blog collection at
- * build time and merges them in, so publishing a post makes it searchable
- * without anyone remembering to edit this array. Services, case studies and
- * the portfolio disciplines are folded in the same way.
+ * Most are derived: `lib/searchDocs.ts` reads posts, services, case studies,
+ * roles and disciplines off their own documents at build time, so publishing
+ * any of those makes it searchable without anyone remembering anything. Only
+ * the pages whose text is written into a template have to be listed by hand.
  */
 export interface SearchDoc {
   title: string;
@@ -28,43 +32,3 @@ export interface SearchDoc {
   section: string;
   keywords: string;
 }
-
-export const searchIndex: SearchDoc[] = [
-  { title: 'Home', href: '/', section: 'Pages', keywords: 'aniwala studios animation showreel' },
-  {
-    title: 'Portfolio',
-    href: '/portfolio/',
-    section: 'Pages',
-    keywords: 'work projects case studies reel',
-  },
-  { title: 'About Us', href: '/about/', section: 'Pages', keywords: 'studio team story pipeline' },
-  { title: 'Blog', href: '/blog/', section: 'Pages', keywords: 'journal news breakdowns articles' },
-  {
-    title: 'Contact',
-    href: '/contact/',
-    section: 'Pages',
-    keywords: 'book appointment enquiry email hire quote',
-  },
-  {
-    title: 'Case Studies',
-    href: '/case-studies/',
-    section: 'Pages',
-    keywords: 'work projects breakdown process results portfolio examples',
-  },
-  {
-    title: 'Services',
-    href: '/services/',
-    section: 'Pages',
-    keywords: 'disciplines pipeline engagement outsourcing capabilities what we do',
-  },
-  {
-    /* Only the landing page is listed here. The individual openings are
-       derived from config/careers.ts inside Search.astro, so a filled role
-       leaves search on the same day it leaves the page. */
-    title: 'Careers',
-    href: '/careers/',
-    section: 'Pages',
-    keywords:
-      'jobs hiring vacancies openings apply application internship intern recruitment work with us animator artist vfx editor pune',
-  },
-];

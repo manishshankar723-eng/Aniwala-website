@@ -502,13 +502,48 @@ export const serviceGridBlock = dataBlock(
       },
       initialValue: 'grid',
     }),
+
+    /*
+     * The tile after the last service.
+     *
+     * Optional as a set: fill all three in and the grid ends with a way to
+     * ask for something the six disciplines do not name; leave them blank and
+     * the grid simply ends. It was hardcoded, which meant the one page that
+     * wanted the grid WITHOUT it could not have that.
+     */
+    defineField({
+      name: 'ctaTitle',
+      title: 'Closing tile — heading',
+      type: 'string',
+      description:
+        'An extra tile after the last service, for work that none of them names. Leave blank for no tile.',
+    }),
+    defineField({
+      name: 'ctaBody',
+      title: 'Closing tile — body',
+      type: 'string',
+    }),
+    defineField({
+      name: 'ctaHref',
+      title: 'Closing tile — link',
+      type: 'string',
+      description: 'Where the tile goes. A path such as /contact/.',
+      validation: (Rule) =>
+        Rule.custom((v: string | undefined, ctx) => {
+          const title = (ctx.parent as { ctaTitle?: string } | undefined)?.ctaTitle;
+          if (title && !v) return 'A tile with a heading needs somewhere to go.';
+          if (v && !/^(\/|https?:\/\/|mailto:)/.test(v))
+            return 'Use a path starting with / , a full URL, or a mailto: address.';
+          return true;
+        }),
+    }),
   ]
 );
 
 export const engagementBlock = dataBlock(
   'engagementBlock',
   'Engagement models',
-  'How a client can hire the studio — fixed-scope, team extension, co-development. Read from the services config so the three mean the same thing everywhere.'
+  'How a client can hire the studio. Edited under Engagement models — one list, so every block that shows them shows the same three.'
 );
 
 export const processBlock = dataBlock(

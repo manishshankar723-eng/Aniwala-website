@@ -587,6 +587,34 @@ async function migratePrivacyPage() {
   ];
 }
 
+/**
+ * The logo and the browser icon.
+ *
+ * Words and colours only. A migration cannot upload a logo, and it does not
+ * need to: the built-in inline mark and the icon set committed in `public/`
+ * are what the site already used, and both remain the fallback until somebody
+ * uploads something in the Studio.
+ */
+async function migrateBrand() {
+  const { BRAND } = await import('./seed-ui.mjs');
+  return [{ _id: 'brand', _type: 'brand', ...BRAND }];
+}
+
+/**
+ * How a client hires the studio. One document each.
+ *
+ * A list rather than a singleton, because the three are ordered and an editor
+ * should be able to add a fourth without a developer widening a schema.
+ */
+async function migrateEngagementModels() {
+  const { ENGAGEMENT_MODELS } = await import('./seed-ui.mjs');
+  return ENGAGEMENT_MODELS.map((m, i) => ({
+    _id: `engagement-${i}`,
+    _type: 'engagementModel',
+    ...m,
+  }));
+}
+
 async function migrateSiteCopy() {
   const { PROCESS_STEPS, CATEGORY_BLURBS } = await import('./seed-settings.mjs');
 
@@ -747,6 +775,8 @@ async function migrateLoaderSettings() {
 
 async function migrateNavigation() {
   const { NAVIGATION } = await import('./seed-pages.mjs');
+  /* The handful of pages search cannot find on its own — see seed-ui.mjs. */
+  const { SEARCH_PAGES } = await import('./seed-ui.mjs');
 
   return [
     {
@@ -761,6 +791,11 @@ async function migrateNavigation() {
           _key: `child-${i}-${j}`,
           ...c,
         })),
+      })),
+      searchPages: SEARCH_PAGES.map((p, i) => ({
+        _type: 'searchPage',
+        _key: `search-${i}`,
+        ...p,
       })),
       ctaLabel: NAVIGATION.ctaLabel,
       ctaHref: NAVIGATION.ctaHref,
@@ -797,6 +832,8 @@ async function main() {
     ...(await migrateSiteCopy()),
     ...(await migrateUiCopy()),
     ...(await migratePrivacyPage()),
+    ...(await migrateBrand()),
+    ...(await migrateEngagementModels()),
     ...(await migrateServices()),
     ...(await migrateCareersContent()),
     ...(await migrateWorkCategories()),

@@ -18,6 +18,9 @@
  * global rule.
  */
 import SectionHead from './SectionHead.astro';
+import { getUiCopy } from '../../lib/studio';
+
+const ui = await getUiCopy();
 import CaseCard from '../CaseCard.astro';
 import { getCaseStudies } from '../../lib/caseStudies';
 
@@ -78,13 +81,12 @@ const allOwn = studies.length > 0 && ownCount === studies.length;
         <>
           {allOwn && (
             <p class="note" data-reveal>
-              Everything below is self-directed studio work — pieces we set ourselves to test a
-              pipeline claim before making it to a client. Commissioned projects appear here as they
-              clear approval.
+              {/* One field, three places — see the note in PieceGridBlock. */}
+              {ui.portfolioOwnNote}
             </p>
           )}
 
-          <h2 class="visually-hidden">All case studies</h2>
+          <h2 class="visually-hidden">{ui.blockCaseStudiesHeading}</h2>
 
           <div class="lead-slot">
             <CaseCard study={lead} featured />

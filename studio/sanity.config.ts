@@ -147,6 +147,16 @@ export default defineConfig({
                   .title('Milestones')
                   .defaultOrdering([{ field: 'order', direction: 'asc' }])
               ),
+            /* How a client hires the studio. One list, so every page that
+               mentions "team extension" means the same thing by it. */
+            S.listItem()
+              .title('Engagement models')
+              .schemaType('engagementModel')
+              .child(
+                S.documentTypeList('engagementModel')
+                  .title('Engagement models')
+                  .defaultOrdering([{ field: 'order', direction: 'asc' }])
+              ),
 
             S.divider(),
 
@@ -246,6 +256,15 @@ export default defineConfig({
               .id('navigation')
               .child(
                 S.document().schemaType('navigation').documentId('navigation').title('Menus')
+              ),
+            /* The header logo and the browser icon. Next to the other
+               settings rather than up with the content: it is opened when the
+               brand changes and not otherwise. */
+            S.listItem()
+              .title('Logo & icons')
+              .id('brand')
+              .child(
+                S.document().schemaType('brand').documentId('brand').title('Logo & icons')
               ),
             S.listItem()
               .title('Site copy')

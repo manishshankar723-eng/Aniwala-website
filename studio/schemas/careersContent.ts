@@ -554,6 +554,49 @@ export default defineType({
       group: 'apply',
       validation: (Rule) => Rule.required(),
     }),
+    /*
+     * The two dropdowns.
+     *
+     * Not free text on the form, because these are what an application is
+     * FILTERED by afterwards — "about 4 years" and "4 yrs" typed into a box
+     * are two different values to a spreadsheet and the same thing to a
+     * person. A short list keeps the data sortable and the form quick.
+     *
+     * The discipline list is deliberately NOT here: it validates every role
+     * document, so a discipline that stopped existing would leave live
+     * listings pointing at nothing. Only the "none of these" option below is
+     * copy.
+     */
+    defineField({
+      name: 'experienceBands',
+      title: 'Experience bands',
+      type: 'array',
+      of: [{ type: 'string' }],
+      group: 'apply',
+      description:
+        'Offered in order, so run them lowest to highest. Bands rather than numbers: "3–5 years" is honest where "4 years" is a lie by precision.',
+      validation: (Rule) => Rule.required().min(2),
+    }),
+    defineField({
+      name: 'availabilityOptions',
+      title: 'Availability options',
+      type: 'array',
+      of: [{ type: 'string' }],
+      group: 'apply',
+      description:
+        'Notice periods, in the words people actually use. Optional on the form, so this is about making it quick to answer rather than about collecting it.',
+      validation: (Rule) => Rule.required().min(2),
+    }),
+    defineField({
+      name: 'applyAreaOther',
+      title: 'Area — "none of these" option',
+      type: 'string',
+      group: 'apply',
+      description:
+        'The last option in the area dropdown, for somebody whose discipline the studio does not list. The disciplines above it come from code, because they also validate every job listing.',
+      validation: (Rule) => Rule.required(),
+    }),
+
     defineField({
       name: 'applyChoosePlaceholder',
       title: 'Placeholder — empty dropdown',

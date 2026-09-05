@@ -14,6 +14,9 @@ import SectionHead from './SectionHead.astro';
 import DisciplineBar from '../DisciplineBar.astro';
 import PieceCard from '../PieceCard.astro';
 import { piecesIn } from '../../lib/pieces';
+import { getUiCopy } from '../../lib/studio';
+
+const ui = await getUiCopy();
 
 interface Props {
   block: {
@@ -71,13 +74,15 @@ const hasEmptyState = Boolean(block.emptyTitle);
         <>
           {allOwn && (
             <p class="note" data-reveal>
-              Everything below is self-directed studio work: pieces we set ourselves to test a
-              pipeline claim before taking it to a client. Commissioned projects appear here as they
-              clear approval.
+              {/* The same sentence the discipline pages print, from the same
+                  field. It was written out here as well, and the two copies
+                  had already drifted apart — which is the exact failure that
+                  moving it to the CMS was meant to end. */}
+              {ui.portfolioOwnNote}
             </p>
           )}
 
-          <h2 class="visually-hidden">All work</h2>
+          <h2 class="visually-hidden">{ui.blockWorkHeading}</h2>
 
           <div class="grid">
             {pieces.map((piece) => (

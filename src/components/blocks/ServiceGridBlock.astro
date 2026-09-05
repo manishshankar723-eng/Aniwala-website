@@ -18,7 +18,17 @@ import { getNavigation } from '../../lib/studio';
 import { getServices } from '../../lib/services';
 
 interface Props {
-  block: { eyebrow?: string; title?: string; anchor?: string; layout?: 'grid' | 'rows' };
+  block: {
+    eyebrow?: string;
+    title?: string;
+    anchor?: string;
+    layout?: 'grid' | 'rows';
+    /* The optional closing tile. All three or none — the Studio enforces
+       that, because a heading with nowhere to go is a dead card. */
+    ctaTitle?: string;
+    ctaBody?: string;
+    ctaHref?: string;
+  };
 }
 const { block } = Astro.props;
 const rows = block.layout === 'rows';
@@ -69,11 +79,15 @@ const services = await getServices();
             </span>
           </a>
         ))}
-        <a href="/contact/" class="service service--cta" data-reveal>
-          <h3 class="service-name">Something else?</h3>
-          <p class="service-blurb">Tell us what you need and we'll scope it honestly.</p>
-          <span class="service-arrow" aria-hidden="true">&rarr;</span>
-        </a>
+        {/* Optional. Filled in, the grid ends with a way to ask for work
+            none of the six disciplines names; left blank, it just ends. */}
+        {block.ctaTitle && block.ctaHref && (
+          <a href={block.ctaHref} class="service service--cta" data-reveal>
+            <h3 class="service-name">{block.ctaTitle}</h3>
+            <p class="service-blurb">{block.ctaBody}</p>
+            <span class="service-arrow" aria-hidden="true">&rarr;</span>
+          </a>
+        )}
       </div>
     )
   }

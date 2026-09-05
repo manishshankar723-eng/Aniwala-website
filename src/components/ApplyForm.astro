@@ -1,9 +1,9 @@
 ---
-import {
-  disciplines,
-  experienceBands,
-  availabilityOptions,
-} from '../config/careers';
+/* The disciplines still come from code: the same list validates every role
+   document, so one that stopped existing would leave live listings pointing
+   at nothing. The bands, the notice periods and the "none of these" option
+   are copy, and come from the CMS with the rest of the form's wording. */
+import { DISCIPLINES } from '../config/disciplines';
 import { getFlatRoles, type Role } from '../lib/roles';
 import { getContactDetails, getCareersContent } from '../lib/studio';
 import { fill, fillHtml, plural } from '../lib/copy';
@@ -72,6 +72,8 @@ const intro = lead ?? (locked ? copy.applyLeadRole : copy.applyLeadOpen);
 
 /* The studio inbox is a token rather than typed into the sentence, so the
    note here and the address in the footer cannot drift apart. */
+const areas = [...DISCIPLINES, copy.applyAreaOther];
+
 const mailLink = { careersEmail: { href: `mailto:${careersEmail}`, label: careersEmail } };
 const altNote = fillHtml(copy.applyAltNote, {}, mailLink);
 
@@ -194,7 +196,7 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
                   </span>
                   <select name="discipline" id="ap-discipline">
                     <option value="">{copy.applyAreaPlaceholder}</option>
-                    {disciplines.map((d) => (
+                    {areas.map((d) => (
                       <option value={d}>{d}</option>
                     ))}
                   </select>
@@ -288,7 +290,7 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
             <span class="ap-label">{copy.applyExperienceLabel} <em>*</em></span>
             <select name="experience" id="ap-experience" required>
               <option value="">{copy.applyChoosePlaceholder}</option>
-              {experienceBands.map((b) => <option value={b}>{b}</option>)}
+              {copy.experienceBands.map((b) => <option value={b}>{b}</option>)}
             </select>
           </label>
 
@@ -296,7 +298,7 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
             <span class="ap-label">{copy.applyAvailabilityLabel}</span>
             <select name="availability" id="ap-availability">
               <option value="">{copy.applyChoosePlaceholder}</option>
-              {availabilityOptions.map((a) => <option value={a}>{a}</option>)}
+              {copy.availabilityOptions.map((a) => <option value={a}>{a}</option>)}
             </select>
           </label>
         </div>

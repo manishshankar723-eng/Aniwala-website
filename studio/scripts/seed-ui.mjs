@@ -59,6 +59,10 @@ export const UI_COPY = {
   faqEyebrow: 'Questions',
   faqTitle: 'Before you ask',
 
+  adminTitle: 'Redirecting to the Studio…',
+  adminLead: 'Taking you to the Aniwala Studio…',
+  adminLinkLabel: 'If nothing happens, open it here',
+
   crumbHome: 'Home',
   crumbBlog: 'Blog',
   crumbPortfolio: 'Portfolio',
@@ -162,6 +166,13 @@ export const UI_COPY = {
   portfolioCtaTitle: 'Have {{name}} on your brief?',
   portfolioCtaBody:
     'Send the brief, the asset list or just the problem. You get a shot or asset count, the decisions that will cost money, and a date we believe — within two working days.',
+
+  /* --- Page-builder blocks -------------------------------------------- */
+  engagementBestFor: 'Best for',
+  blockWorkHeading: 'All work',
+  blockPostsHeading: 'All posts',
+  blockCaseStudiesHeading: 'All case studies',
+  heroScrollLabel: 'Scroll',
 
   /* --- Listings ------------------------------------------------------ */
   railSearchTitle: 'Search',
@@ -462,6 +473,24 @@ export const APPLY_COPY = {
   applyExperienceLabel: 'Experience',
   applyAvailabilityLabel: 'Available from',
   applyChoosePlaceholder: 'Choose…',
+  applyAreaOther: 'Something else',
+
+  experienceBands: [
+    'Student / final year',
+    'Less than 1 year',
+    '1–3 years',
+    '3–5 years',
+    '5–8 years',
+    '8+ years',
+  ],
+  availabilityOptions: [
+    'Immediately',
+    'Within 2 weeks',
+    '1 month notice',
+    '2 months notice',
+    '3 months notice',
+    'Only open to contract work',
+  ],
   applyPortfolioLabel: 'Portfolio or reel link',
   applyPortfolioPlaceholder: 'https://artstation.com/… · vimeo.com/… · your site',
   applyPortfolioHint:
@@ -544,6 +573,9 @@ export const BOOKING_COPY = {
   errNotConfigured: 'Booking is not connected yet — nothing would reach the studio.',
   errSendFailed: 'Could not send that — {{error}}. Email {{email}} instead.',
   errUnreachable: 'Could not reach the server. Email {{email}} instead.',
+  emailSubject: 'New call request — aniwala.com',
+  emailFromName: 'Aniwala website',
+
   doneTitle: 'Request sent.',
   doneBody:
     'Thanks {{name}} — we have your request for {{when}}. We will confirm by email, usually within one working day.',
@@ -556,6 +588,139 @@ export const BOOKING_COPY = {
   a11ySlots: 'Available times',
   a11yBack: 'Back to calendar',
 };
+
+/* ------------------------------------------------------------------ */
+/* The logo and the browser icon                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Only the words and the colours, deliberately — no images.
+ *
+ * A seed cannot upload a logo: the built-in inline mark and the committed
+ * icon set in `public/` already ARE the defaults, and writing image fields
+ * here would mean inventing assets nobody chose. What it does seed is the
+ * wordmark and the manifest values that were previously hardcoded in
+ * `Header.astro` and `public/site.webmanifest`, so the two fall under the
+ * same "edit it in the Studio" rule as everything else.
+ *
+ * Upload the two logos and the icon in the Studio when there are real ones.
+ * Until then every field below drives exactly what the site already showed.
+ */
+export const BRAND = {
+  showWordmark: true,
+  wordmark: 'ANIWALA',
+  wordmarkSub: 'Studios',
+  themeColor: '#0b0c10',
+  themeColorLight: '#faf9f5',
+  backgroundColor: '#0b0c10',
+  appName: 'Aniwala Studios',
+  appShortName: 'Aniwala',
+  appDescription: 'Animation studio producing 2D, 3D, VFX and game art.',
+};
+
+/* ------------------------------------------------------------------ */
+/* The services grid's closing tile                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The tile after the last service, offering work none of the six names.
+ *
+ * It was written into `ServiceGridBlock.astro`, which meant every services
+ * grid on the site had it whether or not it suited the page. It is now three
+ * optional fields on the block — so this seeds the ONE block that was
+ * actually showing it, and every other grid keeps the behaviour it had.
+ *
+ * Only grids in the "tiles" layout ever rendered it: the numbered "rows"
+ * layout has no tile to append one to.
+ */
+export const SERVICE_GRID_CTA = {
+  ctaTitle: 'Something else?',
+  ctaBody: "Tell us what you need and we'll scope it honestly.",
+  ctaHref: '/contact/',
+};
+
+/* ------------------------------------------------------------------ */
+/* How a client hires the studio                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Transcribed from `config/services.ts`, where these were a hand-edited
+ * array. Each is a commercial promise about how the studio takes work on —
+ * the sentence worth keeping in every one is the one about what happens when
+ * things go wrong, because that is the part nobody else writes down.
+ */
+export const ENGAGEMENT_MODELS = [
+  {
+    title: 'Fixed-scope project',
+    body: 'An agreed shot or asset count, a fixed price and a fixed date. We absorb the overruns that are our fault; changes to the brief are quoted as changes rather than absorbed silently.',
+    bestFor: 'A defined deliverable — a trailer, a cinematic, an asset batch.',
+    order: 10,
+  },
+  {
+    title: 'Team extension',
+    body: 'Named artists reserved for you by the month, working in your pipeline, your tracker and your reviews. You direct the work; we handle employment, kit and cover.',
+    bestFor: 'An in-house team that needs capacity, not a vendor.',
+    order: 20,
+  },
+  {
+    title: 'Co-development',
+    body: 'We take a whole vertical — all the environments, the full cinematic, the entire effects package — and run it to a milestone plan with our own leads.',
+    bestFor: 'A slice of production you would rather hand over entirely.',
+    order: 30,
+  },
+];
+
+/* ------------------------------------------------------------------ */
+/* The pages search cannot find on its own                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Transcribed from the `searchIndex` array in `config/nav.ts`.
+ *
+ * Only pages whose text lives in a template. Posts, services, case studies,
+ * roles and disciplines are folded into the index from their own documents at
+ * build time, so none of them is listed here and none of them can fall out of
+ * step with the site.
+ */
+export const SEARCH_PAGES = [
+  { title: 'Home', href: '/', section: 'Pages', keywords: 'aniwala studios animation showreel' },
+  {
+    title: 'Portfolio',
+    href: '/portfolio/',
+    section: 'Pages',
+    keywords: 'work projects case studies reel',
+  },
+  { title: 'About Us', href: '/about/', section: 'Pages', keywords: 'studio team story pipeline' },
+  { title: 'Blog', href: '/blog/', section: 'Pages', keywords: 'journal news breakdowns articles' },
+  {
+    title: 'Contact',
+    href: '/contact/',
+    section: 'Pages',
+    keywords: 'book appointment enquiry email hire quote',
+  },
+  {
+    title: 'Case Studies',
+    href: '/case-studies/',
+    section: 'Pages',
+    keywords: 'work projects breakdown process results portfolio examples',
+  },
+  {
+    title: 'Services',
+    href: '/services/',
+    section: 'Pages',
+    keywords: 'disciplines pipeline engagement outsourcing capabilities what we do',
+  },
+  {
+    /* Only the landing page. The individual openings are derived from the
+       role documents, so a filled seat leaves search the day it leaves the
+       careers page. */
+    title: 'Careers',
+    href: '/careers/',
+    section: 'Pages',
+    keywords:
+      'jobs hiring vacancies openings apply application internship intern recruitment work with us animator artist vfx editor pune',
+  },
+];
 
 /* ------------------------------------------------------------------ */
 /* The trading name, which moved off config/contact.ts                 */

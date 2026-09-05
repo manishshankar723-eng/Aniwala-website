@@ -17,6 +17,10 @@
  * worse for a search engine and better for the two people who use it, neither
  * of which is a search engine. `noindex` keeps it out of the index anyway.
  */
+import { getUiCopy } from '../lib/studio';
+
+const ui = await getUiCopy();
+
 const STUDIO_URL = 'https://aniwala.sanity.studio/';
 ---
 
@@ -27,7 +31,7 @@ const STUDIO_URL = 'https://aniwala.sanity.studio/';
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
     <meta http-equiv="refresh" content={`0; url=${STUDIO_URL}`} />
-    <title>Redirecting to the Studio…</title>
+    <title>{ui.adminTitle}</title>
     <link rel="canonical" href={STUDIO_URL} />
     <style>
       body {
@@ -52,9 +56,9 @@ const STUDIO_URL = 'https://aniwala.sanity.studio/';
     </style>
   </head>
   <body>
-    <p>Taking you to the Aniwala Studio…</p>
+    <p>{ui.adminLead}</p>
     <p>
-      If nothing happens, <a href={STUDIO_URL}>open it here</a>.
+      <a href={STUDIO_URL}>{ui.adminLinkLabel}</a>
     </p>
   </body>
 </html>

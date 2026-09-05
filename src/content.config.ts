@@ -32,6 +32,8 @@ import {
   sanityCareersContent,
   sanityUiCopy,
   sanityPrivacyPage,
+  sanityBrand,
+  sanityEngagementModels,
 } from './lib/sanity/loader';
 
 
@@ -426,6 +428,28 @@ const clients = defineCollection({
   }),
 });
 
+/**
+ * How a client can hire the studio.
+ *
+ * A list rather than fields on the block that draws it, because these three
+ * describe how the business is structured and have to mean the same thing on
+ * every page that mentions them. Unlike the other three "proof" collections
+ * below, this one does NOT hide itself when empty — the block renders a
+ * heading above it, so an empty list is a visible hole rather than a hidden
+ * section. That is why the block's own description tells an editor where the
+ * models live.
+ */
+const engagementModels = defineCollection({
+  loader: sanityEngagementModels(),
+  schema: z.object({
+    title: z.string().min(1),
+    body: z.string().min(1),
+    bestFor: z.string().min(1),
+    order: z.number().int().default(50),
+    draft: z.boolean().default(false),
+  }),
+});
+
 const milestones = defineCollection({
   loader: sanityMilestones(),
   schema: z.object({
@@ -584,6 +608,19 @@ const navigation = defineCollection({
     ctaHref: z.string().refine((v) => v.startsWith('/') || /^(https?:\/\/|mailto:)/.test(v), {
       message: 'Use a path starting with / , a full http(s) URL, or a mailto: address.',
     }),
+    /* The pages search cannot find on its own — those whose text lives in a
+       template rather than in a document. Everything else is folded into the
+       index from the document itself, so it cannot fall out of step. */
+    searchPages: z
+      .array(
+        z.object({
+          title: z.string().min(1),
+          href: z.string().startsWith('/', 'Use a path starting with /.'),
+          section: z.string().min(1),
+          keywords: z.string().default(''),
+        })
+      )
+      .default([]),
     draft: z.boolean().default(false),
   }),
 });
@@ -688,6 +725,10 @@ const careers = defineCollection({
     ...line(...CAREERS_CLOSING_FIELDS),
 
     ...line(...APPLY_COPY_FIELDS),
+    /* The two dropdowns on the application form. Lists rather than free text
+       so an application stays sortable afterwards — see the Studio schema. */
+    experienceBands: z.array(z.string().min(1)).min(2),
+    availabilityOptions: z.array(z.string().min(1)).min(2),
     applyPromises: z
       .array(
         z.object({
@@ -833,6 +874,51 @@ const uiCopy = defineCollection({
 });
 
 /**
+ * The logo and the browser icon. A singleton, and OPTIONAL.
+ *
+ * Every field may be blank, because the defaults are already right: the
+ * built-in inline mark, and the icon set committed in `public/`. That puts
+ * this in the same category as the loading screen rather than the same one as
+ * the menus — a missing document costs nothing, and failing a build over a
+ * setting nobody has changed would be absurd.
+ *
+ * The one rule worth enforcing is that the two logos come as a PAIR, and it
+ * is enforced in the Studio rather than here, where an editor can see the
+ * message while they are looking at the two fields. This schema only has to
+ * agree that either may be absent.
+ */
+const brand = defineCollection({
+  loader: sanityBrand(),
+  schema: z.object({
+    logoDark: sanityImage.omit({ alt: true }).optional(),
+    logoLight: sanityImage.omit({ alt: true }).optional(),
+    showWordmark: z.boolean().default(true),
+    wordmark: z.string().default(''),
+    wordmarkSub: z.string().default(''),
+    favicon: sanityImage.omit({ alt: true }).optional(),
+    /* Hex or blank. Validated in the Studio too, where the editor can see the
+       message; the pattern here is what stops a malformed one reaching the
+       manifest, which browsers reject silently and whole. */
+    themeColor: z
+      .string()
+      .regex(/^(#[0-9a-fA-F]{6})?$/, 'Use a hex colour like #0b0c10, or leave it blank.')
+      .default(''),
+    themeColorLight: z
+      .string()
+      .regex(/^(#[0-9a-fA-F]{6})?$/, 'Use a hex colour like #faf9f5, or leave it blank.')
+      .default(''),
+    backgroundColor: z
+      .string()
+      .regex(/^(#[0-9a-fA-F]{6})?$/, 'Use a hex colour like #0b0c10, or leave it blank.')
+      .default(''),
+    appName: z.string().default(''),
+    appShortName: z.string().default(''),
+    appDescription: z.string().default(''),
+    draft: z.boolean().default(false),
+  }),
+});
+
+/**
  * The privacy policy. A singleton.
  *
  * The body is validated as "a non-empty array of blocks" and no further, for
@@ -870,6 +956,7 @@ export const collections = {
   testimonials,
   clients,
   milestones,
+  engagementModels,
   faqs,
   artwork,
   announcement,
@@ -884,4 +971,5 @@ export const collections = {
   bookingSettings,
   uiCopy,
   privacyPage,
+  brand,
 };

@@ -314,6 +314,30 @@ export default defineType({
     /* message can never point somebody at a stale address.              */
     /* ---------------------------------------------------------------- */
 
+    /*
+     * What the studio's own notification email says.
+     *
+     * Never seen by a visitor — these ride along with the submission so the
+     * inbox can tell a booking apart from an enquiry at a glance. Editable
+     * because "which forwarded email is this" is an inbox problem, and the
+     * person with that problem is not a developer.
+     */
+    defineField({
+      name: 'emailSubject',
+      title: 'Notification subject',
+      type: 'string',
+      group: 'messages',
+      description: 'The subject line on the copy forwarded to the studio inbox.',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'emailFromName',
+      title: 'Notification sender name',
+      type: 'string',
+      group: 'messages',
+      validation: (Rule) => Rule.required(),
+    }),
+
     defineField({
       name: 'errName',
       title: 'Error — no name',

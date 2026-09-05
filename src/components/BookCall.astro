@@ -224,8 +224,8 @@ const initials = hostName
         <input type="hidden" name="When" id="bk-f-when" />
         <input type="hidden" name="Duration" id="bk-f-duration" />
         <input type="hidden" name="Timezone" id="bk-f-tz" />
-        <input type="hidden" name="subject" value="New call request — aniwala.com" />
-        <input type="hidden" name="from_name" value="Aniwala website" />
+        <input type="hidden" name="subject" value={booking.emailSubject} />
+        <input type="hidden" name="from_name" value={booking.emailFromName} />
 
         <p class="bk-msg" id="bk-msg" role="status" aria-live="polite"></p>
 

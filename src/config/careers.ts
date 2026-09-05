@@ -24,28 +24,17 @@ export type { EmploymentKind };
  * is form-only on purpose: nobody is hired into it, but plenty of good people
  * arrive through it.
  */
-export const disciplines: string[] = [...DISCIPLINES, 'Something else'];
-
-/** Experience bands offered in the application form. */
-export const experienceBands: string[] = [
-  'Student / final year',
-  'Less than 1 year',
-  '1–3 years',
-  '3–5 years',
-  '5–8 years',
-  '8+ years',
-];
-
-/** Notice period / availability, in the words people actually use. */
-export const availabilityOptions: string[] = [
-  'Immediately',
-  'Within 2 weeks',
-  '1 month notice',
-  '2 months notice',
-  '3 months notice',
-  'Only open to contract work',
-];
-
+/*
+ * The form's three dropdown lists moved to Sanity, onto `careersContent`
+ * beside the rest of the application form's wording.
+ *
+ * All except the disciplines, which are still `DISCIPLINES` in
+ * `config/disciplines.ts` and are read straight from there by the form. That
+ * list validates every role document as well as filling the dropdown, so a
+ * discipline removed in a CMS field would leave live listings filed under a
+ * value that no longer exists — the same reason blog categories stay in code.
+ * Only the "none of these" option at the end of it is copy.
+ */
 /**
  * schema.org employmentType constants, keyed by our human labels. Google's
  * job listings want the constant, not the prose.
