@@ -2,6 +2,9 @@
 import type { Post } from '../lib/posts';
 import { formatDate, isoDate, readingTime } from '../lib/posts';
 import { imageUrl, imageSrcSet } from '../lib/sanity/client';
+import { getUiCopy } from '../lib/studio';
+
+const ui = await getUiCopy();
 
 interface Props {
   post: Post;
@@ -59,7 +62,7 @@ const href = `/blog/${post.id}/`;
       {!terse && <p class="card-excerpt">{description}</p>}
 
       <span class="card-more">
-        Read <span aria-hidden="true">&rarr;</span>
+        {ui.cardReadMore} <span aria-hidden="true">&rarr;</span>
       </span>
     </span>
   </a>

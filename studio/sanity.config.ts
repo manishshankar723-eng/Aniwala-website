@@ -253,6 +253,29 @@ export default defineConfig({
               .child(
                 S.document().schemaType('siteCopy').documentId('siteCopy').title('Site copy')
               ),
+            /* Every word the site says that is not attached to a piece of
+               content — card labels, empty states, the two blog rails, the
+               404 and the names screen readers give to the icon buttons.
+               Grouped into tabs, because it is one document of about two
+               hundred strings and a flat list of those is unusable. */
+            S.listItem()
+              .title('Interface copy')
+              .id('uiCopy')
+              .child(
+                S.document().schemaType('uiCopy').documentId('uiCopy').title('Interface copy')
+              ),
+            /* The policy is prose, so it gets a body rather than fifty
+               fields. Its address and inbox are filled in from Contact
+               details — see the schema for the tokens. */
+            S.listItem()
+              .title('Privacy policy')
+              .id('privacyPage')
+              .child(
+                S.document()
+                  .schemaType('privacyPage')
+                  .documentId('privacyPage')
+                  .title('Privacy policy')
+              ),
           ]),
     }),
 

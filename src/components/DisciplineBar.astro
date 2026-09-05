@@ -1,6 +1,7 @@
 ---
 import { getWorkCategories, categoryHref } from '../lib/workCategories';
 import { pieceCounts } from '../lib/pieces';
+import { getUiCopy } from '../lib/studio';
 
 /**
  * The discipline filter on the portfolio.
@@ -18,18 +19,19 @@ interface Props {
 
 const { active } = Astro.props;
 
+const ui = await getUiCopy();
 const workCategories = await getWorkCategories();
 const counts = await pieceCounts();
 const total = Object.values(counts).reduce((n, c) => n + c, 0);
 ---
 
-<nav class="disciplines" aria-label="Filter by discipline" data-reveal>
+<nav class="disciplines" aria-label={ui.filterByDiscipline} data-reveal>
   <a
     href="/portfolio/"
     class:list={['disc', !active && 'is-active']}
     aria-current={!active ? 'page' : undefined}
   >
-    All work <span class="disc-n">{total}</span>
+    {ui.barAllWork} <span class="disc-n">{total}</span>
   </a>
 
   {
@@ -52,7 +54,7 @@ const total = Object.values(counts).reduce((n, c) => n + c, 0);
           href={isActive ? '/portfolio/' : categoryHref(c.slug)}
           class:list={['disc', isActive && 'is-active']}
           aria-current={isActive ? 'page' : undefined}
-          title={isActive ? 'Clear this filter' : undefined}
+          title={isActive ? ui.barClearFilter : undefined}
         >
           {c.title} <span class="disc-n">{n}</span>
           {isActive && <span class="disc-clear" aria-hidden="true" />}

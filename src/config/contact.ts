@@ -36,14 +36,18 @@ export const SOCIAL_ICONS = [
 
 export type SocialIcon = (typeof SOCIAL_ICONS)[number];
 
-/** Shown as the copyright holder and used in the footer base line. */
-export const legalName = 'aniwala.com';
-
-/* ------------------------------------------------------------------ */
-/* Legal pages linked from the footer base                             */
-/*                                                                     */
-/* A route has to exist for each of these, so they are code: adding a   */
-/* row here without adding the page fails `check-links.mjs`, which is   */
-/* the behaviour you want.                                              */
-/* ------------------------------------------------------------------ */
-export const legalLinks = [{ label: 'Privacy Policy', href: '/privacy/' }];
+/*
+ * The trading name and the footer's legal links used to live here too.
+ *
+ * They went the same way the address did. `legalName` is now on
+ * `contactDetails`, because the footer's copyright line and the privacy
+ * policy's opening sentence name the same entity and two copies of that is
+ * how they end up naming two different ones. `legalLinks` is on `uiCopy`.
+ *
+ * The argument for keeping the links in code was that a route has to exist
+ * for each of them, and a row without a page is a broken link on every page
+ * of the site. That argument turned out to be about the wrong guard: what
+ * catches a bad path is `check-links.mjs` at the end of the build, and it
+ * catches one typed into Sanity exactly as well as one typed into this file.
+ * The menus had already made the same move for the same reason.
+ */

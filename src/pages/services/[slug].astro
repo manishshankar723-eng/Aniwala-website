@@ -3,7 +3,8 @@ import Base from '../../layouts/Base.astro';
 import PageHero from '../../components/PageHero.astro';
 import { serviceSlot } from '../../config/imageSlots';
 import { getArtwork } from '../../lib/artwork';
-import { getFaqs } from '../../lib/studio';
+import { getFaqs, getUiCopy } from '../../lib/studio';
+import { fill } from '../../lib/copy';
 import Faq from '../../components/Faq.astro';
 import ProcessFlow from '../../components/ProcessFlow.astro';
 import CtaBand from '../../components/CtaBand.astro';
@@ -31,6 +32,12 @@ const { service } = Astro.props;
     rendering an undefined one. */
 const related = await servicesBySlugs(service.related);
 
+const ui = await getUiCopy();
+
+/* Every heading on this page is written once and reads correctly for all six
+   disciplines, because the service carries its own article and short name. */
+const words = { article: service.article, name: service.shortName };
+
 const serviceSchema = {
   '@context': 'https://schema.org',
   '@type': 'Service',
@@ -39,7 +46,7 @@ const serviceSchema = {
   description: service.intro,
   provider: {
     '@type': 'Organization',
-    name: 'Aniwala Studios',
+    name: ui.siteName,
     url: 'https://aniwala.com/',
   },
   areaServed: 'Worldwide',
@@ -61,26 +68,26 @@ const faqs = await getFaqs(`service:${service.slug}`);
 ---
 
 <Base
-  title={service.seoTitle ?? `${service.title} — Aniwala Studios`}
+  title={service.seoTitle ?? `${service.title} — ${ui.siteName}`}
   description={service.seoDescription ?? service.tagline}
   canonical={`/services/${service.slug}/`}
 >
   <main id="main">
     <PageHero
       image={heroArt}
-      eyebrow="Services"
+      eyebrow={ui.serviceEyebrow}
       title={service.title}
       lead={service.intro}
       tint={service.tint}
       crumbs={[
-        { label: 'Home', href: '/' },
-        { label: 'Services', href: '/services/' },
+        { label: ui.crumbHome, href: '/' },
+        { label: ui.crumbServices, href: '/services/' },
         { label: service.label },
       ]}
     >
       <div class="hero-actions" data-reveal data-reveal-delay="0.22">
-        <a href="/contact/" class="btn-primary">Start a project</a>
-        <a href="#pipeline" class="btn-ghost">See the pipeline</a>
+        <a href="/contact/" class="btn-primary">{ui.serviceHeroPrimary}</a>
+        <a href="#pipeline" class="btn-ghost">{ui.serviceHeroSecondary}</a>
       </div>
     </PageHero>
 
@@ -88,10 +95,8 @@ const faqs = await getFaqs(`service:${service.slug}`);
          put on a purchase order. -->
     <section class="section" id="offerings">
       <div class="section-head" data-reveal>
-        <p class="section-eyebrow">What we make</p>
-        <h2 class="section-title">
-          Everything {service.article} {service.shortName} brief can include
-        </h2>
+        <p class="section-eyebrow">{ui.serviceOfferEyebrow}</p>
+        <h2 class="section-title">{fill(ui.serviceOfferTitle, words)}</h2>
       </div>
 
       <div class="offerings">
@@ -113,9 +118,9 @@ const faqs = await getFaqs(`service:${service.slug}`);
     */}
     <ProcessFlow
       steps={service.pipeline}
-      eyebrow="The process"
-      title={`How ${service.article} ${service.shortName} job runs`}
-      lead={`Every stage names its own approval, so you always know what you are signing off and what it unlocks. Nothing moves to the next stage until the one before it is agreed.`}
+      eyebrow={ui.serviceProcessEyebrow}
+      title={fill(ui.serviceProcessTitle, words)}
+      lead={ui.serviceProcessLead}
       tint={service.tint}
     />
 
@@ -124,20 +129,17 @@ const faqs = await getFaqs(`service:${service.slug}`);
     <section class="section section--bordered" id="specs">
       <div class="specs">
         <div class="spec" data-reveal>
-          <p class="section-eyebrow">Software</p>
-          <h2 class="spec-title">What we work in</h2>
+          <p class="section-eyebrow">{ui.serviceToolsEyebrow}</p>
+          <h2 class="spec-title">{ui.serviceToolsTitle}</h2>
           <ul class="tools">
             {service.tools.map((t) => <li class="tool">{t}</li>)}
           </ul>
-          <p class="spec-note">
-            Not on the list? Ask. Most pipelines are a swap away, and we will say so
-            plainly if yours is not.
-          </p>
+          <p class="spec-note">{ui.serviceToolsNote}</p>
         </div>
 
         <div class="spec" data-reveal data-reveal-delay="0.08">
-          <p class="section-eyebrow">Hand-off</p>
-          <h2 class="spec-title">What you get</h2>
+          <p class="section-eyebrow">{ui.serviceDeliverEyebrow}</p>
+          <h2 class="spec-title">{ui.serviceDeliverTitle}</h2>
           <ul class="deliverables">
             {
               service.deliverables.map((d) => (
@@ -165,10 +167,10 @@ const faqs = await getFaqs(`service:${service.slug}`);
       related.length > 0 && (
         <section class="section section--bordered" id="related">
           <div class="section-head" data-reveal>
-            <p class="section-eyebrow">Pairs with</p>
-            <h2 class="section-title">Rarely just one discipline</h2>
+            <p class="section-eyebrow">{ui.serviceRelatedEyebrow}</p>
+            <h2 class="section-title">{ui.serviceRelatedTitle}</h2>
             <a href="/services/" class="section-link">
-              Every discipline <span aria-hidden="true">&rarr;</span>
+              {ui.serviceRelatedLink} <span aria-hidden="true">&rarr;</span>
             </a>
           </div>
 
@@ -187,12 +189,16 @@ const faqs = await getFaqs(`service:${service.slug}`);
       )
     }
 
-    <Faq items={faqs} name={`faq-${service.slug}`} title={`${service.label}, answered`} />
+    <Faq
+      items={faqs}
+      name={`faq-${service.slug}`}
+      title={fill(ui.serviceFaqTitle, { label: service.label })}
+    />
 
     <CtaBand
-      eyebrow="Start a project"
-      title={`Have ${service.article} ${service.shortName} brief?`}
-      body="Send it with the deadline attached. You get a shot or asset count, a crew, a price and a date within two working days — or an honest no."
+      eyebrow={ui.serviceCtaEyebrow}
+      title={fill(ui.serviceCtaTitle, words)}
+      body={ui.serviceCtaBody}
     />
 
     <script type="application/ld+json" set:html={JSON.stringify(serviceSchema)} is:inline />

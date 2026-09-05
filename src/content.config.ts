@@ -4,6 +4,12 @@ import { DISCIPLINES, EMPLOYMENT_KINDS } from './config/disciplines';
 import { IMAGE_SLOT_NAMES } from './config/imageSlots';
 import { SOCIAL_ICONS } from './config/contact';
 import {
+  UI_COPY_FIELDS,
+  APPLY_COPY_FIELDS,
+  BOOKING_COPY_FIELDS,
+  CAREERS_CLOSING_FIELDS,
+} from './config/copyFields';
+import {
   sanityPosts,
   sanityCaseStudies,
   sanityRoles,
@@ -24,6 +30,8 @@ import {
   sanityBookingSettings,
   sanityServices,
   sanityCareersContent,
+  sanityUiCopy,
+  sanityPrivacyPage,
 } from './lib/sanity/loader';
 
 
@@ -61,6 +69,19 @@ import {
  * machine cannot supply, the Studio schema marks it required too, and an
  * image published without it is an accessibility defect that no test catches.
  */
+/**
+ * A batch of required, non-empty strings.
+ *
+ * Used by the three documents that carry interface copy, where every field is
+ * the same rule — "a string somebody typed" — and there are around two
+ * hundred of them. The names come from `config/copyFields.ts`, which is also
+ * what `lib/studio.ts` derives its types from: one list, so the validator
+ * can never end up guarding a different set of fields than the templates
+ * actually read.
+ */
+const line = (...names: string[]) =>
+  Object.fromEntries(names.map((name) => [name, z.string().min(1)]));
+
 /**
  * Optional search-result overrides.
  *
@@ -442,6 +463,10 @@ const contactDetails = defineCollection({
   schema: z.object({
     email: z.string(),
     careersEmail: z.string(),
+    /* The copyright holder, and the party the privacy policy names. One
+       copy, because two is how the footer and the policy end up naming
+       different entities. */
+    legalName: z.string().min(1),
     addressLines: z.array(z.string()).default([]),
     country: z.string().default('India'),
     socials: z
@@ -646,6 +671,35 @@ const careers = defineCollection({
         })
       )
       .min(1),
+
+    /*
+     * The application form.
+     *
+     * It renders on this page AND at the foot of every role page, so its
+     * wording lives on this one document — two copies is how the listing page
+     * and the role page end up promising an applicant two different reply
+     * times. Every string is required for the same reason the rest of this
+     * schema's are: they are labels a form renders unconditionally, and a
+     * blank one is an unlabelled input, not a hidden section.
+     */
+    /* The FAQ and the closing panel. The panel is the one place this page
+       deliberately addresses somebody who is NOT job hunting, so both of its
+       actions are set here rather than falling back to the site-wide ones. */
+    ...line(...CAREERS_CLOSING_FIELDS),
+
+    ...line(...APPLY_COPY_FIELDS),
+    applyPromises: z
+      .array(
+        z.object({
+          label: z.string().min(1),
+          body: z.string().min(1),
+          linkLabel: z.string().optional(),
+          linkHref: z.string().optional(),
+        })
+      )
+      .min(1),
+
+    ...seoOverrides,
     draft: z.boolean().default(false),
   }),
 });
@@ -712,6 +766,97 @@ const bookingSettings = defineCollection({
     bookingWindowDays: z.number().int().min(1).max(365),
     whatToExpect: z.array(z.string()).default([]),
     enquiryTypes: z.array(z.string()).default([]),
+
+    /* Every visible word in the widget, including the ones its client script
+       writes after the page has loaded. Required, because these are labels on
+       a form that renders whatever happens. */
+    ...line(...BOOKING_COPY_FIELDS),
+    /* Exactly seven, Sunday first — the grid is laid out Sunday-first, so a
+       Monday-first list labels every column one day out. */
+    weekdayLabels: z.array(z.string().min(1)).length(7),
+
+    draft: z.boolean().default(false),
+  }),
+});
+
+/**
+ * Interface copy. A singleton.
+ *
+ * The field names come from `config/copyFields.ts` rather than being written
+ * out here, because `lib/studio.ts` needs exactly the same list to type them
+ * — and two hand-kept copies of two hundred names drift in the worst possible
+ * direction, with the validator quietly guarding fields the templates no
+ * longer read. The shapes that are NOT plain strings are declared below.
+ *
+ * THE 404 IS THE EXCEPTION. Its fields are optional, and blank falls back to
+ * the text in `lib/studio.ts`. Every other page on this site fails the build
+ * rather than render a hole; the 404 is the page somebody reaches when
+ * something has ALREADY gone wrong, and it must not be able to break in turn.
+ */
+const uiCopy = defineCollection({
+  loader: sanityUiCopy(),
+  schema: z.object({
+    ...line(...UI_COPY_FIELDS),
+
+    /* The footer's small print. Whether each path RESOLVES is
+       `check-links.mjs`'s job at the end of the build, which is the right
+       place for it — the same division the menus already use. */
+    legalLinks: z
+      .array(z.object({ label: z.string().min(1), href: z.string().min(1) }))
+      .min(1),
+
+    /* --- The 404. Optional, and the only group here that is. --------- */
+    notFoundCode: z.string().default(''),
+    notFoundTitle: z.string().default(''),
+    notFoundLead: z.string().default(''),
+    notFoundRoutes: z
+      .array(
+        z.object({
+          label: z.string().min(1),
+          href: z.string().min(1),
+          blurb: z.string().min(1),
+        })
+      )
+      .default([]),
+    notFoundCareersLabel: z.string().default(''),
+    notFoundCareersHref: z.string().default(''),
+    notFoundCareersOne: z.string().default(''),
+    notFoundCareersMany: z.string().default(''),
+    notFoundFoot: z.string().default(''),
+    notFoundFootLinkLabel: z.string().default(''),
+    notFoundFootLinkHref: z.string().default(''),
+    notFoundSeoTitle: z.string().default(''),
+    notFoundSeoDescription: z.string().default(''),
+
+    draft: z.boolean().default(false),
+  }),
+});
+
+/**
+ * The privacy policy. A singleton.
+ *
+ * The body is validated as "a non-empty array of blocks" and no further, for
+ * the same reason a built page's blocks are: what a policy has to SAY cannot
+ * be checked by a schema, and pretending otherwise would only add a rule
+ * somebody works around. What can be checked is that there is a policy at
+ * all, and that it carries a date — which the page prints as a promise that
+ * the date changes whenever the text does.
+ */
+const privacyPage = defineCollection({
+  loader: sanityPrivacyPage(),
+  schema: z.object({
+    eyebrow: z.string().min(1),
+    title: z.string().min(1),
+    lead: z.string().min(1),
+    tint: z.string().min(1),
+    lastUpdated: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD.'),
+    lastUpdatedLabel: z.string().min(1),
+    body: z
+      .array(z.object({ _type: z.string(), _key: z.string() }).passthrough())
+      .min(1, 'A privacy policy with no text is worse than no page at all.'),
+    contactHeading: z.string().min(1),
+    contactLead: z.string().min(1),
+    ...seoOverrides,
     draft: z.boolean().default(false),
   }),
 });
@@ -737,4 +882,6 @@ export const collections = {
   careers,
   workCategories,
   bookingSettings,
+  uiCopy,
+  privacyPage,
 };

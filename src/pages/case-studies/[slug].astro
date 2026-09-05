@@ -11,6 +11,7 @@ import {
   servicesFor,
   type CaseStudy,
 } from '../../lib/caseStudies';
+import { getUiCopy } from '../../lib/studio';
 
 export async function getStaticPaths() {
   const studies = await getCaseStudies();
@@ -30,13 +31,17 @@ const linkedServices = await servicesFor(study);
 
 const isStudioProject = kind === 'Studio project';
 
+const ui = await getUiCopy();
+
 /* The facts panel. Built as pairs so the markup does not have to branch for
    rows that happen to be empty on a given project. */
 const facts: { label: string; value: string }[] = [
-  { label: isStudioProject ? 'Made by' : 'Client', value: client },
-  { label: 'Type', value: sector },
-  { label: 'Year', value: String(year) },
-  { label: 'Engagement', value: kind },
+  /* "Client" would be a lie on a self-directed piece, so it says who made it
+     instead. Same rule the cards follow. */
+  { label: isStudioProject ? ui.caseFactMadeBy : ui.caseFactClient, value: client },
+  { label: ui.caseFactType, value: sector },
+  { label: ui.caseFactYear, value: String(year) },
+  { label: ui.caseFactEngagement, value: kind },
 ];
 
 const caseSchema = {
@@ -45,27 +50,27 @@ const caseSchema = {
   name: title,
   description,
   dateCreated: String(year),
-  creator: { '@type': 'Organization', name: 'Aniwala Studios', url: 'https://aniwala.com/' },
+  creator: { '@type': 'Organization', name: ui.siteName, url: 'https://aniwala.com/' },
   genre: sector,
   keywords: tools.join(', '),
 };
 ---
 
 <Base
-  title={seoTitle ?? `${title} — Case study — Aniwala Studios`}
+  title={seoTitle ?? `${title} — ${ui.caseEyebrow} — ${ui.siteName}`}
   description={seoDescription ?? description}
   canonical={`/case-studies/${study.id}/`}
 >
   <main id="main">
     <PageHero
-      eyebrow="Case study"
+      eyebrow={ui.caseEyebrow}
       title={title}
       lead={description}
       tint={tint}
       meta={[kind, sector, String(year)]}
       crumbs={[
-        { label: 'Home', href: '/' },
-        { label: 'Case studies', href: '/case-studies/' },
+        { label: ui.crumbHome, href: '/' },
+        { label: ui.crumbCaseStudies, href: '/case-studies/' },
         { label: title },
       ]}
     />
@@ -75,9 +80,7 @@ const caseSchema = {
       isStudioProject && (
         <section class="section section--intro">
           <p class="own-note" data-reveal>
-            <strong>Self-directed studio project.</strong> Nobody commissioned this. We
-            built it to test a claim we make to clients, on our own time — so the working
-            below is complete, including the parts that did not go well.
+            <strong>{ui.caseOwnNoteLead}</strong> {ui.caseOwnNoteBody}
           </p>
         </section>
       )
@@ -123,7 +126,7 @@ const caseSchema = {
           {
             linkedServices.length > 0 && (
               <div class="rail-block">
-                <h2 class="rail-title">Disciplines</h2>
+                <h2 class="rail-title">{ui.caseRailDisciplines}</h2>
                 <ul class="rail-links">
                   {linkedServices.map((s) => (
                     <li>
@@ -140,7 +143,7 @@ const caseSchema = {
           {
             deliverables.length > 0 && (
               <div class="rail-block">
-                <h2 class="rail-title">Delivered</h2>
+                <h2 class="rail-title">{ui.caseRailDelivered}</h2>
                 <ul class="rail-list">
                   {deliverables.map((d) => (
                     <li>{d}</li>
@@ -153,7 +156,7 @@ const caseSchema = {
           {
             tools.length > 0 && (
               <div class="rail-block">
-                <h2 class="rail-title">Built with</h2>
+                <h2 class="rail-title">{ui.caseRailTools}</h2>
                 <ul class="rail-tools">
                   {tools.map((t) => (
                     <li>{t}</li>
@@ -170,10 +173,10 @@ const caseSchema = {
       related.length > 0 && (
         <section class="section section--bordered">
           <div class="section-head" data-reveal>
-            <p class="section-eyebrow">More work</p>
-            <h2 class="section-title">Other case studies</h2>
+            <p class="section-eyebrow">{ui.caseRelatedEyebrow}</p>
+            <h2 class="section-title">{ui.caseRelatedTitle}</h2>
             <a href="/case-studies/" class="section-link">
-              View all <span aria-hidden="true">&rarr;</span>
+              {ui.caseRelatedLink} <span aria-hidden="true">&rarr;</span>
             </a>
           </div>
           <div class="related">

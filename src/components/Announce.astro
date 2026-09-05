@@ -1,7 +1,9 @@
 ---
 import { getAnnouncement } from '../lib/announce';
+import { getUiCopy } from '../lib/studio';
 
 const announce = await getAnnouncement();
+const ui = await getUiCopy();
 ---
 
 {
@@ -18,7 +20,7 @@ const announce = await getAnnouncement();
           </span>
         </a>
 
-        <button type="button" id="announce-close" class="announce-close" aria-label="Dismiss announcement">
+        <button type="button" id="announce-close" class="announce-close" aria-label={ui.announceDismiss}>
           <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
           </svg>

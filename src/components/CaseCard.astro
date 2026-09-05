@@ -1,5 +1,8 @@
 ---
 import type { CaseStudy } from '../lib/caseStudies';
+import { getUiCopy } from '../lib/studio';
+
+const ui = await getUiCopy();
 
 interface Props {
   study: CaseStudy;
@@ -48,7 +51,7 @@ const attribution = isStudioProject ? sector : `${client} · ${sector}`;
       }
 
       <span class="case-more">
-        Read the case study <span aria-hidden="true">&rarr;</span>
+        {ui.cardCaseMore} <span aria-hidden="true">&rarr;</span>
       </span>
     </span>
   </a>

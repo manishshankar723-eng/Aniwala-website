@@ -7,6 +7,8 @@ import CtaBand from '../../../components/CtaBand.astro';
 import Footer from '../../../components/Footer.astro';
 import { getTags, getPostsByTag, getPosts, type Post } from '../../../lib/posts';
 import { CATEGORIES } from '../../../config/categories';
+import { getUiCopy } from '../../../lib/studio';
+import { fill, plural } from '../../../lib/copy';
 
 /**
  * One page per tag in use. Tags come from the posts themselves, so there is
@@ -35,23 +37,25 @@ interface Props {
   counts: Record<string, number>;
 }
 const { tag, slug, posts, counts } = Astro.props;
-const count = `${posts.length} ${posts.length === 1 ? 'post' : 'posts'}`;
+
+const ui = await getUiCopy();
+const count = plural(posts.length, ui.postCountOne, ui.postCountMany);
 ---
 
 <Base
-  title={`${tag} — Blog — Aniwala Studios`}
-  description={`Posts tagged ${tag}.`}
+  title={`${tag} — ${ui.crumbBlog} — ${ui.siteName}`}
+  description={fill(ui.tagDescription, { name: tag })}
   canonical={`/blog/tag/${slug}/`}
 >
   <main id="main">
     <PageHero
-      eyebrow="Tag"
+      eyebrow={ui.tagEyebrow}
       title={`#${tag}`}
-      lead={`Everything on the blog tagged ${tag}.`}
+      lead={fill(ui.tagLead, { name: tag })}
       meta={[count]}
       crumbs={[
-        { label: 'Home', href: '/' },
-        { label: 'Blog', href: '/blog/' },
+        { label: ui.crumbHome, href: '/' },
+        { label: ui.crumbBlog, href: '/blog/' },
         { label: `#${tag}` },
       ]}
       tint="195 60% 24%"
@@ -63,7 +67,7 @@ const count = `${posts.length} ${posts.length === 1 ? 'post' : 'posts'}`;
           back into the blog, and the rail now lives only on post pages. */}
       <CategoryBar counts={counts} extraActive={`#${tag}`} />
 
-      <h2 class="visually-hidden">Posts tagged {tag}</h2>
+      <h2 class="visually-hidden">{fill(ui.tagHeading, { name: tag })}</h2>
       <div class="blog-grid">
         {posts.map((post) => <PostCard post={post} />)}
       </div>

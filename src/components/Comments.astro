@@ -1,7 +1,7 @@
 ---
 import { commentsEnabled } from '../config/site';
 import { supabaseConfigured } from '../lib/supabase';
-import { getContactDetails } from '../lib/studio';
+import { getContactDetails, getUiCopy } from '../lib/studio';
 
 /**
  * Blog comments, stored in Supabase alongside enquiries — one project, one
@@ -22,6 +22,7 @@ interface Props {
 const { slug } = Astro.props;
 
 const { email } = await getContactDetails();
+const ui = await getUiCopy();
 
 const live = commentsEnabled && supabaseConfigured;
 
@@ -31,7 +32,7 @@ const showSetupHint = !live && import.meta.env.DEV;
 ---
 
 <section class="comments" id="comments" aria-labelledby="comments-title">
-  <h2 class="comments-title" id="comments-title">Comments</h2>
+  <h2 class="comments-title" id="comments-title">{ui.commentsTitle}</h2>
 
   {
     live ? (
@@ -40,23 +41,21 @@ const showSetupHint = !live && import.meta.env.DEV;
             page is static HTML — approved comments are fetched per view so a
             newly approved one shows up without a rebuild. */}
         <div class="comments-list" data-comments-list aria-live="polite" aria-busy="true">
-          <p class="comments-status">Loading comments…</p>
+          <p class="comments-status">{ui.commentsLoading}</p>
         </div>
 
         <form class="comments-form" data-comments-form novalidate>
-          <h3 class="comments-form-title">Leave a comment</h3>
-          <p class="comments-form-note">
-            Your email address will not be published. Required fields are marked *
-          </p>
+          <h3 class="comments-form-title">{ui.commentsFormTitle}</h3>
+          <p class="comments-form-note">{ui.commentsFormNote}</p>
 
           <div class="comments-fields">
             <label class="comments-field">
-              <span>Full name *</span>
+              <span>{ui.commentsNameLabel}</span>
               <input type="text" name="author_name" maxlength="80" required autocomplete="name" />
             </label>
 
             <label class="comments-field">
-              <span>Email *</span>
+              <span>{ui.commentsEmailLabel}</span>
               <input
                 type="email"
                 name="author_email"
@@ -73,37 +72,34 @@ const showSetupHint = !live && import.meta.env.DEV;
             */}
             <div class="comments-hp" aria-hidden="true">
               <label>
-                Website
+                {ui.commentsHoneypotLabel}
                 <input type="text" name="website" tabindex="-1" autocomplete="off" />
               </label>
             </div>
           </div>
 
           <label class="comments-field">
-            <span>Comment *</span>
+            <span>{ui.commentsBodyLabel}</span>
             <textarea name="body" rows="5" maxlength="4000" required></textarea>
           </label>
 
           <label class="comments-remember">
             <input type="checkbox" name="remember" data-comments-remember />
-            <span>Save my name and email in this browser for next time.</span>
+            <span>{ui.commentsRemember}</span>
           </label>
 
           <p class="comments-msg" data-comments-msg role="status" aria-live="polite"></p>
 
           <div class="comments-actions">
-            <button type="submit" class="comments-submit">Post comment</button>
-            <span class="comments-note">Held for review before it appears.</span>
+            <button type="submit" class="comments-submit">{ui.commentsSubmit}</button>
+            <span class="comments-note">{ui.commentsNote}</span>
           </div>
         </form>
       </div>
     ) : (
       <div class="comments-off">
-        <p class="comments-off-lead">Comments are not switched on yet.</p>
-        <p class="comments-off-body">
-          If something here was useful, wrong, or worth arguing about, we would
-          genuinely like to hear it — email the studio and we will reply.
-        </p>
+        <p class="comments-off-lead">{ui.commentsOffLead}</p>
+        <p class="comments-off-body">{ui.commentsOffBody}</p>
         <a href={`mailto:${email}?subject=Blog%20feedback`} class="comments-off-cta">
           {email}
         </a>
@@ -402,8 +398,34 @@ const showSetupHint = !live && import.meta.env.DEV;
   }
 </style>
 
+<script
+  is:inline
+  define:vars={{
+    commentsCopy: {
+      empty: ui.commentsEmpty,
+      loadError: ui.commentsLoadError,
+      submit: ui.commentsSubmit,
+      submitBusy: ui.commentsSubmitBusy,
+      errName: ui.commentsErrName,
+      errEmail: ui.commentsErrEmail,
+      errBody: ui.commentsErrBody,
+      errTooFast: ui.commentsErrTooFast,
+      errPostFailed: ui.commentsErrPostFailed,
+      errPostGeneric: ui.commentsErrPostGeneric,
+      thanks: ui.commentsThanks,
+      pending: ui.commentsPending,
+    },
+  }}
+>
+  /* Everything the script below writes into the page. Passed through rather
+     than imported: the module script is bundled, and a bundled script cannot
+     see Astro frontmatter. */
+  window.__aniwalaComments = commentsCopy;
+</script>
+
 <script>
   import { insertRow, selectRows } from '../lib/supabase';
+  import { fill } from '../lib/copy';
 
   interface CommentRow {
     id: string;
@@ -471,6 +493,7 @@ const showSetupHint = !live && import.meta.env.DEV;
     const emailInput = form.elements.namedItem('author_email') as HTMLInputElement;
     const remember = form.querySelector<HTMLInputElement>('[data-comments-remember]')!;
     const mountedAt = Date.now();
+    const copy = (window as any).__aniwalaComments;
 
     // ---------- remembered details ----------
     // localStorage throws outright in some privacy modes, so every access is
@@ -502,7 +525,7 @@ const showSetupHint = !live && import.meta.env.DEV;
         if (rows.length === 0) {
           const p = document.createElement('p');
           p.className = 'comments-status';
-          p.textContent = 'No comments yet.';
+          p.textContent = copy.empty;
           list.append(p);
         } else {
           rows.forEach((r) => list.append(renderComment(r)));
@@ -511,7 +534,7 @@ const showSetupHint = !live && import.meta.env.DEV;
         list.replaceChildren();
         const p = document.createElement('p');
         p.className = 'comments-status';
-        p.textContent = 'Comments could not be loaded right now.';
+        p.textContent = copy.loadError;
         list.append(p);
       } finally {
         list.setAttribute('aria-busy', 'false');
@@ -537,23 +560,23 @@ const showSetupHint = !live && import.meta.env.DEV;
       // Honeypot: report success and drop it. Telling a bot it failed only
       // teaches whoever wrote it to try again.
       if (String(data.get('website') ?? '').trim() !== '') {
-        msg.textContent = 'Thanks — your comment is awaiting review.';
+        msg.textContent = copy.pending;
         msg.className = 'comments-msg is-ok';
         form.reset();
         return;
       }
 
-      if (!author) return fail('Add a name so we know who we are talking to.');
+      if (!author) return fail(copy.errName);
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        return fail('That email address does not look right. It is never published.');
+        return fail(copy.errEmail);
       }
-      if (body.length < 2) return fail('Write a comment first.');
+      if (body.length < 2) return fail(copy.errBody);
       if ((Date.now() - mountedAt) / 1000 < MIN_SECONDS_BEFORE_SUBMIT) {
-        return fail('That was quick — give it a second and try again.');
+        return fail(copy.errTooFast);
       }
 
       submit.disabled = true;
-      submit.textContent = 'Posting…';
+      submit.textContent = copy.submitBusy;
       try {
         // `approved` is deliberately absent: anon holds no INSERT grant on
         // that column, so it cannot be set from here at all. The column
@@ -582,18 +605,18 @@ const showSetupHint = !live && import.meta.env.DEV;
           emailInput.value = email;
           remember.checked = true;
         }
-        msg.textContent = 'Thanks — your comment is awaiting review and will appear once approved.';
+        msg.textContent = copy.thanks;
         msg.className = 'comments-msg is-ok';
       } catch (err) {
         fail(
           err instanceof Error && err.message
-            ? `Could not post that — ${err.message}`
-            : 'Could not post that. Try again shortly.'
+            ? fill(copy.errPostFailed, { error: err.message })
+            : copy.errPostGeneric
         );
       } finally {
         if (submit.isConnected) {
           submit.disabled = false;
-          submit.textContent = 'Post comment';
+          submit.textContent = copy.submit;
         }
       }
     });

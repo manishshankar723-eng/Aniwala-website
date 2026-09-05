@@ -8,6 +8,7 @@ import {
   isoDate,
   categorySlug,
 } from '../lib/posts';
+import { getUiCopy } from '../lib/studio';
 
 /**
  * The rail beside every blog page.
@@ -39,6 +40,8 @@ interface Props {
 }
 
 const { toc = [], excludeId, activeCategory, activeTag, activePeriod } = Astro.props;
+
+const ui = await getUiCopy();
 
 const allPosts = await getPosts();
 const recent = allPosts.filter((p) => p.id !== excludeId).slice(0, 5);
@@ -80,7 +83,7 @@ const blogIndex = allPosts.map((p) => ({
   data-rail-open
   aria-expanded="false"
   aria-controls="blog-rail"
-  aria-label="Open blog menu"
+  aria-label={ui.railOpen}
 >
   <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
     <rect x="2.5" y="3" width="15" height="14" rx="2" stroke="currentColor" stroke-width="1.6"></rect>
@@ -90,8 +93,8 @@ const blogIndex = allPosts.map((p) => ({
 
 <div class="rail-scrim" data-rail-close hidden></div>
 
-<aside id="blog-rail" class="rail" aria-label="Blog sidebar" data-lenis-prevent>
-  <button type="button" class="rail-close" data-rail-close aria-label="Close blog menu">
+<aside id="blog-rail" class="rail" aria-label={ui.railLabel} data-lenis-prevent>
+  <button type="button" class="rail-close" data-rail-close aria-label={ui.railClose}>
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
       ></path>
@@ -101,17 +104,17 @@ const blogIndex = allPosts.map((p) => ({
   <!-- Search. Searches the blog and nothing else — the site-wide overlay is
        still on the header for anyone who wants the whole site. -->
   <section class="rail-block" aria-labelledby="rail-search-title">
-    <h2 class="rail-title" id="rail-search-title">Search</h2>
+    <h2 class="rail-title" id="rail-search-title">{ui.railSearchTitle}</h2>
 
     <div class="rail-search">
       <input
         type="search"
         class="rail-search-input"
         data-blog-search
-        placeholder="Search posts…"
+        placeholder={ui.railSearchPlaceholder}
         autocomplete="off"
         spellcheck="false"
-        aria-label="Search blog posts"
+        aria-label={ui.railSearchLabel}
         aria-controls="rail-search-results"
       />
       <svg class="rail-search-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -122,13 +125,13 @@ const blogIndex = allPosts.map((p) => ({
     </div>
 
     <ul class="rail-results" id="rail-search-results" data-blog-results hidden></ul>
-    <p class="rail-empty" data-blog-empty hidden>No posts match that.</p>
+    <p class="rail-empty" data-blog-empty hidden>{ui.railSearchEmpty}</p>
   </section>
 
   {
     showToc && (
       <nav class="rail-block" aria-labelledby="rail-toc-title">
-        <h2 class="rail-title" id="rail-toc-title">On this page</h2>
+        <h2 class="rail-title" id="rail-toc-title">{ui.railTocTitle}</h2>
         <ol class="rail-toc">
           {toc.map((h) => (
             <li>
@@ -145,7 +148,7 @@ const blogIndex = allPosts.map((p) => ({
   {
     recent.length > 0 && (
       <section class="rail-block" aria-labelledby="rail-recent-title">
-        <h2 class="rail-title" id="rail-recent-title">Recent posts</h2>
+        <h2 class="rail-title" id="rail-recent-title">{ui.railRecentTitle}</h2>
         <ul class="rail-posts">
           {recent.map((p) => (
             <li>
@@ -166,7 +169,7 @@ const blogIndex = allPosts.map((p) => ({
   }
 
   <section class="rail-block" aria-labelledby="rail-cat-title">
-    <h2 class="rail-title" id="rail-cat-title">Categories</h2>
+    <h2 class="rail-title" id="rail-cat-title">{ui.railCategoriesTitle}</h2>
     <ul class="rail-list">
       {
         CATEGORIES.map((c) => {
@@ -196,7 +199,7 @@ const blogIndex = allPosts.map((p) => ({
   {
     archive.length > 0 && (
       <section class="rail-block" aria-labelledby="rail-archive-title">
-        <h2 class="rail-title" id="rail-archive-title">Archive</h2>
+        <h2 class="rail-title" id="rail-archive-title">{ui.railArchiveTitle}</h2>
         <ul class="rail-list">
           {archive.map((a) => (
             <li>
@@ -217,7 +220,7 @@ const blogIndex = allPosts.map((p) => ({
   {
     tags.length > 0 && (
       <section class="rail-block" aria-labelledby="rail-tags-title">
-        <h2 class="rail-title" id="rail-tags-title">Tags</h2>
+        <h2 class="rail-title" id="rail-tags-title">{ui.railTagsTitle}</h2>
         <ul class="rail-tags">
           {tags.map((t) => (
             <li>
@@ -235,15 +238,13 @@ const blogIndex = allPosts.map((p) => ({
     )
   }
 
-  <a href="/services/" class="rail-promo">
+  <a href={ui.railPromoHref} class="rail-promo">
     <span class="rail-promo-art" aria-hidden="true"></span>
     <span class="rail-promo-body">
-      <span class="rail-promo-title">Animation &amp; game art, end to end</span>
-      <span class="rail-promo-text">
-        Six disciplines, one pipeline, and a schedule we actually believe.
-      </span>
+      <span class="rail-promo-title">{ui.railPromoTitle}</span>
+      <span class="rail-promo-text">{ui.railPromoText}</span>
       <span class="rail-promo-cta">
-        See what we do <span aria-hidden="true">&rarr;</span>
+        {ui.railPromoCta} <span aria-hidden="true">&rarr;</span>
       </span>
     </span>
   </a>

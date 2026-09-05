@@ -5,7 +5,8 @@ import ApplyForm from '../../components/ApplyForm.astro';
 import Footer from '../../components/Footer.astro';
 import { employmentTypeSchema } from '../../config/careers';
 import { getFlatRoles, type Role } from '../../lib/roles';
-import { getContactDetails, getCareersContent } from '../../lib/studio';
+import { getContactDetails, getCareersContent, getUiCopy } from '../../lib/studio';
+import { fill, plural } from '../../lib/copy';
 
 /**
  * One page per opening, built from `config/careers.ts`.
@@ -45,6 +46,8 @@ const { careersEmail, addressLines } = await getContactDetails();
    processes to the same applicant. */
 const { hiringSteps } = await getCareersContent();
 
+const ui = await getUiCopy();
+
 const fmtDate = (iso: string) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', {
     day: 'numeric',
@@ -56,13 +59,15 @@ const fmtDate = (iso: string) =>
 /* The facts an applicant scans for before reading a word of prose. Kept as
    data so the rail and the structured data cannot disagree. */
 const facts: Array<[string, string]> = [
-  ['Discipline', role.discipline],
-  ['Type', role.kind],
-  ['Location', role.location],
-  ['Experience', role.experience],
-  ['Openings', role.openings === 1 ? '1 seat' : `${role.openings} seats`],
-  ['Posted', fmtDate(role.posted)],
-  ...(role.closes ? ([['Applications close', fmtDate(role.closes)]] as Array<[string, string]>) : []),
+  [ui.roleFactDiscipline, role.discipline],
+  [ui.roleFactType, role.kind],
+  [ui.roleFactLocation, role.location],
+  [ui.roleFactExperience, role.experience],
+  [ui.roleFactOpenings, plural(role.openings, ui.roleSeatOne, ui.roleSeatMany)],
+  [ui.roleFactPosted, fmtDate(role.posted)],
+  ...(role.closes
+    ? ([[ui.roleFactCloses, fmtDate(role.closes)]] as Array<[string, string]>)
+    : []),
 ];
 
 const jobSchema = {
@@ -77,7 +82,7 @@ const jobSchema = {
   skills: role.software.join(', '),
   hiringOrganization: {
     '@type': 'Organization',
-    name: 'Aniwala Studios',
+    name: ui.siteName,
     sameAs: 'https://aniwala.com',
   },
   jobLocation: {
@@ -97,10 +102,10 @@ const jobSchema = {
 ---
 
 <Base
-  title={role.seoTitle ?? `${role.title} — Careers at Aniwala Studios`}
+  title={role.seoTitle ?? `${role.title} — ${ui.crumbCareers} — ${ui.siteName}`}
   description={
     role.seoDescription ??
-    `${role.summary} ${role.kind}, ${role.location}. ${role.experience}. Apply to Aniwala Studios and get an answer within five working days.`
+    `${role.summary} ${role.kind}, ${role.location}. ${role.experience}.`
   }
 >
   <main id="main">
@@ -109,8 +114,8 @@ const jobSchema = {
       title={role.title}
       lead={role.summary}
       crumbs={[
-        { label: 'Home', href: '/' },
-        { label: 'Careers', href: '/careers/' },
+        { label: ui.crumbHome, href: '/' },
+        { label: ui.crumbCareers, href: '/careers/' },
         { label: role.title },
       ]}
       tint={role.tint}
@@ -118,13 +123,18 @@ const jobSchema = {
         role.kind,
         role.location,
         role.experience,
-        role.openings === 1 ? '1 opening' : `${role.openings} openings`,
+        plural(role.openings, ui.careersOpeningOne, ui.careersOpeningMany),
       ]}
     >
       <div class="hero-acts" data-reveal data-reveal-delay="0.22">
-        <a href="#apply" class="hero-act hero-act--primary">Apply for this role</a>
-        <a href={`mailto:${careersEmail}?subject=${encodeURIComponent(`Question about ${role.title}`)}`} class="hero-act">
-          Ask a question first
+        <a href="#apply" class="hero-act hero-act--primary">{ui.roleApplyAct}</a>
+        <a
+          href={`mailto:${careersEmail}?subject=${encodeURIComponent(
+            fill(ui.roleAskSubject, { role: role.title })
+          )}`}
+          class="hero-act"
+        >
+          {ui.roleAskAct}
         </a>
       </div>
     </PageHero>
@@ -134,36 +144,32 @@ const jobSchema = {
         <!-- ── The role itself ───────────────────────────────────────── -->
         <div class="body">
           <div class="block" data-reveal>
-            <h2 class="block-title">The work</h2>
+            <h2 class="block-title">{ui.roleWorkTitle}</h2>
             <p class="block-lead">{role.about}</p>
           </div>
 
           <div class="block" data-reveal>
-            <h2 class="block-title">What you would be doing</h2>
+            <h2 class="block-title">{ui.roleDoingTitle}</h2>
             <ul class="ticks">
               {role.responsibilities.map((r) => <li>{r}</li>)}
             </ul>
           </div>
 
           <div class="block" data-reveal>
-            <h2 class="block-title">What we need from you</h2>
+            <h2 class="block-title">{ui.roleNeedTitle}</h2>
             <ul class="ticks">
               {role.requirements.map((r) => <li>{r}</li>)}
             </ul>
             {/* Said out loud, because the people who most often talk
                 themselves out of applying are the ones worth reading. */}
-            <p class="block-aside">
-              Missing one of these and strong on the rest? Apply anyway and say which
-              one. We have hired on that basis before, and the reel decides it — not
-              the checklist.
-            </p>
+            <p class="block-aside">{ui.roleNeedAside}</p>
           </div>
 
           {
             role.niceToHave && role.niceToHave.length > 0 && (
               <div class="block" data-reveal>
-                <h2 class="block-title">Nice to have</h2>
-                <p class="block-note">Genuinely optional. None of these decide it.</p>
+                <h2 class="block-title">{ui.roleNiceTitle}</h2>
+                <p class="block-note">{ui.roleNiceNote}</p>
                 <ul class="pluses">
                   {role.niceToHave.map((n) => (
                     <li>{n}</li>
@@ -174,7 +180,7 @@ const jobSchema = {
           }
 
           <div class="block" data-reveal>
-            <h2 class="block-title">Software you would be in</h2>
+            <h2 class="block-title">{ui.roleSoftwareTitle}</h2>
             <ul class="tools">
               {role.software.map((s) => <li class="tool">{s}</li>)}
             </ul>
@@ -183,19 +189,16 @@ const jobSchema = {
           {/* The most useful thing on the page, so it is given a panel rather
               than a bullet. Most creative job ads never say it at all. */}
           <div class="reel" data-reveal>
-            <p class="reel-eyebrow">What to send</p>
+            <p class="reel-eyebrow">{ui.roleReelEyebrow}</p>
             <p class="reel-body">{role.reelNote}</p>
-            <p class="reel-foot">
-              A link is all we need — ArtStation, Vimeo, a personal site, a Drive
-              folder or a PDF. Please check the sharing permission before you send it.
-            </p>
+            <p class="reel-foot">{ui.roleReelFoot}</p>
           </div>
         </div>
 
         <!-- ── Sticky facts rail ─────────────────────────────────────── -->
         <aside class="rail" data-reveal>
           <div class="rail-card">
-            <p class="rail-title">At a glance</p>
+            <p class="rail-title">{ui.roleGlanceTitle}</p>
             <dl class="facts">
               {
                 facts.map(([k, v]) => (
@@ -206,15 +209,12 @@ const jobSchema = {
                 ))
               }
             </dl>
-            <a href="#apply" class="rail-act">Apply for this role</a>
-            <p class="rail-note">
-              Answer within five working days, either way. Tests are paid and never
-              shipped.
-            </p>
+            <a href="#apply" class="rail-act">{ui.roleApplyAct}</a>
+            <p class="rail-note">{ui.roleRailNote}</p>
           </div>
 
           <div class="rail-card rail-card--quiet">
-            <p class="rail-title">The process</p>
+            <p class="rail-title">{ui.roleProcessTitle}</p>
             <ol class="mini">
               {
                 hiringSteps.map((s) => (
@@ -226,7 +226,7 @@ const jobSchema = {
               }
             </ol>
             <a href="/careers/#process" class="rail-link">
-              In full <span aria-hidden="true">&rarr;</span>
+              {ui.roleProcessLink} <span aria-hidden="true">&rarr;</span>
             </a>
           </div>
         </aside>
@@ -239,10 +239,10 @@ const jobSchema = {
       others.length > 0 && (
         <section class="section section--bordered" id="other">
           <div class="section-head" data-reveal>
-            <p class="section-eyebrow">Also open</p>
-            <h2 class="section-title">Not quite you?</h2>
+            <p class="section-eyebrow">{ui.roleOthersEyebrow}</p>
+            <h2 class="section-title">{ui.roleOthersTitle}</h2>
             <a href="/careers/#apply" class="section-link">
-              Send an open application <span aria-hidden="true">&rarr;</span>
+              {ui.roleOthersLink} <span aria-hidden="true">&rarr;</span>
             </a>
           </div>
 

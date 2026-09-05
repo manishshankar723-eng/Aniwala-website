@@ -104,6 +104,25 @@ export default defineType({
         },
       ],
     }),
+
+    /**
+     * The trading name.
+     *
+     * Printed as the copyright holder in the footer base, and named in the
+     * first line of the privacy policy as the party the policy covers. It
+     * lives here rather than in either of those places because it is the same
+     * legal fact twice, and two copies of it is how the footer and the policy
+     * end up naming different entities.
+     */
+    defineField({
+      name: 'legalName',
+      title: 'Trading name',
+      type: 'string',
+      group: 'office',
+      description:
+        'The copyright holder in the footer, and the party the privacy policy covers. Use the name you would put on a contract.',
+      validation: (Rule) => Rule.required(),
+    }),
   ],
 
   preview: {

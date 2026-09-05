@@ -1,5 +1,6 @@
 ---
-import { getNavigation } from '../lib/studio';
+import { getNavigation, getUiCopy } from '../lib/studio';
+import { fill } from '../lib/copy';
 
 interface Props {
   /** True on pages with a full-bleed hero that the header sits on top of. */
@@ -11,6 +12,7 @@ const path = Astro.url.pathname;
 /* Some routes are worth a footer link and a search entry but not one of the
    header's few slots. Both the desktop nav and the drawer read this. */
 const { headerItems: headerNav, ctaLabel, ctaHref } = await getNavigation();
+const ui = await getUiCopy();
 
 const isCurrent = (href?: string) =>
   href ? (href === '/' ? path === '/' : path.startsWith(href)) : false;
@@ -25,7 +27,7 @@ const isCurrent = (href?: string) =>
     {/* Brand. The mark is inline SVG so it inherits currentColor and flips
         with the theme; a real logo file would need two of them. Replace the
         <path>s below rather than swapping in an <img>. */}
-    <a href="/" class="brand" aria-label="Aniwala Studios — home">
+    <a href="/" class="brand" aria-label={ui.brandHome}>
       <svg class="brand-icon" viewBox="0 0 40 40" fill="none" aria-hidden="true">
         <path d="M20 5L30.5 32H25.2L20 17.4L14.8 32H9.5L20 5Z" fill="currentColor"></path>
         <path
@@ -43,7 +45,7 @@ const isCurrent = (href?: string) =>
     </a>
 
     <!-- Desktop nav -->
-    <nav class="nav-desktop" aria-label="Main">
+    <nav class="nav-desktop" aria-label={ui.navMain}>
       {
         headerNav.map((item) =>
           item.children.length > 0 ? (
@@ -67,7 +69,7 @@ const isCurrent = (href?: string) =>
                     type="button"
                     class="nav-trigger nav-caret-btn"
                     aria-expanded="false"
-                    aria-label={`Show ${item.label} menu`}
+                    aria-label={fill(ui.submenuHint, { label: item.label })}
                   >
                     <svg class="nav-caret" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                   <path
@@ -127,7 +129,7 @@ const isCurrent = (href?: string) =>
 
     <!-- Actions -->
     <div class="header-end">
-      <button type="button" class="icon-btn" data-search-open aria-label="Search">
+      <button type="button" class="icon-btn" data-search-open aria-label={ui.searchOpen}>
         <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
           <circle cx="9" cy="9" r="6.25" stroke="currentColor" stroke-width="1.6"></circle>
           <path d="M13.5 13.5L17.5 17.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
@@ -139,7 +141,7 @@ const isCurrent = (href?: string) =>
         type="button"
         id="theme-toggle"
         class="icon-btn"
-        aria-label="Switch to light theme"
+        aria-label={ui.themeToLight}
         aria-pressed="false"
       >
         <svg class="icon-moon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -167,7 +169,7 @@ const isCurrent = (href?: string) =>
         class="burger"
         aria-expanded="false"
         aria-controls="mobile-menu"
-        aria-label="Open menu"
+        aria-label={ui.menuOpen}
       >
         <span class="burger-bar"></span>
         <span class="burger-bar"></span>
@@ -185,7 +187,7 @@ const isCurrent = (href?: string) =>
   links were present but had no area, so taps fell through to the page behind.
 -->
 <div id="mobile-menu" class="mobile-menu" data-lenis-prevent>
-  <nav class="mobile-nav" aria-label="Mobile">
+  <nav class="mobile-nav" aria-label={ui.navMobile}>
     {
       headerNav.map((item) =>
         item.children.length > 0 ? (
@@ -761,10 +763,32 @@ const isCurrent = (href?: string) =>
   }
 </style>
 
+<script
+  is:inline
+  define:vars={{
+    headerCopy: {
+      themeToLight: ui.themeToLight,
+      themeToDark: ui.themeToDark,
+      menuOpen: ui.menuOpen,
+      menuClose: ui.menuClose,
+    },
+  }}
+>
+  /* The four labels the script below swaps as the theme and menu change.
+     Passed through rather than imported: a bundled module script cannot see
+     Astro frontmatter, and these are the only strings it writes. */
+  window.__aniwalaHeader = headerCopy;
+</script>
+
 <script>
   import { lockScroll, unlockScroll } from '../lib/motion';
 
   function initHeader() {
+    /* The four labels this script swaps as the theme and the drawer change.
+       Set by the inline island above, which is where Astro frontmatter can
+       still reach — a bundled module script like this one cannot. */
+    const copy = (window as any).__aniwalaHeader;
+
     /* Without this, tapping the parent link inside a <summary> bubbles to the
        summary and toggles the accordion on the way out — the drawer animates
        open behind a page that is already navigating away. */
@@ -784,7 +808,7 @@ const isCurrent = (href?: string) =>
       const sync = () => {
         const light = document.documentElement.dataset.theme === 'light';
         theme.setAttribute('aria-pressed', String(light));
-        theme.setAttribute('aria-label', light ? 'Switch to dark theme' : 'Switch to light theme');
+        theme.setAttribute('aria-label', light ? copy.themeToDark : copy.themeToLight);
       };
       sync();
       theme.addEventListener('click', () => {
@@ -814,7 +838,7 @@ const isCurrent = (href?: string) =>
     // --- Mobile drawer ------------------------------------------------
     const setMenu = (open: boolean) => {
       toggle.setAttribute('aria-expanded', String(open));
-      toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+      toggle.setAttribute('aria-label', open ? copy.menuClose : copy.menuOpen);
       menu.classList.toggle('is-open', open);
       header.classList.toggle('menu-open', open);
       if (open) lockScroll();

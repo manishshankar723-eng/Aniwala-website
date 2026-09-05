@@ -22,6 +22,13 @@
 import { getCollection, getEntry } from 'astro:content';
 import { imageUrl, previewMode, type SanityImage } from './sanity/client';
 import type { SocialIcon } from '../config/contact';
+import {
+  UI_COPY_FIELDS,
+  type UiCopyField,
+  type ApplyCopyField,
+  type BookingCopyField,
+  type CareersClosingField,
+} from '../config/copyFields';
 
 const live = ({ data }: { data: { draft: boolean } }) => previewMode || !data.draft;
 
@@ -185,6 +192,8 @@ export interface Social {
 export interface ContactDetails {
   email: string;
   careersEmail: string;
+  /** The copyright holder, and the party the privacy policy names. */
+  legalName: string;
   addressLines: string[];
   country: string;
   /** Every social, including ones with no URL yet. */
@@ -205,6 +214,7 @@ export interface ContactDetails {
 const EMPTY_CONTACT: ContactDetails = {
   email: '',
   careersEmail: '',
+  legalName: '',
   addressLines: [],
   country: '',
   socials: [],
@@ -217,11 +227,12 @@ export async function getContactDetails(): Promise<ContactDetails> {
   if (!entry || (entry.data.draft && !previewMode))
     return missingSingleton('contactDetails', 'contactDetails', EMPTY_CONTACT);
 
-  const { email, careersEmail, addressLines, country, socials } = entry.data;
+  const { email, careersEmail, legalName, addressLines, country, socials } = entry.data;
 
   return {
     email,
     careersEmail,
+    legalName,
     addressLines,
     country,
     socials: socials as Social[],
@@ -346,20 +357,51 @@ export interface HiringStep {
  * `hiringOpen` is the one that earns its place: turning it off empties the
  * listings and switches the page to its open-application state, which is the
  * honest thing to do when hiring pauses and used to need a developer.
+ *
+ * The application form’s wording rides on the same document, because the
+ * form renders here AND at the foot of every role page — two copies is how
+ * those two pages end up promising an applicant two different reply times.
+ * `ApplyCopy` types that half; the rest is inferred from the collection.
  */
+export interface ApplyPromise {
+  label: string;
+  body: string;
+  linkLabel?: string;
+  linkHref?: string;
+}
+
+/**
+ * The half of `careersContent` that is validated by name rather than declared
+ * field by field — the application form's wording, and the page's FAQ heading
+ * and closing panel. See config/copyFields.ts for why that trade was made.
+ */
+export type ApplyCopy = Record<ApplyCopyField | CareersClosingField, string> & {
+  applyPromises: ApplyPromise[];
+};
+
 export async function getCareersContent() {
   const entry = await getEntry('careers', 'careersContent');
   if (!entry || (entry.data.draft && !previewMode)) {
     return missingSingleton('careersContent', 'careersContent', null as never);
   }
-  return entry.data;
+  return entry.data as typeof entry.data & ApplyCopy;
 }
 
 /* ------------------------------------------------------------------ */
 /* Booking                                                             */
 /* ------------------------------------------------------------------ */
 
-export interface BookingSettings {
+/**
+ * The booking widget's settings AND its wording.
+ *
+ * The words live with the settings rather than in `uiCopy`, because an
+ * editor changing the call lengths and an editor changing the button that
+ * confirms them are the same person doing the same job. `BookingCopy` covers
+ * the strings; the operational fields are spelled out below.
+ */
+export type BookingCopy = Record<BookingCopyField, string> & { weekdayLabels: string[] };
+
+export interface BookingSettings extends BookingCopy {
   hostName: string;
   hostRole: string;
   /** Ready-to-render URL, or undefined — the panel falls back to initials. */
@@ -386,7 +428,10 @@ export interface BookingSettings {
  * — and exactly why nobody should be able to point it at a timezone that
  * does, where every offered slot would be an hour wrong for half the year.
  */
-const EMPTY_BOOKING: BookingSettings = {
+/* Blank strings for every word in the widget, so the dev-only empty shape
+   below can be written without listing thirty-odd fields by hand. It is
+   never used in a production build — that throws instead. */
+const EMPTY_BOOKING = {
   hostName: '',
   hostRole: '',
   callDurations: [30],
@@ -397,17 +442,188 @@ const EMPTY_BOOKING: BookingSettings = {
   bookingWindowDays: 60,
   whatToExpect: [],
   enquiryTypes: [],
-};
+  weekdayLabels: [],
+} as unknown as BookingSettings;
 
 export async function getBookingSettings(): Promise<BookingSettings> {
   const entry = await getEntry('bookingSettings', 'bookingSettings');
   if (!entry || (entry.data.draft && !previewMode))
     return missingSingleton('bookingSettings', 'bookingSettings', EMPTY_BOOKING);
 
+  /* Cast because the wording is validated by name rather than declared
+     field by field — see config/copyFields.ts for why that trade was made. */
   return {
     ...entry.data,
     hostPhoto: entry.data.hostPhoto
       ? imageUrl(entry.data.hostPhoto as SanityImage, 240)
       : undefined,
-  };
+  } as unknown as BookingSettings;
+}
+
+/* ------------------------------------------------------------------ */
+/* Interface copy                                                      */
+/* ------------------------------------------------------------------ */
+
+export interface LegalLink {
+  label: string;
+  href: string;
+}
+
+export interface NotFoundRoute {
+  label: string;
+  href: string;
+  blurb: string;
+}
+
+/**
+ * Every word the site says that is not attached to a piece of content.
+ *
+ * The plain strings are typed from the tuple in `config/copyFields.ts` — the
+ * same list `content.config.ts` validates against, so a name that exists in
+ * one exists in both by construction. The shapes that are not plain strings
+ * are spelled out underneath it.
+ */
+export type UiCopy = Record<UiCopyField, string> & {
+  legalLinks: LegalLink[];
+  /* The 404. Every one of these is filled in from `NOT_FOUND_FALLBACK` when
+     the CMS leaves it blank — see `getUiCopy`. */
+  notFoundCode: string;
+  notFoundTitle: string;
+  notFoundLead: string;
+  notFoundRoutes: NotFoundRoute[];
+  notFoundCareersLabel: string;
+  notFoundCareersHref: string;
+  notFoundCareersOne: string;
+  notFoundCareersMany: string;
+  notFoundFoot: string;
+  notFoundFootLinkLabel: string;
+  notFoundFootLinkHref: string;
+  notFoundSeoTitle: string;
+  notFoundSeoDescription: string;
+};
+
+/**
+ * The 404's text, in code.
+ *
+ * THE ONE PLACE THIS FILE KEEPS A HARDCODED COPY, and it is worth being
+ * explicit about why, because everything else here deliberately renders empty
+ * rather than fall back — see `missingSingleton` above for that argument.
+ *
+ * The 404 is not like the other pages. It is what Apache serves at whatever
+ * URL a visitor mistyped, which means it is the page somebody reaches when
+ * something has ALREADY gone wrong. A page whose whole job is to catch a
+ * failure must not be able to fail in turn because a CMS field was left
+ * blank, and there is no editor watching it — nobody browses to their own
+ * 404 to check it still reads correctly.
+ *
+ * The staleness objection still applies and is accepted: change this page in
+ * the Studio and this constant goes out of date. That is why every field
+ * below is deliberately generic. The CMS wins whenever it has anything to
+ * say; this only covers the case where it has nothing.
+ *
+ * The routes are the exception to the exception — they are left empty. A
+ * link list is the one thing that CANNOT be safely guessed: a hardcoded path
+ * that stops existing turns the page that catches broken links into a source
+ * of them, and `check-links.mjs` only ever sees what is actually rendered.
+ */
+const NOT_FOUND_FALLBACK = {
+  notFoundCode: '404',
+  notFoundTitle: 'Nothing here.',
+  notFoundLead:
+    'That page moved, or never existed. Nothing is broken on your end — here is everywhere else.',
+  notFoundRoutes: [] as NotFoundRoute[],
+  notFoundCareersLabel: 'Careers',
+  notFoundCareersHref: '/careers/',
+  notFoundCareersOne: '1 role open',
+  notFoundCareersMany: '{{count}} roles open',
+  notFoundFoot:
+    'Followed a link from somewhere on this site? Tell us where it was and we will fix it — {{link}}.',
+  notFoundFootLinkLabel: 'contact the studio',
+  notFoundFootLinkHref: '/contact/',
+  notFoundSeoTitle: 'Page not found',
+  notFoundSeoDescription: "That page doesn't exist.",
+};
+
+/**
+ * The dev-only empty shape.
+ *
+ * Deliberately blank rather than a copy of the old markup, for the reason
+ * `EMPTY_COPY` gives: a stale duplicate that silently takes over is worse
+ * than a visibly empty heading, because one of them you notice. A production
+ * build throws instead of using this.
+ */
+const EMPTY_UI_COPY = {
+  ...Object.fromEntries(UI_COPY_FIELDS.map((f) => [f, ''])),
+  legalLinks: [] as LegalLink[],
+  ...NOT_FOUND_FALLBACK,
+} as UiCopy;
+
+export async function getUiCopy(): Promise<UiCopy> {
+  const entry = await getEntry('uiCopy', 'uiCopy');
+  if (!entry || (entry.data.draft && !previewMode))
+    return missingSingleton('uiCopy', 'uiCopy', EMPTY_UI_COPY);
+
+  const data = entry.data as unknown as UiCopy;
+
+  /* Blank 404 fields fall back one at a time rather than all-or-nothing, so
+     an editor can reword the title without also having to retype the four
+     other strings on that tab. */
+  const notFound = Object.fromEntries(
+    Object.entries(NOT_FOUND_FALLBACK).map(([key, fallback]) => {
+      const value = (data as Record<string, unknown>)[key];
+      const empty = Array.isArray(value) ? value.length === 0 : !value;
+      return [key, empty ? fallback : value];
+    })
+  );
+
+  return { ...data, ...notFound } as UiCopy;
+}
+
+/* ------------------------------------------------------------------ */
+/* Privacy policy                                                      */
+/* ------------------------------------------------------------------ */
+
+export interface PrivacyPage {
+  eyebrow: string;
+  title: string;
+  lead: string;
+  tint: string;
+  /** ISO date. The page prints it as the "last updated" line. */
+  lastUpdated: string;
+  lastUpdatedLabel: string;
+  /** Portable Text. Rendered by the page, not by the loader — see the note
+      on `sanityPrivacyPage` for why it does not go through `renderBody`. */
+  body: unknown[];
+  contactHeading: string;
+  contactLead: string;
+  seoTitle?: string;
+  seoDescription?: string;
+}
+
+/**
+ * The privacy policy.
+ *
+ * REQUIRED, and this is the singleton it matters most for. A blank privacy
+ * page is not a missing section — it is a legal document the site claims to
+ * have and does not, on a page every form on the site links to. A production
+ * build fails rather than publish that.
+ */
+const EMPTY_PRIVACY: PrivacyPage = {
+  eyebrow: '',
+  title: '',
+  lead: '',
+  tint: '210 70% 22%',
+  lastUpdated: '',
+  lastUpdatedLabel: '',
+  body: [],
+  contactHeading: '',
+  contactLead: '',
+};
+
+export async function getPrivacyPage(): Promise<PrivacyPage> {
+  const entry = await getEntry('privacyPage', 'privacyPage');
+  if (!entry || (entry.data.draft && !previewMode))
+    return missingSingleton('privacyPage', 'privacyPage', EMPTY_PRIVACY);
+
+  return entry.data as unknown as PrivacyPage;
 }

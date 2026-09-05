@@ -2,80 +2,90 @@
 import Base from '../layouts/Base.astro';
 import Footer from '../components/Footer.astro';
 import { getFlatRoles } from '../lib/roles';
+import { getUiCopy } from '../lib/studio';
+import { fillHtml, plural } from '../lib/copy';
 
 /**
  * 404.
- *
- * Was the only page on the site written in Tailwind utilities, and three of
- * the ones it used — `text-accent`, `text-ink-muted`, `border-line` — never
- * existed, because the theme block only ever defined fonts. So the eyebrow
- * had no accent colour and the button had no border colour, on the one page
- * a visitor reaches when something has already gone wrong.
- *
- * Rewritten in the same scoped-CSS-and-design-tokens system as every other
- * page, which is also what let Tailwind come out of the project entirely.
  *
  * A dead end is a navigation problem, so this offers routes out rather than
  * just apologising. Served by Apache's ErrorDocument (see public/.htaccess),
  * which means it renders at the URL the visitor actually asked for — the
  * links have to be absolute, and they are.
+ *
+ * THIS PAGE IS THE ONE EXEMPTION TO THE CMS RULE, and it is deliberate.
+ *
+ * Everywhere else on this site, a missing or blank CMS field fails the build
+ * rather than render a hole — see `missingSingleton` in `lib/studio.ts` for
+ * the argument. This page is what a visitor reaches when something has
+ * ALREADY gone wrong, and a page whose whole job is catching a failure must
+ * not be able to fail in turn because somebody cleared a field. So every
+ * string here is editable in the Studio and every one of them falls back to
+ * the text in `NOT_FOUND_FALLBACK`, one field at a time.
+ *
+ * The routes are the exception to the exception and fall back to NOTHING.
+ * A link list is the one thing that cannot be safely guessed: a hardcoded
+ * path that stops existing would turn the page that catches broken links into
+ * a source of them, and `check-links.mjs` only ever sees what is rendered.
  */
-/* Awaited here rather than imported, now that roles come from the CMS. The
-   404 page advertises the careers link only when something is actually open —
-   sending someone who is already lost to an empty listing is a second dead
-   end. */
+const ui = await getUiCopy();
+
+/* The careers row is only offered while something is actually open. Sending
+   someone who is already lost to an empty listing is a second dead end. */
 const openRoles = await getFlatRoles();
 
 const routes = [
-  { label: 'The work', href: '/portfolio/', blurb: 'Animation, game art and VFX' },
-  { label: 'Services', href: '/services/', blurb: 'Six disciplines, one pipeline' },
-  { label: 'Case studies', href: '/case-studies/', blurb: 'How three jobs actually went' },
-  { label: 'Journal', href: '/blog/', blurb: 'Breakdowns and studio notes' },
-  { label: 'Contact', href: '/contact/', blurb: 'Briefs, quotes and bookings' },
-  ...(openRoles.length > 0
+  ...ui.notFoundRoutes,
+  ...(openRoles.length > 0 && ui.notFoundCareersLabel
     ? [
         {
-          label: 'Careers',
-          href: '/careers/',
-          blurb: openRoles.length === 1 ? '1 role open' : `${openRoles.length} roles open`,
+          label: ui.notFoundCareersLabel,
+          href: ui.notFoundCareersHref,
+          blurb: plural(
+            openRoles.length,
+            ui.notFoundCareersOne,
+            ui.notFoundCareersMany
+          ),
         },
       ]
     : []),
 ];
+
+const foot = fillHtml(
+  ui.notFoundFoot,
+  {},
+  { link: { href: ui.notFoundFootLinkHref, label: ui.notFoundFootLinkLabel } }
+);
 ---
 
-<Base title="Page not found — Aniwala Studios" description="That page doesn't exist." noindex>
+<Base title={ui.notFoundSeoTitle} description={ui.notFoundSeoDescription} noindex>
   <main id="main" class="nf">
     <div class="nf-wash" aria-hidden="true"></div>
 
     <div class="nf-inner">
-      <p class="nf-code">404</p>
-      <h1 class="nf-title">Nothing here.</h1>
-      <p class="nf-lead">
-        That page moved, or never existed. Nothing is broken on your end — here is
-        everywhere else.
-      </p>
+      <p class="nf-code">{ui.notFoundCode}</p>
+      <h1 class="nf-title">{ui.notFoundTitle}</h1>
+      <p class="nf-lead">{ui.notFoundLead}</p>
 
-      <ul class="nf-routes">
-        {
-          routes.map((r) => (
-            <li>
-              <a href={r.href}>
-                <span class="nf-route-label">{r.label}</span>
-                <span class="nf-route-blurb">{r.blurb}</span>
-                <span class="nf-route-go" aria-hidden="true">
-                  &rarr;
-                </span>
-              </a>
-            </li>
-          ))
-        }
-      </ul>
+      {
+        routes.length > 0 && (
+          <ul class="nf-routes">
+            {routes.map((r) => (
+              <li>
+                <a href={r.href}>
+                  <span class="nf-route-label">{r.label}</span>
+                  <span class="nf-route-blurb">{r.blurb}</span>
+                  <span class="nf-route-go" aria-hidden="true">
+                    &rarr;
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        )
+      }
 
-      <p class="nf-foot">
-        Followed a link from somewhere on this site? Tell us where it was and we
-        will fix it — <a href="/contact/">contact the studio</a>.
-      </p>
+      <p class="nf-foot" set:html={foot} />
     </div>
   </main>
 

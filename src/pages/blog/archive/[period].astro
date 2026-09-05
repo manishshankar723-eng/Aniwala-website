@@ -7,6 +7,8 @@ import CtaBand from '../../../components/CtaBand.astro';
 import Footer from '../../../components/Footer.astro';
 import { getArchive, getPostsByPeriod, getPosts, type Post } from '../../../lib/posts';
 import { CATEGORIES } from '../../../config/categories';
+import { getUiCopy } from '../../../lib/studio';
+import { fill, plural } from '../../../lib/copy';
 
 /**
  * One page per month that actually has posts in it — the archive list is
@@ -41,23 +43,25 @@ interface Props {
   counts: Record<string, number>;
 }
 const { label, period, posts, counts } = Astro.props;
-const count = `${posts.length} ${posts.length === 1 ? 'post' : 'posts'}`;
+
+const ui = await getUiCopy();
+const count = plural(posts.length, ui.postCountOne, ui.postCountMany);
 ---
 
 <Base
-  title={`${label} — Blog — Aniwala Studios`}
-  description={`Posts published in ${label}.`}
+  title={`${label} — ${ui.crumbBlog} — ${ui.siteName}`}
+  description={fill(ui.archiveDescription, { name: label })}
   canonical={`/blog/archive/${period}/`}
 >
   <main id="main">
     <PageHero
-      eyebrow="Archive"
+      eyebrow={ui.archiveEyebrow}
       title={label}
-      lead={`Everything published in ${label}.`}
+      lead={fill(ui.archiveLead, { name: label })}
       meta={[count]}
       crumbs={[
-        { label: 'Home', href: '/' },
-        { label: 'Blog', href: '/blog/' },
+        { label: ui.crumbHome, href: '/' },
+        { label: ui.crumbBlog, href: '/blog/' },
         { label },
       ]}
       tint="195 60% 24%"
@@ -69,7 +73,7 @@ const count = `${posts.length} ${posts.length === 1 ? 'post' : 'posts'}`;
           way back into the blog, and the rail now lives only on post pages. */}
       <CategoryBar counts={counts} extraActive={label} />
 
-      <h2 class="visually-hidden">Posts from {label}</h2>
+      <h2 class="visually-hidden">{fill(ui.archiveHeading, { name: label })}</h2>
       <div class="blog-grid">
         {posts.map((post) => <PostCard post={post} />)}
       </div>

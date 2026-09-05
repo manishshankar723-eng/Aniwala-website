@@ -525,10 +525,11 @@ export const sanityContactDetails = (): Loader =>
     type: 'contactDetails',
     hasBody: false,
     idFrom: () => 'contactDetails',
-    projection: `_id, email, careersEmail, addressLines, country, socials`,
+    projection: `_id, email, careersEmail, legalName, addressLines, country, socials`,
     toData: (doc, isDraft) => ({
       email: doc.email,
       careersEmail: doc.careersEmail,
+      legalName: doc.legalName ?? '',
       addressLines: doc.addressLines ?? [],
       country: doc.country ?? 'India',
       socials: (doc.socials ?? []).map((s: Record<string, unknown>) => ({
@@ -593,8 +594,20 @@ export const sanityCareersContent = (): Loader =>
     type: 'careersContent',
     hasBody: false,
     idFrom: () => 'careersContent',
-    projection: `_id, hiringOpen, heroEyebrow, heroTitle, heroLead, heroStatDays, heroStatDaysLabel, heroStatMonths, heroStatMonthsLabel, heroActRoles, heroActOpen, rolesEyebrow, rolesTitle, rolesTitleEmpty, rolesLinkLabel, emptyOpen, emptyPaused, emptyBody, emptyAct, specEyebrow, specTitle, specBody, specAct, studioEyebrow, studioTitle, studioNote, processEyebrow, processTitle, values, hiringSteps`,
+    /*
+     * Everything, rather than a named list.
+     *
+     * This document carries the careers page's copy AND every string in the
+     * application form — around eighty fields, and it grows whenever somebody
+     * rewords a label. A hand-kept projection at that size stops being a
+     * safeguard and becomes the bug: add a field in the Studio, forget this
+     * line, and the site renders that field blank with nothing to read. The
+     * Zod schema in `content.config.ts` is what actually decides which fields
+     * are allowed through, and it drops the rest.
+     */
+    projection: `...`,
     toData: (doc, isDraft) => ({
+      ...doc,
       hiringOpen: doc.hiringOpen ?? true,
       heroEyebrow: doc.heroEyebrow ?? '',
       heroTitle: doc.heroTitle ?? '',
@@ -721,11 +734,12 @@ export const sanityBookingSettings = (): Loader =>
     type: 'bookingSettings',
     hasBody: false,
     idFrom: () => 'bookingSettings',
-    projection: `
-      _id, hostName, hostRole, hostPhoto, callDurations, dayStart, dayEnd,
-      stepMinutes, closedDays, bookingWindowDays, whatToExpect, enquiryTypes
-    `,
+    /* Everything, for the same reason careers does — see the note there.
+       The widget's own wording lives on this document too, which is another
+       thirty-odd fields nobody should have to list twice. */
+    projection: `...`,
     toData: (doc, isDraft) => ({
+      ...doc,
       hostName: doc.hostName,
       hostRole: doc.hostRole,
       ...(doc.hostPhoto ? { hostPhoto: doc.hostPhoto } : {}),
@@ -807,6 +821,68 @@ export const sanitySiteCopy = (): Loader =>
         category: c.category,
         blurb: c.blurb,
       })),
+      draft: isDraft,
+    }),
+  });
+
+/* ------------------------------------------------------------------ */
+/* Interface copy (singleton)                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Every word the site says that is not attached to a piece of content.
+ *
+ * Projected wholesale for the reason the careers loader gives: this is two
+ * hundred flat strings and a hand-kept list of their names would be the
+ * least reliable thing in the file. The Zod schema decides what gets through.
+ */
+export const sanityUiCopy = (): Loader =>
+  sanityLoader({
+    name: 'sanity:ui-copy',
+    type: 'uiCopy',
+    hasBody: false,
+    idFrom: () => 'uiCopy',
+    projection: `...`,
+    toData: (doc, isDraft) => ({ ...doc, draft: isDraft }),
+  });
+
+/* ------------------------------------------------------------------ */
+/* Privacy policy (singleton)                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The policy, as rich text.
+ *
+ * `hasBody` is false even though this document plainly has a body, because
+ * that flag means "the body lives in a field called `body` and should be
+ * rendered by the shared code path". It does not here: the field is projected
+ * like any other and rendered by the page, which needs to substitute the
+ * studio's address and inbox into it afterwards. Routing it through the
+ * shared renderer would produce finished HTML with the tokens already
+ * escaped into it and nowhere left to fill them in.
+ */
+export const sanityPrivacyPage = (): Loader =>
+  sanityLoader({
+    name: 'sanity:privacy',
+    type: 'privacyPage',
+    hasBody: false,
+    idFrom: () => 'privacyPage',
+    projection: `
+      _id, eyebrow, title, lead, tint, lastUpdated, lastUpdatedLabel, body,
+      contactHeading, contactLead, seoTitle, seoDescription
+    `,
+    toData: (doc, isDraft) => ({
+      eyebrow: doc.eyebrow,
+      title: doc.title,
+      lead: doc.lead,
+      tint: doc.tint,
+      lastUpdated: doc.lastUpdated,
+      lastUpdatedLabel: doc.lastUpdatedLabel,
+      body: doc.body ?? [],
+      contactHeading: doc.contactHeading,
+      contactLead: doc.contactLead,
+      ...(doc.seoTitle ? { seoTitle: doc.seoTitle } : {}),
+      ...(doc.seoDescription ? { seoDescription: doc.seoDescription } : {}),
       draft: isDraft,
     }),
   });

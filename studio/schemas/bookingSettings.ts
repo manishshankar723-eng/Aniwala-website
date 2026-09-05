@@ -37,6 +37,8 @@ export default defineType({
     { name: 'host', title: 'Who', default: true },
     { name: 'when', title: 'When' },
     { name: 'copy', title: 'What to expect' },
+    { name: 'wording', title: 'Wording' },
+    { name: 'messages', title: 'Messages' },
   ],
 
   fields: [
@@ -135,6 +137,298 @@ export default defineType({
       options: { layout: 'tags' },
       description:
         'The dropdown on the form, and the tag row on the contact page. Keep these in step with the services — somebody picking one that has no page behind it is a dead end.',
+    }),
+
+    /* ---------------------------------------------------------------- */
+    /* Wording                                                           */
+    /*                                                                   */
+    /* Every visible word in the widget, including the ones the client   */
+    /* script writes after the page has loaded. Those are handed to the  */
+    /* browser with the rest of the config — see BookCall.astro.         */
+    /* ---------------------------------------------------------------- */
+
+    defineField({
+      name: 'sectionEyebrow',
+      title: 'Section eyebrow',
+      type: 'string',
+      group: 'wording',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'sectionTitle',
+      title: 'Section title',
+      type: 'string',
+      group: 'wording',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'panelTitle',
+      title: 'Panel title',
+      type: 'string',
+      group: 'wording',
+      description: 'The heading inside the host panel, under their name.',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'meetingKind',
+      title: 'Meeting kind',
+      type: 'string',
+      group: 'wording',
+      description: 'The line beside the pin icon — "Online meeting".',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'durationUnit',
+      title: 'Duration unit',
+      type: 'string',
+      group: 'wording',
+      description: 'Printed after each call length: 30 "min".',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'expectTitle',
+      title: 'What-to-expect heading',
+      type: 'string',
+      group: 'wording',
+      validation: (Rule) => Rule.required(),
+    }),
+
+    /**
+     * The weekday strip above the calendar.
+     *
+     * Typed rather than generated from the browser's locale, and that is
+     * deliberate: the grid is laid out Sunday-first in CSS, so a locale that
+     * starts its week on Monday would label every column one day out.
+     */
+    defineField({
+      name: 'weekdayLabels',
+      title: 'Weekday labels',
+      type: 'array',
+      of: [{ type: 'string' }],
+      group: 'wording',
+      description:
+        'Exactly seven, STARTING WITH SUNDAY — the grid is laid out Sunday-first, so a Monday-first list labels every column one day out.',
+      validation: (Rule) => Rule.required().length(7),
+    }),
+    defineField({
+      name: 'timezoneLabel',
+      title: 'Timezone label',
+      type: 'string',
+      group: 'wording',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'slotNextLabel',
+      title: 'Slot confirm button',
+      type: 'string',
+      group: 'wording',
+      description: 'The button beside a chosen time that moves on to the details step.',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'noSlots',
+      title: 'No times left',
+      type: 'string',
+      group: 'wording',
+      description: 'Shown when every slot on the chosen day has gone.',
+      validation: (Rule) => Rule.required(),
+    }),
+
+    defineField({
+      name: 'detailsTitle',
+      title: 'Details step title',
+      type: 'string',
+      group: 'wording',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'nameLabel',
+      title: 'Name label',
+      type: 'string',
+      group: 'wording',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'namePlaceholder',
+      title: 'Name placeholder',
+      type: 'string',
+      group: 'wording',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'emailLabel',
+      title: 'Email label',
+      type: 'string',
+      group: 'wording',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'emailPlaceholder',
+      title: 'Email placeholder',
+      type: 'string',
+      group: 'wording',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'enquiryLabel',
+      title: 'Enquiry-type label',
+      type: 'string',
+      group: 'wording',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'messageLabel',
+      title: 'Message label',
+      type: 'string',
+      group: 'wording',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'messagePlaceholder',
+      title: 'Message placeholder',
+      type: 'string',
+      group: 'wording',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'submitLabel',
+      title: 'Submit button',
+      type: 'string',
+      group: 'wording',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'submitBusy',
+      title: 'Submit button, while sending',
+      type: 'string',
+      group: 'wording',
+      description: 'Replaces the button label while the request is in flight.',
+      validation: (Rule) => Rule.required(),
+    }),
+
+    /* ---------------------------------------------------------------- */
+    /* Messages                                                          */
+    /*                                                                   */
+    /* {{name}}, {{when}} and {{error}} are filled in by the widget.     */
+    /* {{email}} is the studio inbox from Contact details, so an error   */
+    /* message can never point somebody at a stale address.              */
+    /* ---------------------------------------------------------------- */
+
+    defineField({
+      name: 'errName',
+      title: 'Error — no name',
+      type: 'string',
+      group: 'messages',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'errEmail',
+      title: 'Error — bad email',
+      type: 'string',
+      group: 'messages',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'errNotConfigured',
+      title: 'Error — booking not connected',
+      type: 'string',
+      group: 'messages',
+      description:
+        'Shown when the site has no database credentials. A visitor should never see this; if they do, the form is saving nothing.',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'errSendFailed',
+      title: 'Error — send failed',
+      type: 'text',
+      rows: 2,
+      group: 'messages',
+      description: '{{error}} is the reason the server gave. {{email}} is the studio inbox.',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'errUnreachable',
+      title: 'Error — server unreachable',
+      type: 'text',
+      rows: 2,
+      group: 'messages',
+      description: '{{email}} is the studio inbox.',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'doneTitle',
+      title: 'Confirmation title',
+      type: 'string',
+      group: 'messages',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'doneBody',
+      title: 'Confirmation body',
+      type: 'text',
+      rows: 3,
+      group: 'messages',
+      description:
+        '{{name}} is who booked it. {{when}} is the slot they picked, already formatted.',
+      validation: (Rule) => Rule.required(),
+    }),
+
+    /* ---------------------------------------------------------------- */
+    /* Screen-reader labels                                              */
+    /*                                                                   */
+    /* Every control in this widget is an icon or a bare date cell, so   */
+    /* these are the only names a screen reader has for them. Blank is   */
+    /* not "no label" — it is a button announced as "button".            */
+    /* ---------------------------------------------------------------- */
+
+    defineField({
+      name: 'a11yDurations',
+      title: 'Label — call lengths',
+      type: 'string',
+      group: 'messages',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'a11yPrevMonth',
+      title: 'Label — previous month',
+      type: 'string',
+      group: 'messages',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'a11yNextMonth',
+      title: 'Label — next month',
+      type: 'string',
+      group: 'messages',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'a11yGrid',
+      title: 'Label — date grid',
+      type: 'string',
+      group: 'messages',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'a11yTimeFormat',
+      title: 'Label — 12/24 hour switch',
+      type: 'string',
+      group: 'messages',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'a11ySlots',
+      title: 'Label — times list',
+      type: 'string',
+      group: 'messages',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'a11yBack',
+      title: 'Label — back to calendar',
+      type: 'string',
+      group: 'messages',
+      validation: (Rule) => Rule.required(),
     }),
   ],
 

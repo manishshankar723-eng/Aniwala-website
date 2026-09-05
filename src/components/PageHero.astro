@@ -38,6 +38,10 @@ interface Props {
   image?: { src: string; srcset: string; alt: string };
 }
 
+import { getUiCopy } from '../lib/studio';
+
+const ui = await getUiCopy();
+
 const {
   eyebrow,
   title,
@@ -73,7 +77,7 @@ const {
   <div class="page-hero-inner">
     {
       crumbs.length > 0 && (
-        <nav class="crumbs" aria-label="Breadcrumb" data-reveal>
+        <nav class="crumbs" aria-label={ui.navBreadcrumb} data-reveal>
           <ol>
             {crumbs.map((c, i) => (
               <li>

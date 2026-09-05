@@ -7,7 +7,8 @@ import CtaBand from '../../../components/CtaBand.astro';
 import Footer from '../../../components/Footer.astro';
 import { getPosts, categorySlug, type Post } from '../../../lib/posts';
 import { CATEGORIES, type Category } from '../../../config/categories';
-import { getSiteCopy } from '../../../lib/studio';
+import { getSiteCopy, getUiCopy } from '../../../lib/studio';
+import { fill, plural } from '../../../lib/copy';
 
 /**
  * One page per category that actually has posts in it. Empty categories get no
@@ -41,23 +42,24 @@ const { category, posts, counts } = Astro.props;
 const blurb =
   (await getSiteCopy()).categoryBlurbs.find((c) => c.category === category)?.blurb ?? '';
 
-const count = `${posts.length} ${posts.length === 1 ? 'post' : 'posts'}`;
+const ui = await getUiCopy();
+const count = plural(posts.length, ui.postCountOne, ui.postCountMany);
 ---
 
 <Base
-  title={`${category} — Blog — Aniwala Studios`}
+  title={`${category} — ${ui.crumbBlog} — ${ui.siteName}`}
   description={blurb}
   canonical={`/blog/category/${categorySlug(category)}/`}
 >
   <main id="main">
     <PageHero
-      eyebrow="Blog"
+      eyebrow={ui.blogEyebrow}
       title={category}
       lead={blurb}
       meta={[count]}
       crumbs={[
-        { label: 'Home', href: '/' },
-        { label: 'Blog', href: '/blog/' },
+        { label: ui.crumbHome, href: '/' },
+        { label: ui.crumbBlog, href: '/blog/' },
         { label: category },
       ]}
       tint="195 60% 24%"
@@ -67,7 +69,7 @@ const count = `${posts.length} ${posts.length === 1 ? 'post' : 'posts'}`;
     <section class="section">
       <CategoryBar active={category} counts={counts} />
 
-      <h2 class="visually-hidden">Posts in {category}</h2>
+      <h2 class="visually-hidden">{fill(ui.categoryHeading, { name: category })}</h2>
 
       <div class="blog-grid">
         {posts.map((post) => <PostCard post={post} />)}

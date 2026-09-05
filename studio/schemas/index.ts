@@ -21,6 +21,8 @@ import artwork from './artwork';
 import announcement from './announcement';
 import contactDetails from './contactDetails';
 import siteCopy from './siteCopy';
+import uiCopy from './uiCopy';
+import privacyPage from './privacyPage';
 import navigation from './navigation';
 import loaderSettings from './loaderSettings';
 import bookingSettings from './bookingSettings';
@@ -49,6 +51,8 @@ export const schemaTypes = [
   announcement,
   contactDetails,
   siteCopy,
+  uiCopy,
+  privacyPage,
   navigation,
   loaderSettings,
   bookingSettings,

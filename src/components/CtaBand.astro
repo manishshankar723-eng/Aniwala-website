@@ -1,6 +1,6 @@
 ---
 
-import { getContactDetails, getNavigation } from '../lib/studio';
+import { getContactDetails, getNavigation, getUiCopy } from '../lib/studio';
 
 /**
  * The closing panel every inner page ends on. One primary action, one quiet
@@ -21,12 +21,14 @@ const { email } = await getContactDetails();
 const { ctaLabel, ctaHref } = await getNavigation();
 const cta = { label: ctaLabel, href: ctaHref };
 
+const ui = await getUiCopy();
+
 const {
-  eyebrow = 'Next step',
-  title = 'Tell us the deadline first.',
-  body = 'We\'ll tell you straight whether we can hit it, and what it would take if we can. No deck, no discovery phase. Just an answer within two working days.',
+  eyebrow = ui.ctaEyebrow,
+  title = ui.ctaTitle,
+  body = ui.ctaBody,
   primary = cta,
-  secondary = { label: 'Email the studio', href: `mailto:${email}` },
+  secondary = { label: ui.ctaSecondaryLabel, href: `mailto:${email}` },
 } = Astro.props;
 ---
 

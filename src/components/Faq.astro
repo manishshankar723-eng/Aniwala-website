@@ -1,5 +1,6 @@
 ---
 import type { Faq } from '../lib/studio';
+import { getUiCopy } from '../lib/studio';
 
 interface Props {
   items: Faq[];
@@ -15,8 +16,15 @@ interface Props {
   schema?: boolean;
 }
 
-const { items, eyebrow = 'Questions', title = 'Before you ask', name = 'faq', schema = true } =
-  Astro.props;
+const ui = await getUiCopy();
+
+const {
+  items,
+  eyebrow = ui.faqEyebrow,
+  title = ui.faqTitle,
+  name = 'faq',
+  schema = true,
+} = Astro.props;
 
 const faqSchema = {
   '@context': 'https://schema.org',

@@ -2,223 +2,83 @@
 import Base from '../layouts/Base.astro';
 import PageHero from '../components/PageHero.astro';
 import Footer from '../components/Footer.astro';
-import { legalName } from '../config/contact';
-import { getContactDetails } from '../lib/studio';
+import { getContactDetails, getPrivacyPage, getUiCopy } from '../lib/studio';
+import { renderBody } from '../lib/sanity/portableText';
+import { fillRendered, fillHtml } from '../lib/copy';
 
 /**
  * Privacy policy.
  *
- * Written against what this codebase actually does rather than from a
- * template, because a generic policy would be wrong in both directions: it
- * would claim cookie categories this site does not have, and it would miss
- * the things it genuinely should disclose — that form submissions go to
- * Supabase, and that a job application is personal data held for twelve
- * months.
+ * The text is no longer in this file. It is the `privacyPage` singleton in
+ * Sanity, written as rich text, because a policy is prose and a solicitor
+ * adding a clause should not be a deploy. What is left here is the plumbing:
+ * render the body, and fill in the two facts that must not be typed into it.
  *
- * KEEP THIS IN STEP WITH THE CODE. If you add analytics, a pixel, a chat
- * widget or a new form, this page is part of that change, not a follow-up.
- * The specific claims it makes today:
- *   - no analytics, no advertising, no third-party tracking of any kind
- *   - localStorage holds exactly two functional keys, both listed below
- *   - visitor-submitted data lives in Supabase (see supabase/schema.sql)
- *   - three forms collect data: enquiry/booking, job application, comment
- *   - fonts are self-hosted; there is no third-party request on any page
+ * THE TWO TOKENS. `{{email}}` and `{{legalName}}` are substituted from
+ * `contactDetails` after the body is rendered — see `fillRendered`. Neither
+ * is stored in the policy, deliberately: the footer's copyright line and the
+ * policy's first sentence name the same entity, and the studio inbox appears
+ * in both the policy and every CTA band on the site. Two copies of either is
+ * how they end up disagreeing, and the one that goes stale is always the one
+ * inside a long document nobody re-reads.
  *
- * NOT LEGAL ADVICE. This is an honest description of the site's behaviour
- * written by the people who built it. Have a solicitor read it before you
- * rely on it, particularly if you take work from the EU or UK.
+ * The postal address is not a token at all — it is rendered from
+ * `contactDetails` as structured lines below the body, which is why the
+ * contact heading and its lead-in are their own fields rather than the last
+ * two paragraphs of the body.
+ *
+ * KEEP THE POLICY IN STEP WITH THE CODE. Moving it to the CMS did not change
+ * what it has to be true about. If someone adds analytics, a pixel, a chat
+ * widget or a new form, editing that document is part of the change — and it
+ * is now an edit rather than a deploy, which removes the excuse for putting
+ * it off. The claims the current text makes are listed on the Studio schema.
+ *
+ * NOT LEGAL ADVICE. It is an honest description of the site's behaviour
+ * written by the people who built it.
  */
+const policy = await getPrivacyPage();
+const ui = await getUiCopy();
+const { email, legalName, addressLines, country } = await getContactDetails();
 
-/* Kept as a constant so the "last updated" line cannot drift from reality by
-   being hand-typed and then forgotten at the next edit. */
-const lastUpdated = new Date('2026-08-30');
-const formatted = lastUpdated.toLocaleDateString('en-GB', {
+/* Formatted here rather than stored, so the line cannot drift from the date
+   the document actually carries by being typed twice. */
+const formatted = new Date(`${policy.lastUpdated}T00:00:00Z`).toLocaleDateString('en-GB', {
   day: 'numeric',
   month: 'long',
   year: 'numeric',
+  timeZone: 'UTC',
 });
 
-const { email, addressLines, country } = await getContactDetails();
+const links = { email: { href: `mailto:${email}`, label: email } };
+
+const { html } = renderBody(policy.body as never[]);
+const body = fillRendered(html, { legalName }, links);
+const contactLead = fillHtml(policy.contactLead, { legalName }, links);
 ---
 
 <Base
-  title="Privacy policy — Aniwala Studios"
-  description="What Aniwala Studios collects when you use this website, where it is stored, who can see it, and how to have it deleted."
+  title={policy.seoTitle ?? `${policy.title} — ${ui.siteName}`}
+  description={policy.seoDescription ?? policy.lead}
 >
   <main id="main">
     <PageHero
-      eyebrow="Legal"
-      title="Privacy policy"
-      lead="What this site collects, where it goes, and how to get it deleted. Written to be read, not to be survived."
-      crumbs={[{ label: 'Home', href: '/' }, { label: 'Privacy policy' }]}
-      tint="210 70% 22%"
-      meta={[`Last updated ${formatted}`]}
+      eyebrow={policy.eyebrow}
+      title={policy.title}
+      lead={policy.lead}
+      crumbs={[{ label: ui.crumbHome, href: '/' }, { label: policy.title }]}
+      tint={policy.tint}
+      meta={[`${policy.lastUpdatedLabel} ${formatted}`]}
       compact
     />
 
     <section class="section">
       <div class="prose" data-reveal>
-        <p>
-          This policy covers <strong>{legalName}</strong> and the people behind
-          it. It describes the website only. Anything agreed separately in a
-          contract with a client takes precedence over what is written here.
-        </p>
+        {/* .prose styles bare semantic tags, which is exactly what the
+            Portable Text renderer emits — see lib/sanity/portableText.ts. */}
+        <Fragment set:html={body} />
 
-        <h2>The short version</h2>
-        <p>
-          We run no analytics, no advertising, no tracking pixels and no
-          third-party scripts that follow you. Nothing on this site tries to
-          work out who you are. The only personal data we hold is what you
-          typed into a form and sent us on purpose.
-        </p>
-
-        <h2>What you send us on purpose</h2>
-        <p>
-          Three forms on this site collect information, and each only runs when
-          you submit it.
-        </p>
-
-        <h3>Enquiries and call bookings</h3>
-        <p>
-          The contact and booking forms collect your name, email address, and
-          optionally your company, the kind of work you are asking about, your
-          message, and — for a booking — the slot you picked, its length, your
-          timezone, and which page you sent it from. We use it to reply to you
-          and to schedule the call. Nothing else.
-        </p>
-
-        <h3 id="applications">Job applications</h3>
-        <p>
-          The form on the <a href="/careers/">careers page</a> collects your
-          name, email address, the city you are in, your experience band, a link
-          to your portfolio or reel, and your message — plus, if you give them,
-          your phone number, a CV link, your availability, and which role or
-          area you are interested in. We use it to assess your application and
-          to reply to you. It is not used for anything else, and it is never
-          shared outside the studio.
-        </p>
-        <p>
-          <strong>We do not accept file uploads.</strong> The form asks for links
-          rather than attachments, so your CV stays on your own storage where you
-          control who can see it and can revoke our access at any time. If you
-          would rather send a file, email it and it lives in our inbox under the
-          same terms as everything else here.
-        </p>
-        <p>
-          Applications are held in the same database as enquiries, configured so
-          that the website can write a row and can never read one back. Nobody
-          outside the studio sees an application.
-        </p>
-
-        <h3>Blog comments</h3>
-        <p>
-          If you comment on an article, we store the name you gave, your
-          comment, and your email address if you supplied one. Your name and
-          comment are published once approved. <strong
-            >Your email address is never published and is never sent to a
-            browser</strong
-          > — the database is configured so the website itself cannot read that
-          column back. We use it only to reply to you.
-        </p>
-        <p>
-          No comment appears on the site until a person approves it by hand.
-        </p>
-
-        <h2>Where it is stored, and who else touches it</h2>
-        <p>
-          Form submissions are stored in a <a
-            href="https://supabase.com/privacy"
-            rel="noopener">Supabase</a
-          > project that we control. Access is restricted by row-level security
-          policies: an anonymous visitor can submit a form and read approved
-          comments, and can do nothing else — enquiries and job applications
-          cannot be read back by anyone but us.
-        </p>
-        <p>These are the only third parties involved in running this site:</p>
-        <ul>
-          <li>
-            <strong>Supabase</strong> — the database that holds enquiries,
-            job applications and comments.
-          </li>
-          <li>
-            <strong>Resend</strong> — if enabled, forwards a copy of a new
-            enquiry, application or comment to our inbox so we notice it.
-          </li>
-          <li>
-            <strong>Hostinger</strong> — hosts the site. Like any web server it
-            keeps standard access logs, which include IP addresses.
-          </li>
-        </ul>
-        <p>
-          We do not sell your data, and we do not share it with anyone beyond
-          the services listed above.
-        </p>
-
-        <h2>Cookies</h2>
-        <p>
-          This site sets <strong>no cookies at all</strong>. It stores exactly
-          two values in your browser's local storage, both of which exist to
-          stop the site being annoying:
-        </p>
-        <ul>
-          <li>
-            <code>aniwala-theme</code> — remembers whether you chose the light
-            or dark theme.
-          </li>
-          <li>
-            <code>aniwala-announce-dismissed</code> — remembers that you closed
-            the notice at the top of the page, so it stays closed.
-          </li>
-        </ul>
-        <p>
-          Neither identifies you, neither leaves your device, and clearing your
-          browser data removes both. There is no consent banner because there
-          is nothing to consent to.
-        </p>
-
-        <h2>How long we keep things</h2>
-        <p>
-          Enquiries are kept while there is a live conversation and for as long
-          as we may need the commercial record afterwards. Comments stay for as
-          long as the article is published. Ask us to delete either and we
-          will.
-        </p>
-        <p>
-          Job applications are kept for <strong>twelve months</strong> from the
-          day you send them, so that we can come back to you when a seat opens
-          that fits — which is the whole point of an open application. After
-          that they are deleted. Ask us to delete yours sooner and we will do it
-          on the day you ask, whatever stage the process is at.
-        </p>
-
-        <h2>Your rights</h2>
-        <p>
-          You can ask us what we hold about you, ask for it to be corrected,
-          or ask for it to be deleted. Email <a href={`mailto:${email}`}
-            >{email}</a
-          > and we will action it and confirm when it is done. You do not need to
-          give a reason.
-        </p>
-        <p>
-          If you are in the EU or UK, the GDPR gives you these rights formally,
-          along with the right to complain to your data protection authority.
-          In India, the Digital Personal Data Protection Act 2023 gives you
-          equivalent rights.
-        </p>
-
-        <h2>Changes</h2>
-        <p>
-          If this policy changes, the date at the top of the page changes with
-          it. We will not quietly start collecting something new and leave this
-          page saying otherwise.
-        </p>
-
-        <h2>Contact</h2>
-        <p>
-          Questions about any of this go to <a href={`mailto:${email}`}
-            >{email}</a
-          >, or by post to:
-        </p>
+        <h2>{policy.contactHeading}</h2>
+        <p set:html={contactLead} />
         <p>
           <address class="addr">
             {addressLines.map((line) => <span>{line}</span>)}

@@ -1,6 +1,7 @@
 ---
 import type { Piece } from '../lib/pieces';
 import { categoryBySlug } from '../lib/workCategories';
+import { getUiCopy } from '../lib/studio';
 
 /**
  * One portfolio tile.
@@ -19,6 +20,8 @@ interface Props {
   /** Hide the discipline chip on pages that are already one discipline. */
   showCategory?: boolean;
 }
+
+const ui = await getUiCopy();
 
 const { piece, showCategory = true } = Astro.props;
 const { title, blurb, kind, client, year, tools, tint, caseStudy } = piece;
@@ -71,7 +74,7 @@ const Tag = href ? 'a' : 'div';
       {
         href && (
           <span class="piece-more">
-            Read the case study <span aria-hidden="true">&rarr;</span>
+            {ui.cardCaseMore} <span aria-hidden="true">&rarr;</span>
           </span>
         )
       }

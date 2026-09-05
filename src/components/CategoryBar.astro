@@ -1,6 +1,7 @@
 ---
 import { CATEGORIES } from '../config/categories';
 import { categorySlug } from '../lib/posts';
+import { getUiCopy } from '../lib/studio';
 
 /**
  * The filter row on the blog. Real links to real pages rather than a
@@ -20,6 +21,8 @@ interface Props {
   extraActive?: string;
 }
 
+const ui = await getUiCopy();
+
 const { active, counts, extraActive } = Astro.props;
 const total = Object.values(counts).reduce((n, c) => n + c, 0);
 
@@ -32,13 +35,13 @@ const total = Object.values(counts).reduce((n, c) => n + c, 0);
 const isUnfiltered = Astro.url.pathname === '/blog/';
 ---
 
-<nav class="cats" aria-label="Filter by category" data-reveal>
+<nav class="cats" aria-label={ui.filterByCategory} data-reveal>
   <a
     href="/blog/"
     class:list={['cat', isUnfiltered && 'is-active']}
     aria-current={isUnfiltered ? 'page' : undefined}
   >
-    All <span class="cat-n">{total}</span>
+    {ui.barAllCategories} <span class="cat-n">{total}</span>
   </a>
 
   {
@@ -53,7 +56,7 @@ const isUnfiltered = Astro.url.pathname === '/blog/';
           href={active === c ? '/blog/' : `/blog/category/${categorySlug(c)}/`}
           class:list={['cat', active === c && 'is-active']}
           aria-current={active === c ? 'page' : undefined}
-          title={active === c ? 'Clear this filter' : undefined}
+          title={active === c ? ui.barClearFilter : undefined}
         >
           {c} <span class="cat-n">{n}</span>
           {active === c && <span class="cat-clear" aria-hidden="true" />}
@@ -64,7 +67,7 @@ const isUnfiltered = Astro.url.pathname === '/blog/';
 
   {
     extraActive && (
-      <a href="/blog/" class="cat is-active" title="Clear this filter">
+      <a href="/blog/" class="cat is-active" title={ui.barClearFilter}>
         {extraActive} <span class="cat-clear" aria-hidden="true" />
       </a>
     )

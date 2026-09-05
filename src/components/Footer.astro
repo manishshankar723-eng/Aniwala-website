@@ -1,8 +1,9 @@
 ---
-import { getNavigation } from '../lib/studio';
-import { legalName, legalLinks } from '../config/contact';
-import { getContactDetails } from '../lib/studio';
+import { getNavigation, getContactDetails, getUiCopy } from '../lib/studio';
+import { fill } from '../lib/copy';
 import SocialIcon from './SocialIcon.astro';
+
+const ui = await getUiCopy();
 
 const year = new Date().getFullYear();
 
@@ -11,18 +12,16 @@ const serviceParent = nav.find((i) => i.children.length > 0);
 
 /* Accounts with no URL yet render under `astro dev` so the row can be laid
    out, and are dropped from the production build. See config/contact.ts. */
-const { email, addressLines, country, mapsUrl, publishedSocials: social } =
+const { email, legalName, addressLines, country, mapsUrl, publishedSocials: social } =
   await getContactDetails();
 ---
 
 <footer class="footer">
   <div class="footer-inner">
     <div class="footer-lead">
-      <p class="footer-eyebrow">Start a project</p>
+      <p class="footer-eyebrow">{ui.footerEyebrow}</p>
       <a href={`mailto:${email}`} class="footer-mail">{email}</a>
-      <p class="footer-note">
-        Tell us the deadline first. We'll tell you honestly whether we can hit it.
-      </p>
+      <p class="footer-note">{ui.footerNote}</p>
       <a href={ctaHref} class="footer-cta">{ctaLabel}</a>
 
       {/*
@@ -31,7 +30,7 @@ const { email, addressLines, country, mapsUrl, publishedSocials: social } =
         cheap signals that there is a building and people in it.
       */}
       <address class="footer-address">
-        <span class="footer-address-label">Office</span>
+        <span class="footer-address-label">{ui.footerAddressLabel}</span>
         <a href={mapsUrl} rel="noopener">
           {addressLines.map((line) => (
             <span class="footer-address-line">{line}</span>
@@ -41,9 +40,9 @@ const { email, addressLines, country, mapsUrl, publishedSocials: social } =
       </address>
     </div>
 
-    <nav class="footer-cols" aria-label="Footer">
+    <nav class="footer-cols" aria-label={ui.navFooter}>
       <div class="footer-col">
-        <h2 class="footer-col-title">Studio</h2>
+        <h2 class="footer-col-title">{ui.footerColStudio}</h2>
         <ul>
           {
             /* Items with children have their own column below, so listing them
@@ -64,9 +63,11 @@ const { email, addressLines, country, mapsUrl, publishedSocials: social } =
             not need a row for its own parent page. */}
         <h2 class="footer-col-title">
           {serviceParent?.href ? (
-            <a href={serviceParent.href} class="footer-col-title-link">Services</a>
+            <a href={serviceParent.href} class="footer-col-title-link">
+              {ui.footerColServices}
+            </a>
           ) : (
-            'Services'
+            ui.footerColServices
           )}
         </h2>
         <ul>
@@ -83,7 +84,7 @@ const { email, addressLines, country, mapsUrl, publishedSocials: social } =
       {
         social.length > 0 && (
           <div class="footer-col">
-            <h2 class="footer-col-title">Follow</h2>
+            <h2 class="footer-col-title">{ui.footerColFollow}</h2>
             <ul class="footer-social">
               {social.map((s) =>
                 s.href ? (
@@ -112,9 +113,9 @@ const { email, addressLines, country, mapsUrl, publishedSocials: social } =
   </div>
 
   <div class="footer-base">
-    <span>© {year} {legalName}. All rights reserved.</span>
-    <nav class="footer-legal" aria-label="Legal">
-      {legalLinks.map((l) => <a href={l.href}>{l.label}</a>)}
+    <span>{fill(ui.footerCopyright, { year, legalName })}</span>
+    <nav class="footer-legal" aria-label={ui.navLegal}>
+      {ui.legalLinks.map((l) => <a href={l.href}>{l.label}</a>)}
     </nav>
   </div>
 </footer>

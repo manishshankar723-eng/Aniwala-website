@@ -5,7 +5,8 @@ import {
   availabilityOptions,
 } from '../config/careers';
 import { getFlatRoles, type Role } from '../lib/roles';
-import { getContactDetails } from '../lib/studio';
+import { getContactDetails, getCareersContent } from '../lib/studio';
+import { fill, fillHtml, plural } from '../lib/copy';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config/site';
 import { supabaseConfigured } from '../lib/supabase';
 
@@ -47,7 +48,17 @@ interface Props {
   lead?: string;
 }
 
-const { role, eyebrow = 'Apply', title, lead } = Astro.props;
+/*
+ * The wording lives on `careersContent`, beside the rest of the careers page.
+ *
+ * Not on a document of its own, because this form renders in two places — the
+ * listing page and the foot of every role page — and two copies of "we reply
+ * within five working days" is how those two pages end up promising an
+ * applicant two different things.
+ */
+const copy = await getCareersContent();
+
+const { role, eyebrow = copy.applyEyebrow, title, lead } = Astro.props;
 
 const openRoles = await getFlatRoles();
 const { careersEmail } = await getContactDetails();
@@ -55,12 +66,14 @@ const { careersEmail } = await getContactDetails();
 const locked = Boolean(role);
 const configured = supabaseConfigured;
 
-const heading = title ?? (locked ? `Apply for ${role!.title}` : 'Send us your work');
-const intro =
-  lead ??
-  (locked
-    ? 'One form, and a link to the work. We reply to every application within five working days, including the ones we turn down.'
-    : 'Pick a listing, or tell us what you would want to be doing if none of them fit. Both routes reach the same people and get the same answer within five working days.');
+const heading =
+  title ?? (locked ? fill(copy.applyTitleRole, { role: role!.title }) : copy.applyTitleOpen);
+const intro = lead ?? (locked ? copy.applyLeadRole : copy.applyLeadOpen);
+
+/* The studio inbox is a token rather than typed into the sentence, so the
+   note here and the address in the footer cannot drift apart. */
+const mailLink = { careersEmail: { href: `mailto:${careersEmail}`, label: careersEmail } };
+const altNote = fillHtml(copy.applyAltNote, {}, mailLink);
 
 /* Per-role portfolio guidance, keyed by slug so the client script can swap
    the hint under the portfolio field the moment a role is chosen. It is the
@@ -81,29 +94,25 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
       <p class="ap-lead">{intro}</p>
 
       <ul class="ap-promise">
-        <li>
-          <span class="ap-promise-k">Read by</span>
-          <span class="ap-promise-v">Someone who does the job, not a keyword filter.</span>
-        </li>
-        <li>
-          <span class="ap-promise-k">Reply</span>
-          <span class="ap-promise-v">Within five working days, yes or no.</span>
-        </li>
-        <li>
-          <span class="ap-promise-k">Kept</span>
-          <span class="ap-promise-v">Twelve months, then deleted. See the <a href="/privacy/#applications">privacy note</a>.</span>
-        </li>
-        <li>
-          <span class="ap-promise-k">Tests</span>
-          <span class="ap-promise-v">Paid, under a day, and never shipped.</span>
-        </li>
+        {
+          copy.applyPromises.map((p) => (
+            <li>
+              <span class="ap-promise-k">{p.label}</span>
+              <span class="ap-promise-v">
+                {p.body}
+                {p.linkLabel && p.linkHref && (
+                  <>
+                    {' '}
+                    <a href={p.linkHref}>{p.linkLabel}</a>
+                  </>
+                )}
+              </span>
+            </li>
+          ))
+        }
       </ul>
 
-      <p class="ap-alt">
-        Would rather attach a PDF? Email
-        <a href={`mailto:${careersEmail}`}>{careersEmail}</a> instead — it reaches
-        the same inbox.
-      </p>
+      <p class="ap-alt" set:html={altNote} />
     </aside>
 
     <!-- ── The form ──────────────────────────────────────────────── -->
@@ -118,7 +127,7 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
              other fifteen stay put — announcing that as a panel swap would
              describe something that is not happening. Two pressed-state
              buttons say exactly what this is. */
-          <div class="ap-modes" role="group" aria-label="What kind of application">
+          <div class="ap-modes" role="group" aria-label={copy.applyA11yModes}>
             <button
               type="button"
               class="ap-mode is-on"
@@ -126,9 +135,13 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
               aria-pressed="true"
               data-mode="role"
             >
-              <span class="ap-mode-t">Apply for an open role</span>
+              <span class="ap-mode-t">{copy.applyModeRoleTitle}</span>
               <span class="ap-mode-s">
-                {openRoles.length === 1 ? '1 listed right now' : `${openRoles.length} listed right now`}
+                {plural(
+                  openRoles.length,
+                  copy.applyModeRoleCountOne,
+                  copy.applyModeRoleCountMany
+                )}
               </span>
             </button>
             <button
@@ -138,8 +151,8 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
               aria-pressed="false"
               data-mode="open"
             >
-              <span class="ap-mode-t">Nothing listed fits me</span>
-              <span class="ap-mode-s">Register interest for later</span>
+              <span class="ap-mode-t">{copy.applyModeOpenTitle}</span>
+              <span class="ap-mode-s">{copy.applyModeOpenSub}</span>
             </button>
           </div>
         )
@@ -152,10 +165,10 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
             <div class="ap-block" id="ap-block-role">
               <label class="ap-field ap-field--wide">
                 <span class="ap-label">
-                  Which role <em>*</em>
+                  {copy.applyRoleLabel} <em>*</em>
                 </span>
                 <select name="role_slug" id="ap-role" required>
-                  <option value="">Choose a role…</option>
+                  <option value="">{copy.applyRolePlaceholder}</option>
                   {openRoles.map((r) => (
                     <option value={r.slug} data-title={r.title}>
                       {r.title} — {r.kind}
@@ -177,10 +190,10 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
               <div class="ap-pair">
                 <label class="ap-field">
                   <span class="ap-label">
-                    Which area <em>*</em>
+                    {copy.applyAreaLabel} <em>*</em>
                   </span>
                   <select name="discipline" id="ap-discipline">
-                    <option value="">Choose an area…</option>
+                    <option value="">{copy.applyAreaPlaceholder}</option>
                     {disciplines.map((d) => (
                       <option value={d}>{d}</option>
                     ))}
@@ -189,21 +202,17 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
 
                 <label class="ap-field">
                   <span class="ap-label">
-                    The role you want <em>*</em>
+                    {copy.applyDesiredLabel} <em>*</em>
                   </span>
                   <input
                     type="text"
                     name="desired_role"
                     id="ap-desired"
-                    placeholder="e.g. Lighting Artist, Rigger, Producer"
+                    placeholder={copy.applyDesiredPlaceholder}
                   />
                 </label>
               </div>
-              <p class="ap-note">
-                We keep these for twelve months and read them first when a seat opens.
-                Be specific about the job you want — "any opening" is the one thing we
-                cannot match against anything.
-              </p>
+              <p class="ap-note">{copy.applyOpenNote}</p>
             </div>
           )
         }
@@ -213,7 +222,7 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
              so it is visible in the form without being a question. */
           locked && (
             <div class="ap-locked">
-              <span class="ap-locked-k">Applying for</span>
+              <span class="ap-locked-k">{copy.applyLockedLabel}</span>
               <span class="ap-locked-v">{role!.title}</span>
               <span class="ap-locked-m">
                 {role!.kind} · {role!.location}
@@ -225,48 +234,68 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
         <!-- ── Who you are ──────────────────────────────────────── -->
         <div class="ap-pair">
           <label class="ap-field">
-            <span class="ap-label">Your name <em>*</em></span>
-            <input type="text" name="name" id="ap-name" required autocomplete="name" placeholder="First and last" />
-          </label>
-
-          <label class="ap-field">
-            <span class="ap-label">Email <em>*</em></span>
-            <input type="email" name="email" id="ap-email" required autocomplete="email" placeholder="you@example.com" />
-          </label>
-        </div>
-
-        <div class="ap-pair">
-          <label class="ap-field">
-            <span class="ap-label">Phone</span>
-            <input type="tel" name="phone" id="ap-phone" autocomplete="tel" placeholder="Optional" />
-          </label>
-
-          <label class="ap-field">
-            <span class="ap-label">Where you are <em>*</em></span>
+            <span class="ap-label">{copy.applyNameLabel} <em>*</em></span>
             <input
               type="text"
-              name="location"
-              id="ap-location"
+              name="name"
+              id="ap-name"
               required
-              autocomplete="address-level2"
-              placeholder="City, and country if outside India"
+              autocomplete="name"
+              placeholder={copy.applyNamePlaceholder}
+            />
+          </label>
+
+          <label class="ap-field">
+            <span class="ap-label">{copy.applyEmailLabel} <em>*</em></span>
+            <input
+              type="email"
+              name="email"
+              id="ap-email"
+              required
+              autocomplete="email"
+              placeholder={copy.applyEmailPlaceholder}
             />
           </label>
         </div>
 
         <div class="ap-pair">
           <label class="ap-field">
-            <span class="ap-label">Experience <em>*</em></span>
+            <span class="ap-label">{copy.applyPhoneLabel}</span>
+            <input
+              type="tel"
+              name="phone"
+              id="ap-phone"
+              autocomplete="tel"
+              placeholder={copy.applyPhonePlaceholder}
+            />
+          </label>
+
+          <label class="ap-field">
+            <span class="ap-label">{copy.applyLocationLabel} <em>*</em></span>
+            <input
+              type="text"
+              name="location"
+              id="ap-location"
+              required
+              autocomplete="address-level2"
+              placeholder={copy.applyLocationPlaceholder}
+            />
+          </label>
+        </div>
+
+        <div class="ap-pair">
+          <label class="ap-field">
+            <span class="ap-label">{copy.applyExperienceLabel} <em>*</em></span>
             <select name="experience" id="ap-experience" required>
-              <option value="">Choose…</option>
+              <option value="">{copy.applyChoosePlaceholder}</option>
               {experienceBands.map((b) => <option value={b}>{b}</option>)}
             </select>
           </label>
 
           <label class="ap-field">
-            <span class="ap-label">Available from</span>
+            <span class="ap-label">{copy.applyAvailabilityLabel}</span>
             <select name="availability" id="ap-availability">
-              <option value="">Choose…</option>
+              <option value="">{copy.applyChoosePlaceholder}</option>
               {availabilityOptions.map((a) => <option value={a}>{a}</option>)}
             </select>
           </label>
@@ -274,44 +303,40 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
 
         <!-- ── The work. The only part we genuinely cannot do without. ── -->
         <label class="ap-field ap-field--wide">
-          <span class="ap-label">Portfolio or reel link <em>*</em></span>
+          <span class="ap-label">{copy.applyPortfolioLabel} <em>*</em></span>
           <input
             type="url"
             name="portfolio_url"
             id="ap-portfolio"
             required
             inputmode="url"
-            placeholder="https://artstation.com/… · vimeo.com/… · your site"
+            placeholder={copy.applyPortfolioPlaceholder}
           />
-          <span class="ap-hint" id="ap-portfolio-hint">
-            Check the sharing permission before you send it. A link we cannot open is
-            the most common reason a good application stalls.
-          </span>
+          <span class="ap-hint" id="ap-portfolio-hint">{copy.applyPortfolioHint}</span>
         </label>
 
         <label class="ap-field ap-field--wide">
-          <span class="ap-label">CV link</span>
+          <span class="ap-label">{copy.applyCvLabel}</span>
           <input
             type="url"
             name="cv_url"
             id="ap-cv"
             inputmode="url"
-            placeholder="Optional — Drive, Dropbox or a PDF link"
+            placeholder={copy.applyCvPlaceholder}
           />
         </label>
 
         <label class="ap-field ap-field--wide">
-          <span class="ap-label" id="ap-message-label">Anything we should know <em>*</em></span>
+          <span class="ap-label" id="ap-message-label">
+            {copy.applyMessageLabelRole} <em>*</em>
+          </span>
           <textarea
             name="message"
             id="ap-message"
             rows="5"
             required
-            placeholder="Which piece in your portfolio we should look at first, and why you want this seat in particular. Three sentences is plenty."></textarea>
-          <span class="ap-hint">
-            Written by you, not by a model. We can tell, and we would rather read
-            three honest sentences than three polished paragraphs.
-          </span>
+            placeholder={copy.applyMessagePlaceholder}></textarea>
+          <span class="ap-hint">{copy.applyMessageHint}</span>
         </label>
 
         <!-- Bots fill hidden fields; humans never see this one. -->
@@ -321,12 +346,9 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
 
         <div class="ap-actions">
           <button type="submit" class="ap-submit" id="ap-submit">
-            {locked ? 'Send application' : 'Send it'}
+            {locked ? copy.applySubmitRole : copy.applySubmitOpen}
           </button>
-          <p class="ap-consent">
-            Sending this stores your name, contact details and links so we can reply.
-            Nothing is shared outside the studio.
-          </p>
+          <p class="ap-consent">{copy.applyConsent}</p>
         </div>
 
         {
@@ -362,6 +384,38 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
       lockedTitle: role?.title ?? null,
       lockedDiscipline: role?.discipline ?? null,
       reelNotes,
+      /* Everything the script writes into the page after load. Handed over
+         here rather than imported, for the reason above: an inline script is
+         not bundled, so `import` would not resolve at runtime. */
+      copy: {
+        roleHint: copy.applyRoleHint,
+        messageLabelRole: copy.applyMessageLabelRole,
+        messageLabelOpen: copy.applyMessageLabelOpen,
+        submitRole: copy.applySubmitRole,
+        submitOpen: copy.applySubmitOpen,
+        submitBusy: copy.applySubmitBusy,
+        errRole: copy.applyErrRole,
+        errArea: copy.applyErrArea,
+        errDesired: copy.applyErrDesired,
+        errName: copy.applyErrName,
+        errEmail: copy.applyErrEmail,
+        errLocation: copy.applyErrLocation,
+        errExperience: copy.applyErrExperience,
+        errPortfolio: copy.applyErrPortfolio,
+        errPortfolioUrl: copy.applyErrPortfolioUrl,
+        errCvUrl: copy.applyErrCvUrl,
+        errMessage: copy.applyErrMessage,
+        errGeneric: copy.applyErrGeneric,
+        errTooFast: copy.applyErrTooFast,
+        errNotConfigured: copy.applyErrNotConfigured,
+        errSendFailed: copy.applyErrSendFailed,
+        errUnreachable: copy.applyErrUnreachable,
+        doneTitle: copy.applyDoneTitle,
+        doneWhatRole: copy.applyDoneWhatRole,
+        doneWhatOpen: copy.applyDoneWhatOpen,
+        doneBody: copy.applyDoneBody,
+        doneNote: copy.applyDoneNote,
+      },
     },
   }}
 >
@@ -369,10 +423,13 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
 </script>
 
 <script>
+  import { fill, fillHtml, esc } from '../lib/copy';
+
   function initApply() {
     const root = document.getElementById('ap');
     if (!root) return;
     const cfg = (window as any).__aniwalaApply;
+    const copy = cfg.copy;
 
     const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -414,10 +471,8 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
       /* The message field is asking for two different things depending on the
          mode, so it says so. */
       if (messageLabel) {
-        messageLabel.innerHTML =
-          next === 'open'
-            ? 'What you want to be doing here <em>*</em>'
-            : 'Anything we should know <em>*</em>';
+        const label = next === 'open' ? copy.messageLabelOpen : copy.messageLabelRole;
+        messageLabel.innerHTML = `${esc(label)} <em>*</em>`;
       }
 
       document.querySelectorAll<HTMLButtonElement>('.ap-mode').forEach((b) => {
@@ -449,7 +504,7 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
       if (!roleSel || !roleHint) return;
       const note = cfg.reelNotes[roleSel.value];
       if (note) {
-        roleHint.textContent = `For this role: ${note}`;
+        roleHint.textContent = fill(copy.roleHint, { note });
         roleHint.hidden = false;
       } else {
         roleHint.hidden = true;
@@ -528,14 +583,13 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
 
       if (!cfg.locked) {
         if (mode === 'role') {
-          if (!roleSel?.value) return fail('Pick which role you are applying for.', roleSel);
+          if (!roleSel?.value) return fail(copy.errRole, roleSel);
           roleSlug = roleSel.value;
           roleTitle = roleSel.selectedOptions[0]?.dataset.title ?? roleSel.value;
           discipline = null;
         } else {
-          if (!discSel?.value) return fail('Choose the area you would want to work in.', discSel);
-          if (!desired?.value.trim())
-            return fail('Name the role you are after — it is what we match against.', desired);
+          if (!discSel?.value) return fail(copy.errArea, discSel);
+          if (!desired?.value.trim()) return fail(copy.errDesired, desired);
           discipline = discSel.value;
           desiredRole = desired.value.trim();
           roleSlug = null;
@@ -543,29 +597,25 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
         }
       }
 
-      if (!name) return fail('Add your name.', $('ap-name'));
-      if (!isEmail(email)) return fail('That email address does not look right.', $('ap-email'));
-      if (!location_) return fail('Tell us which city you are in — some of these seats are on-site.', $('ap-location'));
-      if (!experience) return fail('Pick the experience band that fits you best.', $('ap-experience'));
-      if (!portfolio) return fail('A link to the work is the one thing we cannot read you without.', portfolioEl);
-      if (!isUrl(portfolio)) return fail('That portfolio link does not look like a URL we can open.', portfolioEl);
-      if (cv && !isUrl(cv)) return fail('That CV link does not look like a URL we can open.', cvEl);
-      if (message.length < 20)
-        return fail('Write us a couple of sentences — this is the part a person actually reads.', $('ap-message'));
+      if (!name) return fail(copy.errName, $('ap-name'));
+      if (!isEmail(email)) return fail(copy.errEmail, $('ap-email'));
+      if (!location_) return fail(copy.errLocation, $('ap-location'));
+      if (!experience) return fail(copy.errExperience, $('ap-experience'));
+      if (!portfolio) return fail(copy.errPortfolio, portfolioEl);
+      if (!isUrl(portfolio)) return fail(copy.errPortfolioUrl, portfolioEl);
+      if (cv && !isUrl(cv)) return fail(copy.errCvUrl, cvEl);
+      if (message.length < 20) return fail(copy.errMessage, $('ap-message'));
 
       /* Bot gates. Both fail silently-ish: a real person never sees either. */
       const hp = form.querySelector<HTMLInputElement>('.ap-hp');
-      if (hp?.checked) return fail('Something went wrong with that submission.');
-      if (Date.now() - openedAt < 3000)
-        return fail('That was quick — give it a moment and press send again.');
+      if (hp?.checked) return fail(copy.errGeneric);
+      if (Date.now() - openedAt < 3000) return fail(copy.errTooFast);
 
       if (!cfg.configured)
-        return fail(
-          `Applications are not connected yet — nothing would reach the studio. Email ${cfg.careersEmail} instead.`
-        );
+        return fail(fill(copy.errNotConfigured, { careersEmail: cfg.careersEmail }));
 
       submit.disabled = true;
-      submit.textContent = 'Sending…';
+      submit.textContent = copy.submitBusy;
 
       try {
         const res = await fetch(`${cfg.supabaseUrl.replace(/\/$/, '')}/rest/v1/applications`, {
@@ -609,33 +659,45 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
           throw new Error(detail);
         }
 
-        const safeName = name.replace(/[<>&]/g, '').split(' ')[0];
-        const what =
-          cfg.locked || mode === 'role'
-            ? `your application for <strong>${(roleTitle ?? '').replace(/[<>&]/g, '')}</strong>`
-            : `your open application for <strong>${(desiredRole ?? '').replace(/[<>&]/g, '')}</strong>`;
+        /*
+         * Everything below goes into innerHTML, and every value in it came
+         * out of a form field, so nothing is interpolated raw.
+         *
+         * `fillHtml` escapes the stored sentence AND the values it fills in,
+         * which leaves the two `{{...}}` holes that want real markup — the
+         * bolded job title, and the finished clause dropped into the body —
+         * untouched by it. Those are substituted afterwards, from strings
+         * that have already been through the same escaping.
+         */
+        const forRole = cfg.locked || mode === 'role';
+        const job = `<strong>${esc((forRole ? roleTitle : desiredRole) ?? '')}</strong>`;
+        const what = fillHtml(forRole ? copy.doneWhatRole : copy.doneWhatOpen).replace(
+          '{{role}}',
+          () => job
+        );
 
         main.innerHTML = `<div class="ap-done">
             <p class="ap-done-mark" aria-hidden="true">✓</p>
-            <h3>That's in, ${safeName}.</h3>
-            <p>We have ${what}, and the link to your work. Somebody who does the
-               job will watch it and write back within five working days —
-               including if the answer is no.</p>
-            <p class="ap-done-note">Nothing else to do. If you want to add something,
-               reply to the confirmation or write to
-               <a href="mailto:${cfg.careersEmail}">${cfg.careersEmail}</a>.</p>
+            <h3>${fillHtml(copy.doneTitle, { name: name.split(' ')[0] })}</h3>
+            <p>${fillHtml(copy.doneBody).replace('{{what}}', () => what)}</p>
+            <p class="ap-done-note">${fillHtml(copy.doneNote, {}, {
+              careersEmail: { href: `mailto:${cfg.careersEmail}`, label: cfg.careersEmail },
+            })}</p>
           </div>`;
         main.scrollIntoView({ block: 'center', behavior: 'smooth' });
       } catch (err) {
         fail(
           err instanceof Error && err.message
-            ? `Could not send that — ${err.message}. Email ${cfg.careersEmail} instead.`
-            : `Could not reach the server. Email ${cfg.careersEmail} instead.`
+            ? fill(copy.errSendFailed, {
+                error: err.message,
+                careersEmail: cfg.careersEmail,
+              })
+            : fill(copy.errUnreachable, { careersEmail: cfg.careersEmail })
         );
       } finally {
         if (submit.isConnected) {
           submit.disabled = false;
-          submit.textContent = cfg.locked ? 'Send application' : 'Send it';
+          submit.textContent = cfg.locked ? copy.submitRole : copy.submitOpen;
         }
       }
     });

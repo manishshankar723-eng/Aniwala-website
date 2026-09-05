@@ -8,6 +8,7 @@ import Comments from '../../components/Comments.astro';
 import CtaBand from '../../components/CtaBand.astro';
 import Footer from '../../components/Footer.astro';
 import { imageUrl, imageSrcSet, ogImageUrl } from '../../lib/sanity/client';
+import { getUiCopy } from '../../lib/studio';
 import {
   getPosts,
   getRelatedPosts,
@@ -31,6 +32,8 @@ const { post } = Astro.props;
 const { title, description, pubDate, updatedDate, category, tags, author, tint, cover, seoTitle, seoDescription } =
   post.data;
 
+const ui = await getUiCopy();
+
 const { Content, headings } = await render(post);
 const related = await getRelatedPosts(post);
 
@@ -48,7 +51,7 @@ const articleSchema = {
   author: { '@type': 'Organization', name: author },
   publisher: {
     '@type': 'Organization',
-    name: 'Aniwala Studios',
+    name: ui.siteName,
     url: 'https://aniwala.com/',
   },
   mainEntityOfPage: new URL(`/blog/${post.id}/`, Astro.site).href,
@@ -57,7 +60,7 @@ const articleSchema = {
 ---
 
 <Base
-  title={seoTitle ?? `${title} — Aniwala Studios`}
+  title={seoTitle ?? `${title} — ${ui.siteName}`}
   description={seoDescription ?? description}
   canonical={`/blog/${post.id}/`}
   ogImage={cover ? ogImageUrl(cover) : undefined}
@@ -71,8 +74,8 @@ const articleSchema = {
       tint={tint}
       meta={[formatDate(pubDate), readingTime(post.body), author]}
       crumbs={[
-        { label: 'Home', href: '/' },
-        { label: 'Blog', href: '/blog/' },
+        { label: ui.crumbHome, href: '/' },
+        { label: ui.crumbBlog, href: '/blog/' },
         { label: category, href: `/blog/category/${categorySlug(category)}/` },
         { label: title },
       ]}
@@ -115,7 +118,7 @@ const articleSchema = {
         <footer class="article-foot">
           {
             tags.length > 0 && (
-              <ul class="tags" aria-label="Tags">
+              <ul class="tags" aria-label={ui.tagsLabel}>
                 {tags.map((t) => (
                   <li>
                     <a href={`/blog/tag/${tagSlug(t)}/`}>#{t}</a>
@@ -128,13 +131,14 @@ const articleSchema = {
           {
             updatedDate && (
               <p class="updated">
-                Updated <time datetime={isoDate(updatedDate)}>{formatDate(updatedDate)}</time>
+                {ui.postUpdatedPrefix}{' '}
+                <time datetime={isoDate(updatedDate)}>{formatDate(updatedDate)}</time>
               </p>
             )
           }
 
           <a href="/blog/" class="back">
-            <span aria-hidden="true">&larr;</span> All posts
+            <span aria-hidden="true">&larr;</span> {ui.postBackLabel}
           </a>
         </footer>
 
@@ -148,10 +152,10 @@ const articleSchema = {
       related.length > 0 && (
         <section class="section section--bordered blog-section">
           <div class="section-head" data-reveal>
-            <p class="section-eyebrow">Keep reading</p>
-            <h2 class="section-title">More from the blog</h2>
+            <p class="section-eyebrow">{ui.postRelatedEyebrow}</p>
+            <h2 class="section-title">{ui.postRelatedTitle}</h2>
             <a href="/blog/" class="section-link">
-              All posts <span aria-hidden="true">&rarr;</span>
+              {ui.postRelatedLink} <span aria-hidden="true">&rarr;</span>
             </a>
           </div>
           <div class="related">

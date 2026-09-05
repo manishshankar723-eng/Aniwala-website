@@ -7,7 +7,8 @@ import CtaBand from '../../components/CtaBand.astro';
 import Footer from '../../components/Footer.astro';
 import { employmentTypeSchema } from '../../config/careers';
 import { getFlatRoles } from '../../lib/roles';
-import { getFaqs, getContactDetails, getCareersContent } from '../../lib/studio';
+import { getFaqs, getContactDetails, getCareersContent, getUiCopy } from '../../lib/studio';
+import { fill, plural } from '../../lib/copy';
 
 /**
  * Careers.
@@ -26,6 +27,8 @@ import { getFaqs, getContactDetails, getCareersContent } from '../../lib/studio'
    is an edit rather than a deploy. */
 const copy = await getCareersContent();
 const { values, hiringSteps, hiringOpen } = copy;
+
+const ui = await getUiCopy();
 
 const roles = hiringOpen ? await getFlatRoles() : [];
 
@@ -69,7 +72,7 @@ const jobSchema = roles.map((r) => ({
   employmentType: employmentTypeSchema[r.kind],
   hiringOrganization: {
     '@type': 'Organization',
-    name: 'Aniwala Studios',
+    name: ui.siteName,
     sameAs: 'https://aniwala.com',
   },
   jobLocation: {
@@ -89,21 +92,23 @@ const jobSchema = roles.map((r) => ({
 ---
 
 <Base
-  title="Careers — Aniwala Studios"
-  description="Animation, game art and VFX jobs in Pune. Open roles at Aniwala Studios, plus an open application for the seat that is not listed yet. Every application gets an answer within five working days."
+  title={copy.seoTitle ?? `${ui.crumbCareers} — ${ui.siteName}`}
+  description={copy.seoDescription ?? copy.heroLead}
 >
   <main id="main">
     <PageHero
       eyebrow={copy.heroEyebrow}
       title={copy.heroTitle}
       lead={copy.heroLead}
-      crumbs={[{ label: 'Home', href: '/' }, { label: 'Careers' }]}
+      crumbs={[{ label: ui.crumbHome, href: '/' }, { label: ui.crumbCareers }]}
       tint="265 60% 28%"
     >
       <div class="hero-stats" data-reveal data-reveal-delay="0.22">
         <div class="hero-stat">
           <span class="hero-stat-n">{String(totalSeats).padStart(2, '0')}</span>
-          <span class="hero-stat-l">{totalSeats === 1 ? 'seat open' : 'seats open'}</span>
+          <span class="hero-stat-l">
+            {plural(totalSeats, ui.careersSeatOne, ui.careersSeatMany)}
+          </span>
         </div>
         <div class="hero-stat">
           <span class="hero-stat-n">{copy.heroStatDays}</span>
@@ -144,9 +149,9 @@ const jobSchema = roles.map((r) => ({
         /* Filters only earn their place once there is more than one thing to
            filter. Below three listings the chips are noise. */
         disciplineFilters.length > 1 && roles.length > 2 && (
-          <div class="filters" role="group" aria-label="Filter roles by discipline" data-reveal>
+          <div class="filters" role="group" aria-label={ui.filterRoles} data-reveal>
             <button type="button" class="filter is-on" data-filter="all">
-              All <span class="filter-n">{roles.length}</span>
+              {ui.careersFilterAll} <span class="filter-n">{roles.length}</span>
             </button>
             {disciplineFilters.map((d) => (
               <button type="button" class="filter" data-filter={d}>
@@ -169,7 +174,7 @@ const jobSchema = roles.map((r) => ({
                     <h3 class="job-title">
                       <a href={`/careers/${r.slug}/`}>{r.title}</a>
                     </h3>
-                    {isNew(r.posted) && <span class="job-new">New</span>}
+                    {isNew(r.posted) && <span class="job-new">{ui.careersNewBadge}</span>}
                   </div>
                   <p class="job-summary">{r.summary}</p>
                 </div>
@@ -179,21 +184,23 @@ const jobSchema = roles.map((r) => ({
                   <li class="job-tag">{r.location}</li>
                   <li class="job-tag">{r.experience}</li>
                   <li class="job-tag">
-                    {r.openings === 1 ? '1 opening' : `${r.openings} openings`}
+                    {plural(r.openings, ui.careersOpeningOne, ui.careersOpeningMany)}
                   </li>
                 </ul>
 
                 <div class="job-foot">
                   <p class="job-posted">
-                    Posted {fmtDate(r.posted)}
-                    {r.closes && <span> · closes {fmtDate(r.closes)}</span>}
+                    {fill(ui.careersPosted, { date: fmtDate(r.posted) })}
+                    {r.closes && (
+                      <span> · {fill(ui.careersCloses, { date: fmtDate(r.closes) })}</span>
+                    )}
                   </p>
                   <div class="job-acts">
                     <a href={`/careers/${r.slug}/`} class="job-read">
-                      Read the role <span aria-hidden="true">&rarr;</span>
+                      {ui.careersReadRole} <span aria-hidden="true">&rarr;</span>
                     </a>
                     <a href="#apply" class="job-apply" data-apply={r.slug}>
-                      Apply
+                      {ui.careersApply}
                     </a>
                   </div>
                 </div>
@@ -239,7 +246,7 @@ const jobSchema = roles.map((r) => ({
         <p class="section-eyebrow">{copy.studioEyebrow}</p>
         <h2 class="section-title">{copy.studioTitle}</h2>
         <a href="/about/" class="section-link">
-          More about the studio <span aria-hidden="true">&rarr;</span>
+          {ui.careersStudioLink} <span aria-hidden="true">&rarr;</span>
         </a>
       </div>
 
@@ -284,14 +291,19 @@ const jobSchema = roles.map((r) => ({
 
     <ApplyForm />
 
-    <Faq items={careerFaqs} eyebrow="Questions" title="Before you apply" name="careers-faq" />
+    <Faq
+      items={careerFaqs}
+      eyebrow={copy.faqEyebrow}
+      title={copy.faqTitle}
+      name="careers-faq"
+    />
 
     <CtaBand
-      eyebrow="Not job hunting?"
-      title="Then brief us instead."
-      body="If you landed here looking for a studio rather than a seat, the other half of the site is the one you want. Tell us the deadline first — we'll tell you straight whether we can hit it."
-      primary={{ label: 'Start a project', href: '/contact/' }}
-      secondary={{ label: 'See the work', href: '/portfolio/' }}
+      eyebrow={copy.ctaEyebrow}
+      title={copy.ctaTitle}
+      body={copy.ctaBody}
+      primary={{ label: copy.ctaPrimaryLabel, href: copy.ctaPrimaryHref }}
+      secondary={{ label: copy.ctaSecondaryLabel, href: copy.ctaSecondaryHref }}
     />
   </main>
 

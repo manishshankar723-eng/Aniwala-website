@@ -9,6 +9,8 @@ import Footer from '../../components/Footer.astro';
 import { getWorkCategories, type WorkCategory } from '../../lib/workCategories';
 import { piecesIn } from '../../lib/pieces';
 import { servicesBySlugs, type Service } from '../../lib/services';
+import { getUiCopy } from '../../lib/studio';
+import { fill } from '../../lib/copy';
 
 /**
  * One page per discipline.
@@ -38,20 +40,23 @@ const related: Service[] = await servicesBySlugs(category.services);
 
 const ownCount = pieces.filter((p) => p.kind === 'Studio project').length;
 const allOwn = pieces.length > 0 && ownCount === pieces.length;
+
+const ui = await getUiCopy();
+const words = { name: category.shortName, title: category.title };
 ---
 
 <Base
-  title={category.seoTitle ?? `${category.title} — Portfolio — Aniwala Studios`}
+  title={category.seoTitle ?? `${category.title} — ${ui.crumbPortfolio} — ${ui.siteName}`}
   description={category.seoDescription ?? category.intro}
 >
   <main id="main">
     <PageHero
-      eyebrow="Portfolio"
+      eyebrow={ui.portfolioEyebrow}
       title={category.title}
       lead={category.intro}
       crumbs={[
-        { label: 'Home', href: '/' },
-        { label: 'Portfolio', href: '/portfolio/' },
+        { label: ui.crumbHome, href: '/' },
+        { label: ui.crumbPortfolio, href: '/portfolio/' },
         { label: category.title },
       ]}
       tint={category.tint}
@@ -64,31 +69,22 @@ const allOwn = pieces.length > 0 && ownCount === pieces.length;
       {
         pieces.length === 0 ? (
           <div class="empty" data-reveal>
-            <p class="empty-title">No {category.shortName} published yet.</p>
-            <p class="empty-body">
-              We take this work on — it is simply not up here yet. Most of what a
-              studio makes never clears for public use, and we would rather show
-              you nothing than show you work that is not ours.
-            </p>
-            <p class="empty-body">
-              Ask and we will send relevant work directly, along with an honest
-              read on whether it is the right fit for your brief.
-            </p>
+            <p class="empty-title">{fill(ui.portfolioEmptyTitle, words)}</p>
+            <p class="empty-body">{ui.portfolioEmptyBodyOne}</p>
+            <p class="empty-body">{ui.portfolioEmptyBodyTwo}</p>
             <a href="/contact/" class="empty-cta">
-              Ask to see {category.shortName} <span aria-hidden="true">&rarr;</span>
+              {fill(ui.portfolioEmptyCta, words)} <span aria-hidden="true">&rarr;</span>
             </a>
           </div>
         ) : (
           <>
             {allOwn && (
               <p class="note" data-reveal>
-                Self-directed studio work — pieces we set ourselves to test a
-                pipeline claim before making it to a client. Commissioned
-                projects appear here as they clear approval.
+                {ui.portfolioOwnNote}
               </p>
             )}
 
-            <h2 class="visually-hidden">{category.title} work</h2>
+            <h2 class="visually-hidden">{fill(ui.portfolioWorkHeading, words)}</h2>
 
             <div class="grid">
               {pieces.map((piece) => (
@@ -107,10 +103,10 @@ const allOwn = pieces.length > 0 && ownCount === pieces.length;
       related.length > 0 && (
         <section class="section section--bordered" id="services">
           <div class="section-head" data-reveal>
-            <p class="section-eyebrow">What you would be hiring</p>
-            <h2 class="section-title">The services behind this work</h2>
+            <p class="section-eyebrow">{ui.portfolioServicesEyebrow}</p>
+            <h2 class="section-title">{ui.portfolioServicesTitle}</h2>
             <a href="/services/" class="section-link">
-              Every discipline <span aria-hidden="true">&rarr;</span>
+              {ui.portfolioServicesLink} <span aria-hidden="true">&rarr;</span>
             </a>
           </div>
 
@@ -130,9 +126,9 @@ const allOwn = pieces.length > 0 && ownCount === pieces.length;
     }
 
     <CtaBand
-      eyebrow="Start a project"
-      title={`Have ${category.shortName} on your brief?`}
-      body="Send the brief, the asset list or just the problem. You get a shot or asset count, the decisions that will cost money, and a date we believe — within two working days."
+      eyebrow={ui.portfolioCtaEyebrow}
+      title={fill(ui.portfolioCtaTitle, words)}
+      body={ui.portfolioCtaBody}
     />
   </main>
 

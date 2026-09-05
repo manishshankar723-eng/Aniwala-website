@@ -508,6 +508,10 @@ async function migrateContactDetails() {
   const source = await readCareersSource();
   const emailMatch = source.match(/export const careersEmail = '([^']+)'/);
   const careersEmail = emailMatch ? emailMatch[1] : SEED_CONTACT.email;
+  /* The trading name moved off config/contact.ts to sit beside the address:
+     the footer's copyright line and the privacy policy's opening sentence
+     name the same entity, and two copies is how they stop agreeing. */
+  const { LEGAL_NAME } = await import('./seed-ui.mjs');
 
   return [
     {
@@ -515,6 +519,7 @@ async function migrateContactDetails() {
       _type: 'contactDetails',
       email: SEED_CONTACT.email,
       careersEmail,
+      legalName: LEGAL_NAME,
       addressLines: SEED_CONTACT.addressLines,
       country: SEED_CONTACT.country,
       socials: SEED_CONTACT.socials.map((s, i) => ({
@@ -524,6 +529,60 @@ async function migrateContactDetails() {
         label: s.label,
         href: s.href,
       })),
+    },
+  ];
+}
+
+/* ------------------------------------------------------------------ */
+/* Interface copy, the privacy policy, and the two forms' wording      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Every word the site says that is not attached to a piece of content.
+ *
+ * One document with about two hundred fields, seeded from transcriptions of
+ * the templates that used to hold them — see seed-ui.mjs. The nested lists
+ * need Sanity's `_key` on every member, which is what the maps below are for.
+ */
+async function migrateUiCopy() {
+  const { UI_COPY } = await import('./seed-ui.mjs');
+
+  return [
+    {
+      _id: 'uiCopy',
+      _type: 'uiCopy',
+      ...UI_COPY,
+      legalLinks: UI_COPY.legalLinks.map((l, i) => ({
+        _type: 'legalLink',
+        _key: `legal-${i}`,
+        ...l,
+      })),
+      notFoundRoutes: UI_COPY.notFoundRoutes.map((r, i) => ({
+        _type: 'route',
+        _key: `route-${i}`,
+        ...r,
+      })),
+    },
+  ];
+}
+
+/**
+ * The privacy policy.
+ *
+ * The body goes through the same Markdown -> Portable Text conversion every
+ * blog post took, so it is validated against the SAME blockContent schema the
+ * Studio edits with — anything the editor could not represent is dropped here
+ * rather than stored and never rendered.
+ */
+async function migratePrivacyPage() {
+  const { PRIVACY, PRIVACY_BODY } = await import('./seed-ui.mjs');
+
+  return [
+    {
+      _id: 'privacyPage',
+      _type: 'privacyPage',
+      ...PRIVACY,
+      body: toPortableText(PRIVACY_BODY),
     },
   ];
 }
@@ -565,14 +624,25 @@ async function migrateSiteCopy() {
  */
 async function migrateCareersContent() {
   const { CAREERS } = await import('./seed-careers.mjs');
+  /* The application form's wording rides on this document, because the form
+     renders on the careers page AND at the foot of every role page — and two
+     copies is how those two end up promising different reply times. */
+  const { APPLY_COPY, CAREERS_CLOSING } = await import('./seed-ui.mjs');
 
   return [
     {
       _id: 'careersContent',
       _type: 'careersContent',
       ...CAREERS,
+      ...CAREERS_CLOSING,
+      ...APPLY_COPY,
       values: CAREERS.values.map((v, i) => ({ _type: 'value', _key: `value-${i}`, ...v })),
       hiringSteps: CAREERS.hiringSteps.map((h, i) => ({ _type: 'step', _key: `step-${i}`, ...h })),
+      applyPromises: APPLY_COPY.applyPromises.map((p, i) => ({
+        _type: 'promise',
+        _key: `promise-${i}`,
+        ...p,
+      })),
     },
   ];
 }
@@ -656,7 +726,11 @@ async function migrateWorkCategories() {
 
 async function migrateBookingSettings() {
   const { BOOKING } = await import('./seed-settings.mjs');
-  return [{ _id: 'bookingSettings', _type: 'bookingSettings', ...BOOKING }];
+  /* The widget's wording lives on the same document as its settings: an
+     editor changing the call lengths and an editor changing the button that
+     confirms them are the same person doing the same job. */
+  const { BOOKING_COPY } = await import('./seed-ui.mjs');
+  return [{ _id: 'bookingSettings', _type: 'bookingSettings', ...BOOKING, ...BOOKING_COPY }];
 }
 
 async function migrateLoaderSettings() {
@@ -721,6 +795,8 @@ async function main() {
     ...(await migrateFaqs()),
     ...(await migrateContactDetails()),
     ...(await migrateSiteCopy()),
+    ...(await migrateUiCopy()),
+    ...(await migratePrivacyPage()),
     ...(await migrateServices()),
     ...(await migrateCareersContent()),
     ...(await migrateWorkCategories()),

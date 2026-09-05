@@ -254,20 +254,69 @@ Three places, on purpose.
 
 | What | Where |
 | --- | --- |
-| Posts, case studies, job openings | Sanity. Edited at aniwala.com/admin. |
-| Services, nav, portfolio, hiring process | This repo. Plain files, in git. |
+| Posts, case studies, job openings, services, portfolio, the menus | Sanity. Edited at aniwala.com/admin. |
+| Every word the templates say — headings, labels, empty states, the privacy policy, both forms | Sanity, under **Interface copy** and **Privacy policy**. |
+| Anything that decides a URL or drives code behaviour | This repo. Plain files, in git. |
 | Enquiries, bookings, applications, comments | One Supabase project. |
 
-The split between the first two rows is the one worth understanding. Anything
-published on a weekly rhythm by a person who should not need a developer lives
-in the CMS. Anything that describes how the studio is *structured* — the six
-services, the navigation, the hiring steps, the disciplines a role can belong
-to — stays in code, where it gets a diff and a review. A new blog post is
-content; a seventh service is a decision.
+The split worth understanding is the last of the three repo/CMS lines. If a
+change is *words*, it belongs in the CMS — including the words nobody thinks
+of as content, like "Read the case study" or the label a screen reader gives
+the menu button. If a change alters what the code *does*, it stays in git,
+where it gets a diff and a review.
+
+What that leaves in code is a short list, and each entry is there for a
+reason you can point at:
+
+- **Blog categories and portfolio disciplines' slugs** decide URLs. Renaming
+  one in a CMS field would break every link anyone has ever shared, silently.
+- **The studio timezone.** IST observes no daylight saving, which is why a
+  fixed offset is exact — and why nobody should be able to point the booking
+  widget at a timezone that does, where every slot offered would be an hour
+  wrong for half the year.
+- **The Supabase credentials and the social-icon list.** Infrastructure, and
+  a list of SVG paths that exist in a component.
+- **`src/config/copyFields.ts`** — the *names* of the CMS copy fields, not
+  their text. It is the contract the build validates against.
 
 Everything a visitor submits goes into a single Supabase database, so there is
 one dashboard to check and one export to take — not a form service plus a
 comment service plus a scheduler.
+
+### Interface copy
+
+Two documents in the Studio hold the site's own words:
+
+- **Interface copy** — around two hundred strings, in tabs: site-wide,
+  detail pages, listings, comments, the 404, and screen-reader labels. The
+  wording of the booking widget lives on **Book a call** instead, and the
+  application form's on **Careers page**, because that is where an editor
+  would look for them.
+- **Privacy policy** — the policy as rich text, plus its hero and its date.
+
+Sentences with a value in the middle use `{{token}}` holes that the templates
+fill in — `{{count}} posts`, `Apply for {{role}}`, `Email {{email}} instead`.
+The field's description in the Studio names the tokens it accepts. An unknown
+token renders as itself rather than as a blank, so a typo is visible rather
+than silently eating half a sentence.
+
+Every one of these is REQUIRED: leave one blank and the production build
+fails naming the field, rather than shipping a page with a hole in it. The one
+exception is the 404 tab, which falls back to the text in `lib/studio.ts` —
+that page is what a visitor reaches when something has already gone wrong, so
+it must not be able to break in turn.
+
+To seed them into a dataset that does not have them yet:
+
+```
+cd studio
+SANITY_WRITE_TOKEN=sk... npm run seed:copy -- --dry-run   # look first
+SANITY_WRITE_TOKEN=sk... npm run seed:copy                # then do it
+```
+
+That script creates the two new documents and FILLS IN missing fields on the
+three existing ones. It never overwrites a field somebody has already edited,
+so it is safe to re-run and safe to run against production.
 
 ### Setting up the CMS
 
