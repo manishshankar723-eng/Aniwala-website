@@ -1,12 +1,11 @@
 ---
-import { CATEGORIES } from '../config/categories';
 import {
   getPosts,
   getTags,
   getArchive,
   formatDate,
   isoDate,
-  categorySlug,
+  getPostCategories,
 } from '../lib/posts';
 import { getUiCopy } from '../lib/studio';
 
@@ -44,12 +43,13 @@ const { toc = [], excludeId, activeCategory, activeTag, activePeriod } = Astro.p
 const ui = await getUiCopy();
 
 const allPosts = await getPosts();
+const categories = await getPostCategories();
 const recent = allPosts.filter((p) => p.id !== excludeId).slice(0, 5);
 const tags = await getTags();
 const archive = await getArchive();
 
 const counts = Object.fromEntries(
-  CATEGORIES.map((c) => [c, allPosts.filter((p) => p.data.category === c).length])
+  categories.map((c) => [c.title, allPosts.filter((p) => p.data.category === c.title).length])
 );
 
 /* Under three headings there is nothing worth navigating. */
@@ -172,7 +172,7 @@ const blogIndex = allPosts.map((p) => ({
     <h2 class="rail-title" id="rail-cat-title">{ui.railCategoriesTitle}</h2>
     <ul class="rail-list">
       {
-        CATEGORIES.map((c) => {
+        categories.map(({ title: c, slug: cSlug }) => {
           const n = counts[c] ?? 0;
           return (
             <li>
@@ -182,7 +182,7 @@ const blogIndex = allPosts.map((p) => ({
                 </span>
               ) : (
                 <a
-                  href={`/blog/category/${categorySlug(c)}/`}
+                  href={`/blog/category/${cSlug}/`}
                   class:list={['rail-row', activeCategory === c && 'is-active']}
                   aria-current={activeCategory === c ? 'page' : undefined}
                 >

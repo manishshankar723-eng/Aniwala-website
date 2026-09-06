@@ -2,9 +2,9 @@
  * Portfolio pieces.
  *
  * Replaces `pieces`, `piecesIn` and `pieceCounts` in `config/portfolio.ts`.
- * The CATEGORIES stayed there: they drive the `/portfolio/[category]/` routes
- * and the filter chips, so they are structure. The pieces filed under them
- * are content, added the week the work clears.
+ * The disciplines they are filed under are `workCategory` documents — they
+ * drive the `/portfolio/[category]/` routes, and a piece points at one by
+ * reference so a rename cannot detach it.
  *
  * The flat `Piece` shape below is the one the old config exported, kept
  * deliberately so `PieceCard.astro` and both portfolio pages did not need

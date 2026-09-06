@@ -13,6 +13,7 @@ import teamMember from './teamMember';
 import piece from './piece';
 import service from './service';
 import workCategory from './workCategory';
+import postCategory from './postCategory';
 import testimonial from './testimonial';
 import client from './client';
 import milestone from './milestone';
@@ -41,6 +42,7 @@ export const schemaTypes = [
   piece,
   service,
   workCategory,
+  postCategory,
 
   /* The studio itself */
   teamMember,

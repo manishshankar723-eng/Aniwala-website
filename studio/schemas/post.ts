@@ -7,14 +7,14 @@
  * language — an editor should find out that a description is too long while
  * they are typing it, not from a red CI job an hour later that they cannot read.
  *
- * The `CATEGORIES` list is imported from the website rather than copied. It is
- * a plain TypeScript module with no Astro imports, precisely so both sides can
- * share it; a copy here would drift the first time a category is renamed and
- * the drift would only show up as a failed build.
+ * The category is a REFERENCE to a `postCategory` document. It used to be a
+ * string validated against a list imported from the website, which made
+ * adding a category a code change and a Studio redeploy. As a reference,
+ * Sanity refuses to delete a category a post still points at, and renaming
+ * one cannot detach anything — the link is by id, not by name.
  */
 import { defineType, defineField } from 'sanity';
 import { seoFields } from './seoFields';
-import { CATEGORIES } from '../../src/config/categories';
 
 export default defineType({
   name: 'post',
@@ -83,12 +83,10 @@ export default defineType({
     defineField({
       name: 'category',
       title: 'Category',
-      type: 'string',
-      description: 'One only. Drives which filter page the post appears under.',
-      options: {
-        list: CATEGORIES.map((c) => ({ title: c, value: c })),
-        layout: 'radio',
-      },
+      type: 'reference',
+      to: [{ type: 'postCategory' }],
+      description:
+        'One only. Drives which filter page the post appears under. A reference rather than a fixed list, so a category can be added without a deploy — and so renaming one cannot detach the posts filed under it.',
       validation: (Rule) => Rule.required(),
     }),
 

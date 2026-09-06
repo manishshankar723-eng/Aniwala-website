@@ -168,7 +168,6 @@ export interface SiteCopy {
   capabilities: string[];
   /** The numbered "how we work" sequence. One list, two pages. */
   processSteps: { title: string; body: string }[];
-  categoryBlurbs: { category: string; blurb: string }[];
 }
 
 /**
@@ -186,7 +185,6 @@ const EMPTY_COPY: SiteCopy = {
   marqueeItems: [],
   capabilities: [],
   processSteps: [],
-  categoryBlurbs: [],
 };
 
 export async function getSiteCopy(): Promise<SiteCopy> {
@@ -200,7 +198,6 @@ export async function getSiteCopy(): Promise<SiteCopy> {
     marqueeItems: entry.data.marqueeItems,
     capabilities: entry.data.capabilities,
     processSteps: entry.data.processSteps,
-    categoryBlurbs: entry.data.categoryBlurbs,
   };
 }
 
@@ -565,6 +562,8 @@ export interface NotFoundRoute {
  */
 export type UiCopy = Record<UiCopyField, string> & {
   legalLinks: LegalLink[];
+  /** Site-wide switch for the blog comment form and the comments themselves. */
+  commentsEnabled: boolean;
   /* The 404. Every one of these is filled in from `NOT_FOUND_FALLBACK` when
      the CMS leaves it blank — see `getUiCopy`. */
   notFoundCode: string;
@@ -635,6 +634,9 @@ const NOT_FOUND_FALLBACK = {
 const EMPTY_UI_COPY = {
   ...Object.fromEntries(UI_COPY_FIELDS.map((f) => [f, ''])),
   legalLinks: [] as LegalLink[],
+  /* On, matching the schema default — the empty shape is a dev convenience,
+     not a decision to close comments. */
+  commentsEnabled: true,
   ...NOT_FOUND_FALLBACK,
 } as UiCopy;
 
@@ -691,6 +693,17 @@ export interface Brand {
    * the layout multiplies nothing and there is one place the arithmetic can
    * be wrong.
    */
+  /**
+   * The page palette and the layout numbers.
+   *
+   * Kept as raw strings and nullable numbers rather than being resolved into
+   * anything: blank has to survive all the way to `Base.astro`, which emits
+   * nothing for it so the stylesheet's own value stands. A default applied
+   * here would put a redundant copy of the shipped palette into the head of
+   * all 65 pages.
+   */
+  palette: Record<string, string>;
+  layout: { contentWidth: number | null; radiusScale: number | null; gutterScale: number | null };
   fonts: { display?: string; body?: string; label?: string; mono?: string };
   typeRoles: { name: string; scale: number; weight: number; track: number }[];
   /** Ready-to-render icon URLs at the sizes the head and manifest declare. */
@@ -732,6 +745,8 @@ const EMPTY_BRAND: Brand = {
   accentLight: '',
   buttonFill: '',
   buttonInk: '',
+  palette: {},
+  layout: { contentWidth: null, radiusScale: null, gutterScale: null },
   fonts: {},
   /* Every role at its designed value, which is what an absent document
      means: the site as drawn. */
@@ -766,6 +781,34 @@ export async function getBrand(): Promise<Brand> {
     accentLight: d.accentLight,
     buttonFill: d.buttonFill,
     buttonInk: d.buttonInk,
+
+    palette: Object.fromEntries(
+      ([
+        'groundDark',
+        'surfaceDark',
+        'surface2Dark',
+        'lineDark',
+        'lineStrongDark',
+        'inkDark',
+        'inkMutedDark',
+        'inkFaintDark',
+        'groundLight',
+        'surfaceLight',
+        'surface2Light',
+        'lineLight',
+        'lineStrongLight',
+        'inkLight',
+        'inkMutedLight',
+        'inkFaintLight',
+        'dangerDark',
+        'dangerLight',
+      ] as const).map((k) => [k, String((d as Record<string, unknown>)[k] ?? '')])
+    ),
+    layout: {
+      contentWidth: (d.contentWidth as number | null) ?? null,
+      radiusScale: (d.radiusScale as number | null) ?? null,
+      gutterScale: (d.gutterScale as number | null) ?? null,
+    },
 
     /* Keys in, stacks out. The Studio stores `bricolage`; the site needs the
        whole fallback chain, which lives in `config/fonts.ts` and is never

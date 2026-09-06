@@ -12,8 +12,9 @@
 import SectionHead from './SectionHead.astro';
 import PostCard from '../PostCard.astro';
 import CategoryBar from '../CategoryBar.astro';
-import { getPosts } from '../../lib/posts';
-import { CATEGORIES } from '../../config/categories';
+import { getPosts,
+  getPostCategories,
+} from '../../lib/posts';
 import { getUiCopy } from '../../lib/studio';
 
 const ui = await getUiCopy();
@@ -41,7 +42,10 @@ const posts = block.limit ? all.slice(0, block.limit) : all;
 const [featured, ...rest] = posts;
 
 const counts = Object.fromEntries(
-  CATEGORIES.map((c) => [c, all.filter((p) => p.data.category === c).length])
+  (await getPostCategories()).map((c) => [
+    c.title,
+    all.filter((p) => p.data.category === c.title).length,
+  ])
 );
 
 const hasEmptyState = Boolean(block.emptyTitle);

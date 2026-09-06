@@ -121,6 +121,14 @@ const hex = (
       }),
   });
 
+/** The same, filed under the page-palette tab. */
+const phex = (
+  name: string,
+  title: string,
+  description: string,
+  validate?: (value: string | undefined, doc: Record<string, unknown>) => true | string
+) => ({ ...hex(name, title, description, validate), group: 'palette' });
+
 /**
  * Neither logo needs alt text.
  *
@@ -147,7 +155,9 @@ export default defineType({
   groups: [
     { name: 'logo', title: 'Header logo', default: true },
     { name: 'colour', title: 'Brand colour' },
+    { name: 'palette', title: 'Page palette' },
     { name: 'type', title: 'Typography' },
+    { name: 'layout', title: 'Layout' },
     { name: 'icon', title: 'Browser icon' },
   ],
 
@@ -230,6 +240,91 @@ export default defineType({
 
     /* ---------------------------------------------------------------- */
 
+
+    /* ================================================================= */
+    /* The page palette                                                  */
+    /*                                                                   */
+    /* Eight colours, twice — once per theme. These are the ones the     */
+    /* accent sits ON, and until now they were the only part of the      */
+    /* palette that was not editable: you could change the gold and not  */
+    /* the near-black behind it.                                         */
+    /*                                                                   */
+    /* PAIRS, NOT SINGLES. Nothing here is safe to judge on its own. A   */
+    /* background is only right relative to the text on it, which is why */
+    /* the ink fields warn on contrast against the ground rather than    */
+    /* against a fixed guess. Leave a whole theme blank and it keeps the */
+    /* palette the site shipped with.                                    */
+    /* ================================================================= */
+
+    phex('groundDark', 'Page background — dark', 'The colour behind everything while the site is dark.'),
+    phex(
+      'surfaceDark',
+      'Card background — dark',
+      'Cards, panels and the header once it is scrolled. Should sit only slightly above the page background — if you can see a hard edge, it is too far.'
+    ),
+    phex('surface2Dark', 'Raised card — dark', 'One step above the card background, for a panel inside a panel.'),
+    phex('lineDark', 'Borders — dark', 'Dividers and card edges. Nearly always a near-invisible step from the surface it sits on.'),
+    phex('lineStrongDark', 'Strong borders — dark', 'The heavier rule, for a border that is meant to be noticed.'),
+    phex(
+      'inkDark',
+      'Text — dark',
+      'The main text colour on the dark theme.',
+      (v, doc) => contrastWarning(v, (doc.groundDark as string) || '#0b0c10', 4.5, 'Body text on the dark background')
+    ),
+    phex(
+      'inkMutedDark',
+      'Secondary text — dark',
+      'Intros, captions and meta rows. Still has to be readable — this is the one people set too faint.',
+      (v, doc) => contrastWarning(v, (doc.groundDark as string) || '#0b0c10', 4.5, 'Secondary text on the dark background')
+    ),
+    phex(
+      'inkFaintDark',
+      'Faint text — dark',
+      'Timestamps and disabled states. Held to 3:1 rather than 4.5:1 because it is never the only way anything is communicated.',
+      (v, doc) => contrastWarning(v, (doc.groundDark as string) || '#0b0c10', 3, 'Faint text on the dark background')
+    ),
+
+    phex('groundLight', 'Page background — light', 'The colour behind everything while the site is light.'),
+    phex('surfaceLight', 'Card background — light', 'Cards and panels on the light theme.'),
+    phex('surface2Light', 'Raised card — light', 'One step above the card background.'),
+    phex('lineLight', 'Borders — light', 'Dividers and card edges on the light theme.'),
+    phex('lineStrongLight', 'Strong borders — light', 'The heavier rule.'),
+    phex(
+      'inkLight',
+      'Text — light',
+      'The main text colour on the light theme.',
+      (v, doc) => contrastWarning(v, (doc.groundLight as string) || '#faf9f5', 4.5, 'Body text on the light background')
+    ),
+    phex(
+      'inkMutedLight',
+      'Secondary text — light',
+      'Intros, captions and meta rows on the light theme.',
+      (v, doc) => contrastWarning(v, (doc.groundLight as string) || '#faf9f5', 4.5, 'Secondary text on the light background')
+    ),
+    phex(
+      'inkFaintLight',
+      'Faint text — light',
+      'Timestamps and disabled states on the light theme.',
+      (v, doc) => contrastWarning(v, (doc.groundLight as string) || '#faf9f5', 3, 'Faint text on the light background')
+    ),
+
+    /* The error colour. One field rather than two: it is a warning, and a
+       warning that changed hue between themes would read as two different
+       states. The two defaults it replaces already differ per theme only in
+       lightness, which the contrast checks below keep honest. */
+    phex(
+      'dangerDark',
+      'Error colour — dark',
+      'Invalid form fields and error messages while the site is dark.',
+      (v, doc) => contrastWarning(v, (doc.groundDark as string) || '#0b0c10', 4.5, 'Error text on the dark background')
+    ),
+    phex(
+      'dangerLight',
+      'Error colour — light',
+      'The same, dark enough to read on the light theme. An error nobody can read is worse than no error at all.',
+      (v, doc) => contrastWarning(v, (doc.groundLight as string) || '#faf9f5', 4.5, 'Error text on the light background')
+    ),
+
     /* ================================================================= */
     /* Typography                                                        */
     /*                                                                   */
@@ -273,6 +368,46 @@ export default defineType({
     }),
 
     ...TYPE_ROLES.flatMap(roleFields),
+
+    /* ================================================================= */
+    /* Layout                                                            */
+    /*                                                                   */
+    /* Three numbers rather than the dozen the stylesheet actually uses. */
+    /* Corner rounding is one scale over three radii, and the page margin */
+    /* is one scale over a clamp, for the same reason the type controls   */
+    /* are multipliers: the relationships between them were designed, and */
+    /* setting each end independently is how you get a floor above a      */
+    /* ceiling.                                                          */
+    /* ================================================================= */
+
+    defineField({
+      name: 'contentWidth',
+      title: 'Maximum content width',
+      type: 'number',
+      group: 'layout',
+      description:
+        'How wide the site is allowed to grow on a large monitor, in pixels. 2240 is the design. Below about 1200 the wider grids start to feel cramped; above 2600 lines of text get too long to track comfortably.',
+      validation: (Rule) => Rule.min(900).max(4000).warning('Outside 1200–2600 the grids stop behaving.'),
+    }),
+    defineField({
+      name: 'radiusScale',
+      title: 'Corner rounding',
+      type: 'number',
+      group: 'layout',
+      description:
+        'Scales every rounded corner at once, as a percentage. 100 is the design, 0 makes the whole site square-cornered, 200 doubles it.',
+      validation: (Rule) => Rule.min(0).max(300),
+    }),
+    defineField({
+      name: 'gutterScale',
+      title: 'Page margin',
+      type: 'number',
+      group: 'layout',
+      description:
+        'Scales the space between the page content and the edge of the window, as a percentage. 100 is the design. Lower means more content per line; higher gives it more room to breathe.',
+      validation: (Rule) => Rule.min(25).max(250).warning('Below 50 the text touches the edge on a phone.'),
+    }),
+
 
     /* ---------------------------------------------------------------- */
 

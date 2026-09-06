@@ -63,7 +63,36 @@ export function isoDate(date: Date): string {
 }
 
 /** 'Pipeline' -> 'pipeline'. Category URLs are lowercase. */
-export const categorySlug = (category: string) => category.toLowerCase();
+/**
+ * Every blog category, in the order the Studio sets.
+ *
+ * Replaces the `CATEGORIES` tuple in `config/categories.ts`. The filter row,
+ * the blog rail and the archive routes all read this, so a category added in
+ * the Studio appears in all three without a deploy.
+ */
+export interface PostCategory {
+  /** The slug. This is the URL. */
+  slug: string;
+  title: string;
+  blurb: string;
+  order: number;
+}
+
+export async function getPostCategories(): Promise<PostCategory[]> {
+  const entries = await getCollection('postCategories', ({ data }) => previewMode || !data.draft);
+  return entries
+    .map((e) => ({ slug: e.id, ...e.data }))
+    .sort((a, b) => a.order - b.order || a.title.localeCompare(b.title));
+}
+
+/**
+ * `categorySlug()` was here — `(c) => c.toLowerCase()`.
+ *
+ * It worked only because every category happened to be one lowercase-able
+ * word. "Studio Life" would have produced "studio life", with a space in the
+ * URL, and nothing would have told anybody. The slug is now a real field on
+ * the category document and arrives on the post as `categorySlug`.
+ */
 
 /** '3D Animation' -> '3d-animation'. Tags are free text, so this has to cope
     with spaces, slashes and punctuation, not just case. */

@@ -15,7 +15,6 @@ import {
   formatDate,
   isoDate,
   readingTime,
-  categorySlug,
   tagSlug,
   type Post,
 } from '../../lib/posts';
@@ -102,7 +101,7 @@ const articleSchema = {
       crumbs={[
         { label: ui.crumbHome, href: '/' },
         { label: ui.crumbBlog, href: '/blog/' },
-        { label: category, href: `/blog/category/${categorySlug(category)}/` },
+        { label: category, href: `/blog/category/${post.data.categorySlug}/` },
         { label: title },
       ]}
     />

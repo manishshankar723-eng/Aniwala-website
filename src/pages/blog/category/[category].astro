@@ -5,9 +5,8 @@ import PostCard from '../../../components/PostCard.astro';
 import CategoryBar from '../../../components/CategoryBar.astro';
 import CtaBand from '../../../components/CtaBand.astro';
 import Footer from '../../../components/Footer.astro';
-import { getPosts, categorySlug, type Post } from '../../../lib/posts';
-import { CATEGORIES, type Category } from '../../../config/categories';
-import { getSiteCopy, getUiCopy } from '../../../lib/studio';
+import { getPosts, getPostCategories, type Post } from '../../../lib/posts';
+import { getUiCopy } from '../../../lib/studio';
 import { fill, plural } from '../../../lib/copy';
 
 /**
@@ -17,30 +16,35 @@ import { fill, plural } from '../../../lib/copy';
  */
 export async function getStaticPaths() {
   const posts = await getPosts();
+  const categories = await getPostCategories();
 
-  return CATEGORIES.filter((c) => posts.some((p) => p.data.category === c)).map((category) => ({
-    params: { category: categorySlug(category) },
-    props: {
-      category,
-      posts: posts.filter((p) => p.data.category === category),
-      counts: Object.fromEntries(
-        CATEGORIES.map((c) => [c, posts.filter((p) => p.data.category === c).length])
-      ),
-    },
-  }));
+  /* The slug comes off the category document rather than being derived from
+     its title. It is the URL, and lower-casing a two-word title used to
+     produce one with a space in it. */
+  return categories
+    .filter((c) => posts.some((p) => p.data.category === c.title))
+    .map((c) => ({
+      params: { category: c.slug },
+      props: {
+        category: c.title,
+        blurb: c.blurb,
+        posts: posts.filter((p) => p.data.category === c.title),
+        counts: Object.fromEntries(
+          categories.map((x) => [x.title, posts.filter((p) => p.data.category === x.title).length])
+        ),
+      },
+    }));
 }
 
 interface Props {
-  category: Category;
+  category: string;
+  /* Carried from the category document rather than looked up again here —
+     `getStaticPaths` already had it in hand. */
+  blurb: string;
   posts: Post[];
   counts: Record<string, number>;
 }
-const { category, posts, counts } = Astro.props;
-
-/* Falls back to nothing rather than a placeholder: a category with no
-   description renders without one, which is tidier than inventing a line. */
-const blurb =
-  (await getSiteCopy()).categoryBlurbs.find((c) => c.category === category)?.blurb ?? '';
+const { category, blurb, posts, counts } = Astro.props;
 
 const ui = await getUiCopy();
 const count = plural(posts.length, ui.postCountOne, ui.postCountMany);
@@ -49,7 +53,7 @@ const count = plural(posts.length, ui.postCountOne, ui.postCountMany);
 <Base
   title={`${category} — ${ui.crumbBlog} — ${ui.siteName}`}
   description={blurb}
-  canonical={`/blog/category/${categorySlug(category)}/`}
+  canonical={`/blog/category/${Astro.params.category}/`}
 >
   <main id="main">
     <PageHero

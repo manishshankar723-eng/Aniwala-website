@@ -1337,6 +1337,31 @@ export default defineType({
     /* Comments                                                          */
     /* ================================================================= */
 
+    /*
+     * The switch, not a string — which is why it sits at the top of this tab
+     * rather than in a settings document somewhere else. Whoever decides to
+     * close comments is the person reading this wording, and the decision
+     * used to be a constant in `config/site.ts`: a deploy, a review and a
+     * developer to turn off a comment form.
+     *
+     * OFF hides the form AND the existing comments. It does not delete
+     * anything — the rows stay in Supabase and come back if this is turned
+     * on again.
+     *
+     * This is not the spam control. Comments are held for approval whatever
+     * this says; the moderation queue in the Supabase dashboard is what
+     * decides whether anything appears. See supabase/schema.sql.
+     */
+    defineField({
+      name: 'commentsEnabled',
+      title: 'Comments are on',
+      type: 'boolean',
+      group: 'comments',
+      description:
+        'Turn off to hide the comment form and every existing comment, site-wide. Nothing is deleted — the comments come back if you turn this on again.',
+      initialValue: true,
+    }),
+
     defineField({
       name: 'commentsTitle',
       title: 'Comments — heading',

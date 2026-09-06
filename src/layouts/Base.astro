@@ -158,9 +158,60 @@ for (const role of brand.typeRoles) {
   if (role.track !== 0) typeVars.push([`--type-${role.name}-track`, `${role.track}em`]);
 }
 
+/**
+ * The page palette, per theme.
+ *
+ * The eight tokens the accent sits ON — background, surfaces, borders and the
+ * three levels of text — plus the error red. Until these were editable you
+ * could change the gold and not the near-black behind it, which is half a
+ * palette.
+ *
+ * Blank stays blank. `rule()` drops empty values, so an untouched document
+ * emits nothing and the stylesheet's own colour stands. That is what keeps
+ * this additive: there is no second copy of the shipped palette anywhere.
+ */
+const p = brand.palette;
+const paletteDark: [string, string][] = [
+  ['--color-ground', p.groundDark],
+  ['--color-surface', p.surfaceDark],
+  ['--color-surface-2', p.surface2Dark],
+  ['--color-line', p.lineDark],
+  ['--color-line-strong', p.lineStrongDark],
+  ['--color-ink', p.inkDark],
+  ['--color-ink-muted', p.inkMutedDark],
+  ['--color-ink-faint', p.inkFaintDark],
+  ['--color-danger', p.dangerDark],
+];
+const paletteLight: [string, string][] = [
+  ['--color-ground', p.groundLight],
+  ['--color-surface', p.surfaceLight],
+  ['--color-surface-2', p.surface2Light],
+  ['--color-line', p.lineLight],
+  ['--color-line-strong', p.lineStrongLight],
+  ['--color-ink', p.inkLight],
+  ['--color-ink-muted', p.inkMutedLight],
+  ['--color-ink-faint', p.inkFaintLight],
+  ['--color-danger', p.dangerLight],
+];
+
+/**
+ * Layout. Theme-independent, so it rides on the dark rule which both themes
+ * inherit from.
+ *
+ * The two scales feed `calc()` in the stylesheet exactly as the type scales
+ * do; the width is a plain override. `0` is a legitimate radius scale — it
+ * squares every corner on the site — so it is checked against null rather
+ * than for truthiness, which would silently discard it.
+ */
+const { contentWidth, radiusScale, gutterScale } = brand.layout;
+const layoutVars: [string, string][] = [];
+if (contentWidth !== null) layoutVars.push(['--shell-max', `${contentWidth}px`]);
+if (radiusScale !== null) layoutVars.push(['--radius-scale', String(radiusScale / 100)]);
+if (gutterScale !== null) layoutVars.push(['--gutter-scale', String(gutterScale / 100)]);
+
 const brandCss =
-  rule(':root:root', [...brandVars, ...typeVars]) +
-  rule(':root:root[data-theme="light"]', brandVarsLight);
+  rule(':root:root', [...brandVars, ...paletteDark, ...typeVars, ...layoutVars]) +
+  rule(':root:root[data-theme="light"]', [...brandVarsLight, ...paletteLight]);
 
 const { profileSocials } = await getContactDetails();
 const xHandle = profileSocials

@@ -209,21 +209,32 @@ const initials = hostName
 
         <label class="bk-field">
           <span class="bk-label">{booking.enquiryLabel}</span>
-          <select name="Enquiry type">
+          <select name="Enquiry type" id="bk-enquiry">
             {enquiryTypes.map((t) => <option value={t}>{t}</option>)}
           </select>
         </label>
 
         <label class="bk-field">
           <span class="bk-label">{booking.messageLabel}</span>
-          <textarea name="Message" rows="4" placeholder={booking.messagePlaceholder}></textarea>
+          <textarea
+            name="Message"
+            id="bk-message"
+            rows="4"
+            placeholder={booking.messagePlaceholder}></textarea>
         </label>
 
         <!-- Bots fill hidden fields; humans never see this one. -->
         <input type="checkbox" name="botcheck" class="bk-hp" tabindex="-1" autocomplete="off" />
+        <!--
+          `When` is the human-readable slot, built when the visitor picks one.
+          It is what an editor reads in the dashboard.
+
+          The duration and the timezone used to be hidden inputs too. They are
+          gone: `duration` and `tz` are variables in this component's own
+          scope, and copying them into the DOM only to read them back is what
+          let them go stale silently.
+        -->
         <input type="hidden" name="When" id="bk-f-when" />
-        <input type="hidden" name="Duration" id="bk-f-duration" />
-        <input type="hidden" name="Timezone" id="bk-f-tz" />
         <input type="hidden" name="subject" value={booking.emailSubject} />
         <input type="hidden" name="from_name" value={booking.emailFromName} />
 
@@ -544,8 +555,6 @@ const initials = hostName
       const end = new Date(chosenSlot.getTime() + duration * 60000);
       $<HTMLInputElement>('bk-f-when').value =
         `${fmtTime(chosenSlot)} - ${fmtTime(end)}, ${fmtLongDate(chosenSlot)}`;
-      $<HTMLInputElement>('bk-f-duration').value = `${duration} minutes`;
-      $<HTMLInputElement>('bk-f-tz').value = tz;
       $<HTMLInputElement>('bk-name').focus();
     }
 
@@ -577,11 +586,23 @@ const initials = hostName
       submit.disabled = true;
       submit.textContent = copy.submitBusy;
       try {
-        const data = Object.fromEntries(new FormData(form).entries()) as Record<string, string>;
-
-        // Column names, not form field names. Anything not in the table is
-        // dropped rather than sent, so a stray hidden input cannot make
-        // PostgREST reject the whole insert.
+        /*
+         * READ BY ELEMENT ID, NOT OFF THE FORM.
+         *
+         * This used to build a `FormData` map and read `data.message`,
+         * `data.enquiry_type`, `data.duration` and `data.timezone` from it.
+         * Not one of those keys existed: the fields are named `Message`,
+         * `Enquiry type`, `Duration` and `Timezone`. Every lookup returned
+         * undefined and every column went in as null, so a visitor could
+         * write a detailed brief, get a success message, and leave behind a
+         * row with nothing in it but a name and an email — with nothing
+         * failing anywhere to say so.
+         *
+         * Ids are what the rest of this component already used for `name` and
+         * `email`, which is exactly why those two were the fields that
+         * worked. Casing cannot drift between a `getElementById` and an `id`
+         * attribute the way it can between a form name and an object key.
+         */
         const res = await fetch(`${cfg.supabaseUrl.replace(/\/$/, '')}/rest/v1/enquiries`, {
           method: 'POST',
           headers: {
@@ -596,12 +617,22 @@ const initials = hostName
           body: JSON.stringify({
             name,
             email,
-            company: data.company || null,
-            enquiry_type: data.enquiry_type || null,
-            message: data.message || null,
-            duration_mins: Number(data.duration) || null,
+            enquiry_type: $<HTMLSelectElement>('bk-enquiry').value || null,
+            message: $<HTMLTextAreaElement>('bk-message').value.trim() || null,
+            /* The number this component is already working in, not a string
+               parsed back out of the DOM. `Number('30 minutes')` is NaN, and
+               `NaN || null` is null — which is what this was storing. */
+            duration_mins: duration || null,
+            /* What an editor reads: "10:00 - 10:30, Monday 8 September", in
+               the VISITOR's timezone. */
             slot_label: $<HTMLInputElement>('bk-f-when').value || null,
-            visitor_tz: data.timezone || null,
+            /* What a calendar needs. `chosenSlot` is a real instant — see
+               `slotInstant`, which subtracts the studio's fixed offset from a
+               UTC construction — so this is unambiguous no matter which
+               timezone either party is reading it in. Without it the only
+               record of when was a sentence in someone else's local time. */
+            slot_utc: chosenSlot ? chosenSlot.toISOString() : null,
+            visitor_tz: tz || null,
             source_path: location.pathname,
           }),
         });

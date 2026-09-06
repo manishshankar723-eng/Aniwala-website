@@ -66,17 +66,19 @@ const env = (key: string): string => {
 export const SUPABASE_URL = env('SUPABASE_URL');
 export const SUPABASE_ANON_KEY = env('SUPABASE_ANON_KEY');
 
-/**
- * Comments are held for approval before they appear. Flip `approved` to true
- * in the Supabase Table Editor to publish one.
+/*
+ * `commentsEnabled` was here. It is now a switch on the Interface copy
+ * document, under Comments — turning a comment form off was a deploy, a
+ * review and a developer, for a decision that is entirely editorial.
  *
- * This is the actual spam control. The honeypot and time-gate on the form are
- * speed bumps that stop naive bots; the moderation queue is what stops the
- * rest. Set this to false only if you are willing to have unreviewed text
- * appear on the site immediately — you would also have to loosen the RLS
- * policy in schema.sql, which is deliberately hard to do by accident.
+ * What did NOT move, because it is not a setting: comments are held for
+ * approval before they appear, always. Flip `approved` in the Supabase Table
+ * Editor to publish one. That is the actual spam control — the honeypot and
+ * time-gate on the form are speed bumps that stop naive bots, and the
+ * moderation queue is what stops the rest. It is enforced by the RLS policy
+ * in supabase/schema.sql, which is deliberately hard to loosen by accident,
+ * and it is not reachable from the CMS on purpose.
  */
-export const commentsEnabled = true;
 
 /* ------------------------------------------------------------------ */
 /* Timezone — deliberately NOT editable                                */

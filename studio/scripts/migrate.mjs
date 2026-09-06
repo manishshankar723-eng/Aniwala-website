@@ -616,7 +616,7 @@ async function migrateEngagementModels() {
 }
 
 async function migrateSiteCopy() {
-  const { PROCESS_STEPS, CATEGORY_BLURBS } = await import('./seed-settings.mjs');
+  const { PROCESS_STEPS } = await import('./seed-settings.mjs');
 
   return [
     {
@@ -624,11 +624,9 @@ async function migrateSiteCopy() {
       _type: 'siteCopy',
       ...SEED_COPY,
       processSteps: PROCESS_STEPS.map((x, i) => ({ _type: 'step', _key: `step-${i}`, ...x })),
-      categoryBlurbs: CATEGORY_BLURBS.map((x, i) => ({
-        _type: 'categoryBlurb',
-        _key: `cat-${i}`,
-        ...x,
-      })),
+      /* `categoryBlurbs` used to be written here. Blog categories are their
+         own documents now and carry their own description, so this would
+         write a field the schema no longer has. */
     },
   ];
 }

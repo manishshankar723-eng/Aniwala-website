@@ -42,6 +42,10 @@ export const UI_COPY = {
   footerCopyright: '© {{year}} {{legalName}}. All rights reserved.',
   legalLinks: [{ label: 'Privacy Policy', href: '/privacy/' }],
 
+  /* Comments on by default — the switch that used to be a constant in
+     config/site.ts. */
+  commentsEnabled: true,
+
   searchPlaceholder: 'Type Your Search...',
   searchEmpty: 'No matches. Try “animation”, “VFX” or “contact”.',
 

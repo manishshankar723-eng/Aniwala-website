@@ -127,6 +127,18 @@ silently landing on our own elements that happened to share those names.
 **Never hardcode a colour.** Every one resolves through a token in
 `global.css`, and a raw hex will break in one of the two themes.
 
+The palette is editable in the Studio — **Logo & icons → Page palette** — and
+that is the whole palette, not just the accent: page background, cards,
+borders and the three levels of text, per theme, plus the error colour. The
+ink fields warn when they fail contrast against the background you actually
+chose rather than against a fixed guess.
+
+**Layout** is three numbers on the same document: maximum content width,
+corner rounding and page margin. The last two are percentages that scale what
+the stylesheet already says, for the same reason the type controls are
+multipliers — the relationships were designed, and setting each end
+independently is how you get a floor above a ceiling.
+
 **Never hardcode a type size either.** Every `font-size`, and every numeric
 `font-weight` and `letter-spacing`, is written to scale from its role:
 
@@ -324,8 +336,15 @@ where it gets a diff and a review.
 What that leaves in code is a short list, and each entry is there for a
 reason you can point at:
 
-- **Blog categories and portfolio disciplines' slugs** decide URLs. Renaming
-  one in a CMS field would break every link anyone has ever shared, silently.
+- **Careers disciplines** (`config/disciplines.ts`) validate every role and
+  fill the application form's dropdown, and each maps to a `JobPosting`
+  constant Google expects.
+
+  Blog categories and portfolio disciplines used to be on this line. Both are
+  documents now, and what made that safe was not where the list lives but how
+  a post points at one: by **reference**, so Sanity refuses to delete a
+  category still in use and renaming its title cannot detach anything. Only
+  the slug decides a URL, and the schema says so on that field.
 - **The studio timezone.** IST observes no daylight saving, which is why a
   fixed offset is exact — and why nobody should be able to point the booking
   widget at a timezone that does, where every slot offered would be an hour

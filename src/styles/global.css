@@ -324,6 +324,12 @@ summary {
   --color-ink-muted: #9aa0ae;
   --color-ink-faint: #61677a;
 
+  /* The one colour that says "this went wrong": invalid form fields and
+     error messages. It was #e2626b hardcoded four times inside
+     ApplyForm.astro and nowhere else, which meant it could not follow the
+     theme and a second form would have quietly picked a different red. */
+  --color-danger: #e2626b;
+
   /* Gold: the brand accent, used for links, eyebrows and active states. */
   --color-accent: #e4c24c;
 
@@ -367,16 +373,23 @@ summary {
   /* The 1rem base matters: a pure vw gutter overtakes the old fixed 2rem
      around 1100px and makes mid-size laptops NARROWER than before. This
      curve tracks 2rem through the mid range, then opens up. */
-  --gutter: clamp(1.25rem, 1rem + 1.8vw, 4.5rem);
+  /* The page's side margin. Scalable as a whole rather than as three
+     numbers: the clamp is a considered relationship between the floor, the
+     rate of growth and the ceiling, and letting those be set independently
+     is how you end up with a floor above the ceiling. */
+  --gutter: calc(clamp(1.25rem, 1rem + 1.8vw, 4.5rem) * var(--gutter-scale, 1));
   --shell-max: 2240px;
 
   /* Radius scale. Before this, almost every surface on the site was a 1px
      border at 0.75rem radius on --color-surface, which flattened the page
      into one repeating rectangle. Big media objects can carry more curve
      than a chip can; informational panels often want none at all. */
-  --radius-sm: 0.4rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 1.1rem;
+  /* Scaled from one control, the same way type is — see config/fonts.ts for
+     the argument. At the default of 1 these compute to exactly the values
+     they always had; at 0 every corner on the site is square. */
+  --radius-sm: calc(0.4rem * var(--radius-scale, 1));
+  --radius-md: calc(0.75rem * var(--radius-scale, 1));
+  --radius-lg: calc(1.1rem * var(--radius-scale, 1));
 
   --header-h: 5rem;
   /* Height of the announcement strip above the header. Everything fixed to
@@ -401,6 +414,10 @@ html[data-announce='off'] {
   --color-ink: #16171b;
   --color-ink-muted: #55596a;
   --color-ink-faint: #83879a;
+
+  /* Deeper than the dark theme's red: #e2626b on cream is around 3:1, which
+     is below the 4.5:1 an error message needs to be readable by everyone. */
+  --color-danger: #c2323d;
 
   /* Bright gold fails contrast as text on white, so light mode uses a
      deeper bronze for type while the button keeps a rich gold fill. */

@@ -950,8 +950,8 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
   }
   .ap-form .is-invalid {
-    border-color: #e2626b;
-    box-shadow: 0 0 0 3px color-mix(in srgb, #e2626b 20%, transparent);
+    border-color: var(--color-danger);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-danger) 20%, transparent);
   }
 
   .ap-hint {
@@ -1026,8 +1026,8 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
   .ap-msg.is-error {
     padding: 0.75rem 0.9rem;
     border-radius: 0.45rem;
-    background: color-mix(in srgb, #e2626b 12%, transparent);
-    border: 1px solid color-mix(in srgb, #e2626b 40%, transparent);
+    background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-danger) 40%, transparent);
     color: var(--color-ink);
   }
 

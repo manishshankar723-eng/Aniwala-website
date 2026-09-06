@@ -1,5 +1,4 @@
 import { defineCollection, z } from 'astro:content';
-import { CATEGORIES } from './config/categories';
 import { DISCIPLINES, EMPLOYMENT_KINDS } from './config/disciplines';
 import { IMAGE_SLOT_NAMES } from './config/imageSlots';
 import { FONT_CHOICE_NAMES } from './config/fonts';
@@ -28,6 +27,7 @@ import {
   sanityNavigation,
   sanityLoaderSettings,
   sanityWorkCategories,
+  sanityPostCategories,
   sanityBookingSettings,
   sanityServices,
   sanityCareersContent,
@@ -167,7 +167,15 @@ const blog = defineCollection({
     pubDate: z.coerce.date(),
     updatedDate: z.coerce.date().optional(),
     /** One only. Drives the category filter pages. */
-    category: z.enum(CATEGORIES),
+    /* The category's TITLE, dereferenced by the loader — free text now that
+       the list is a set of documents rather than a fixed union. What stops a
+       typo is the Studio's reference field, which cannot point at a category
+       that does not exist. */
+    category: z.string().min(1),
+    /* Its slug, which is the URL. Stored rather than derived from the title:
+       lower-casing "Studio Life" gives "studio life", and that is a broken
+       link nobody would notice until they shared one. */
+    categorySlug: z.string().min(1),
     tags: z.array(z.string()).default([]),
     /* Blank is normal and means "the studio". `blog/[slug].astro` renders
        `ui.siteName` for it, so the studio's name lives in exactly one place
@@ -560,9 +568,9 @@ const siteCopy = defineCollection({
     processSteps: z
       .array(z.object({ title: z.string().min(1), body: z.string().min(1) }))
       .min(1),
-    categoryBlurbs: z
-      .array(z.object({ category: z.enum(CATEGORIES), blurb: z.string().min(1) }))
-      .default([]),
+    /* `categoryBlurbs` was here. It moved onto the `postCategory` documents,
+       where a category and its description are one thing rather than two
+       lists keyed by a matching string. */
     draft: z.boolean().default(false),
   }),
 });
@@ -815,6 +823,24 @@ const loaderSettings = defineCollection({
  * what guarantees they point at services that exist, which is why the Studio
  * uses references rather than free text.
  */
+/**
+ * Blog categories.
+ *
+ * Documents rather than the four strings that used to be in
+ * `config/categories.ts` — see the Studio schema for why that argument did
+ * not survive contact with the portfolio disciplines, which are the same
+ * shape and moved first.
+ */
+const postCategories = defineCollection({
+  loader: sanityPostCategories(),
+  schema: z.object({
+    title: z.string().min(1),
+    blurb: z.string().min(1),
+    order: z.number().int().default(50),
+    draft: z.boolean().default(false),
+  }),
+});
+
 const workCategories = defineCollection({
   loader: sanityWorkCategories(),
   schema: z.object({
@@ -894,6 +920,10 @@ const uiCopy = defineCollection({
       .array(z.object({ label: z.string().min(1), href: z.string().min(1) }))
       .min(1),
 
+    /* Whether comments are shown at all. Defaults to ON, so a document
+       written before this field existed behaves exactly as it did. */
+    commentsEnabled: z.boolean().default(true),
+
     /* --- The 404. Optional, and the only group here that is. --------- */
     notFoundCode: z.string().default(''),
     notFoundTitle: z.string().default(''),
@@ -956,6 +986,33 @@ const brand = defineCollection({
     accentLight: hexColour,
     buttonFill: hexColour,
     buttonInk: hexColour,
+    /* --- The page palette --------------------------------------------
+       The eight tokens the accent sits on, per theme, plus the error red.
+       Blank means "keep the palette the site shipped with" — the same rule
+       the four brand colours above follow, and the reason a malformed value
+       is rejected rather than defaulted. */
+    groundDark: hexColour,
+    surfaceDark: hexColour,
+    surface2Dark: hexColour,
+    lineDark: hexColour,
+    lineStrongDark: hexColour,
+    inkDark: hexColour,
+    inkMutedDark: hexColour,
+    inkFaintDark: hexColour,
+    groundLight: hexColour,
+    surfaceLight: hexColour,
+    surface2Light: hexColour,
+    lineLight: hexColour,
+    lineStrongLight: hexColour,
+    inkLight: hexColour,
+    inkMutedLight: hexColour,
+    inkFaintLight: hexColour,
+    dangerDark: hexColour,
+    dangerLight: hexColour,
+    contentWidth: z.number().min(900).max(4000).nullable().default(null),
+    radiusScale: z.number().min(0).max(300).nullable().default(null),
+    gutterScale: z.number().min(25).max(250).nullable().default(null),
+
     /* --- Typography -------------------------------------------------
        Written out rather than generated, for the reason the colours above
        give: a spread of computed keys does not survive into the inferred
@@ -1057,6 +1114,7 @@ export const collections = {
   services: servicesCollection,
   careers,
   workCategories,
+  postCategories,
   bookingSettings,
   uiCopy,
   privacyPage,

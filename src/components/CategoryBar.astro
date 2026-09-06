@@ -1,6 +1,5 @@
 ---
-import { CATEGORIES } from '../config/categories';
-import { categorySlug } from '../lib/posts';
+import { getPostCategories } from '../lib/posts';
 import { getUiCopy } from '../lib/studio';
 
 /**
@@ -22,6 +21,7 @@ interface Props {
 }
 
 const ui = await getUiCopy();
+const categories = await getPostCategories();
 
 const { active, counts, extraActive } = Astro.props;
 const total = Object.values(counts).reduce((n, c) => n + c, 0);
@@ -45,7 +45,7 @@ const isUnfiltered = Astro.url.pathname === '/blog/';
   </a>
 
   {
-    CATEGORIES.map((c) => {
+    categories.map(({ title: c, slug }) => {
       const n = counts[c] ?? 0;
       return n === 0 ? (
         <span class="cat is-empty" aria-disabled="true">
@@ -53,7 +53,7 @@ const isUnfiltered = Astro.url.pathname === '/blog/';
         </span>
       ) : (
         <a
-          href={active === c ? '/blog/' : `/blog/category/${categorySlug(c)}/`}
+          href={active === c ? '/blog/' : `/blog/category/${slug}/`}
           class:list={['cat', active === c && 'is-active']}
           aria-current={active === c ? 'page' : undefined}
           title={active === c ? ui.barClearFilter : undefined}

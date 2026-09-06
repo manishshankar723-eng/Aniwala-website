@@ -13,7 +13,6 @@
  * would you change this because something happened this month?
  */
 import { defineType, defineField, defineArrayMember } from 'sanity';
-import { CATEGORIES } from '../../src/config/categories';
 
 export default defineType({
   name: 'siteCopy',
@@ -77,30 +76,14 @@ export default defineType({
       ],
     }),
 
-    defineField({
-      name: 'categoryBlurbs',
-      title: 'Blog category descriptions',
-      type: 'array',
-      description:
-        'One line per blog category, shown at the top of its archive page and used as the search-result description for it. The categories themselves are set in code, because they drive the URLs and validate every post.',
-      of: [
-        defineArrayMember({
-          type: 'object',
-          name: 'categoryBlurb',
-          fields: [
-            defineField({
-              name: 'category',
-              title: 'Category',
-              type: 'string',
-              options: { list: [...CATEGORIES] },
-              validation: (R) => R.required(),
-            }),
-            defineField({ name: 'blurb', title: 'Description', type: 'text', rows: 2, validation: (R) => R.required() }),
-          ],
-          preview: { select: { title: 'category', subtitle: 'blurb' } },
-        }),
-      ],
-    }),
+    /*
+     * `categoryBlurbs` was here: one line per blog category, keyed by the
+     * category's name. It has moved onto the `postCategory` documents.
+     *
+     * It was a parallel list — a second place a category had to be added,
+     * keyed by a string that had to match another list exactly. A category
+     * and its description are one thing, and they now live on one document.
+     */
   ],
 
   preview: {

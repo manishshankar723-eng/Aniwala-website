@@ -262,7 +262,8 @@ export const sanityPosts = (): Loader =>
     type: 'post',
     projection: `
       _id, slug, title, description, pubDate, updatedDate,
-      category, tags, author, tint, cover, body, seoTitle, seoDescription, ogImage, noindex, canonicalUrl
+      "category": category->title, "categorySlug": category->slug.current,
+      tags, author, tint, cover, body, seoTitle, seoDescription, ogImage, noindex, canonicalUrl
     `,
     toData: (doc, isDraft) => ({
       title: doc.title,
@@ -271,7 +272,13 @@ export const sanityPosts = (): Loader =>
       /* Sanity omits an unset date rather than sending null, and the Zod
          field is `.optional()` — so leave it out entirely when unset. */
       ...(doc.updatedDate ? { updatedDate: doc.updatedDate } : {}),
+      /* Dereferenced to BOTH, deliberately. The title is what a card and a
+         heading print, and keeping it under the same key means the templates
+         did not have to change when categories became documents. The slug is
+         the URL, and it is stored rather than lower-cased from the title —
+         "Studio Life" would have produced "studio life". */
       category: doc.category,
+      categorySlug: doc.categorySlug,
       tags: doc.tags ?? [],
       /* Blank means "the studio", and the template fills in the studio's
          name from `uiCopy` — the one place it is written down. A literal
@@ -719,6 +726,23 @@ export const sanityServices = (): Loader =>
   });
 
 /* ------------------------------------------------------------------ */
+/* Blog categories                                                     */
+/* ------------------------------------------------------------------ */
+export const sanityPostCategories = (): Loader =>
+  sanityLoader({
+    name: 'sanity:post-categories',
+    type: 'postCategory',
+    hasBody: false,
+    projection: `_id, slug, title, blurb, order`,
+    toData: (doc, isDraft) => ({
+      title: doc.title,
+      blurb: doc.blurb,
+      order: doc.order ?? 50,
+      draft: isDraft,
+    }),
+  });
+
+/* ------------------------------------------------------------------ */
 /* Portfolio disciplines                                               */
 /* ------------------------------------------------------------------ */
 export const sanityWorkCategories = (): Loader =>
@@ -839,7 +863,7 @@ export const sanitySiteCopy = (): Loader =>
     type: 'siteCopy',
     hasBody: false,
     idFrom: () => 'siteCopy',
-    projection: `_id, positioning, teamIntro, marqueeItems, capabilities, processSteps, categoryBlurbs`,
+    projection: `_id, positioning, teamIntro, marqueeItems, capabilities, processSteps`,
     toData: (doc, isDraft) => ({
       positioning: doc.positioning ?? '',
       teamIntro: doc.teamIntro ?? '',
@@ -848,10 +872,6 @@ export const sanitySiteCopy = (): Loader =>
       processSteps: (doc.processSteps ?? []).map((p: Record<string, any>) => ({
         title: p.title,
         body: p.body,
-      })),
-      categoryBlurbs: (doc.categoryBlurbs ?? []).map((c: Record<string, any>) => ({
-        category: c.category,
-        blurb: c.blurb,
       })),
       draft: isDraft,
     }),
@@ -897,6 +917,8 @@ export const sanityBrand = (): Loader =>
     projection: `
       _id, logoDark, logoLight, showWordmark, wordmark, wordmarkSub,
       accentDark, accentLight, buttonFill, buttonInk,
+      groundDark, surfaceDark, surface2Dark, lineDark, lineStrongDark, inkDark, inkMutedDark, inkFaintDark, groundLight, surfaceLight, surface2Light, lineLight, lineStrongLight, inkLight, inkMutedLight, inkFaintLight, dangerDark, dangerLight,
+      contentWidth, radiusScale, gutterScale,
       fontDisplay, fontBody, fontLabel, fontMono, textScale,
       typeDisplayScale, typeDisplayWeight, typeDisplayTrack,
       typeHeadingScale, typeHeadingWeight, typeHeadingTrack,
@@ -916,6 +938,32 @@ export const sanityBrand = (): Loader =>
       accentLight: doc.accentLight ?? '',
       buttonFill: doc.buttonFill ?? '',
       buttonInk: doc.buttonInk ?? '',
+
+      /* The page palette and the layout numbers. Blank or null everywhere
+         means "keep what the stylesheet already says", which is why none of
+         these has a real default here — an absent value must stay absent all
+         the way to the layout so it emits no CSS at all. */
+      groundDark: doc.groundDark ?? '',
+      surfaceDark: doc.surfaceDark ?? '',
+      surface2Dark: doc.surface2Dark ?? '',
+      lineDark: doc.lineDark ?? '',
+      lineStrongDark: doc.lineStrongDark ?? '',
+      inkDark: doc.inkDark ?? '',
+      inkMutedDark: doc.inkMutedDark ?? '',
+      inkFaintDark: doc.inkFaintDark ?? '',
+      groundLight: doc.groundLight ?? '',
+      surfaceLight: doc.surfaceLight ?? '',
+      surface2Light: doc.surface2Light ?? '',
+      lineLight: doc.lineLight ?? '',
+      lineStrongLight: doc.lineStrongLight ?? '',
+      inkLight: doc.inkLight ?? '',
+      inkMutedLight: doc.inkMutedLight ?? '',
+      inkFaintLight: doc.inkFaintLight ?? '',
+      dangerDark: doc.dangerDark ?? '',
+      dangerLight: doc.dangerLight ?? '',
+      contentWidth: doc.contentWidth ?? null,
+      radiusScale: doc.radiusScale ?? null,
+      gutterScale: doc.gutterScale ?? null,
 
       /* Typography. Every one of these has a default that reproduces the
          site exactly as designed — a blank font is "keep the shipped face",

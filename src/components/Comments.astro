@@ -1,5 +1,4 @@
 ---
-import { commentsEnabled } from '../config/site';
 import { supabaseConfigured } from '../lib/supabase';
 import { getContactDetails, getUiCopy } from '../lib/studio';
 
@@ -24,7 +23,10 @@ const { slug } = Astro.props;
 const { email } = await getContactDetails();
 const ui = await getUiCopy();
 
-const live = commentsEnabled && supabaseConfigured;
+/* Both have to be true. The switch is an editorial decision made in the
+   Studio; `supabaseConfigured` is whether there is anywhere to put a comment
+   at all. Either one false hides the form. */
+const live = ui.commentsEnabled && supabaseConfigured;
 
 /* Shown only under `astro dev`. A visitor gets the plain fallback; whoever is
    building the site gets told exactly why the form is missing. */
