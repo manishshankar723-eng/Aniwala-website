@@ -90,8 +90,8 @@ const isUnfiltered = Astro.url.pathname === '/blog/';
     border: 1px solid var(--color-line);
     border-radius: 100px;
     font-family: var(--font-label);
-    font-size: 0.73rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.73rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-ink-muted);
     text-decoration: none;
     white-space: nowrap;
@@ -117,7 +117,7 @@ const isUnfiltered = Astro.url.pathname === '/blog/';
   }
 
   .cat-n {
-    font-size: 0.62rem;
+    font-size: calc(0.62rem * var(--type-label-scale, 1));
     opacity: 0.7;
   }
 

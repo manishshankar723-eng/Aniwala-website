@@ -165,19 +165,19 @@ const REDUCED_MOTION_SCRIPT = `(() => {
      Using --color-ink here would render near-black on the scrim in light mode. */
   .hero-eyebrow {
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-accent-on-dark);
     margin: 0 0 1.25rem;
   }
 
   .hero-headline {
     font-family: var(--font-display);
-    font-weight: 800;
+    font-weight: calc(800 + var(--type-display-weight, 0));
     font-stretch: 118%;
-    letter-spacing: -0.03em;
+    letter-spacing: calc(-0.03em + var(--type-display-track, 0em));
     line-height: 0.95;
-    font-size: clamp(2.75rem, 7vw, 8rem);
+    font-size: calc(clamp(2.75rem, 7vw, 8rem) * var(--type-display-scale, 1));
     text-wrap: balance;
     margin: 0;
     max-width: 16ch;
@@ -187,7 +187,7 @@ const REDUCED_MOTION_SCRIPT = `(() => {
   .hero-sub {
     margin: 1.75rem 0 0;
     max-width: 46ch;
-    font-size: 1.05rem;
+    font-size: calc(1.05rem * var(--type-body-scale, 1));
     line-height: 1.6;
     color: rgb(255 255 255 / 0.72);
   }
@@ -210,8 +210,8 @@ const REDUCED_MOTION_SCRIPT = `(() => {
   }
   .hero-scroll-label {
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     writing-mode: vertical-rl;
   }
   .hero-scroll-line {

@@ -185,8 +185,8 @@ const Tag = href ? 'a' : 'div';
     flex-wrap: wrap;
     gap: 0.4rem;
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
   }
   .piece-kind,
   .piece-cat {
@@ -216,26 +216,26 @@ const Tag = href ? 'a' : 'div';
     flex-wrap: wrap;
     gap: 0.4rem 0.8rem;
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: rgb(255 255 255 / 0.6);
   }
 
   .piece-title {
     margin: 0;
     font-family: var(--font-display);
-    font-weight: 760;
+    font-weight: calc(760 + var(--type-display-weight, 0));
     font-stretch: 108%;
-    letter-spacing: -0.024em;
+    letter-spacing: calc(-0.024em + var(--type-display-track, 0em));
     line-height: 1.1;
-    font-size: clamp(1.35rem, 2.6vw, 1.75rem);
+    font-size: calc(clamp(1.35rem, 2.6vw, 1.75rem) * var(--type-display-scale, 1));
     text-wrap: balance;
     color: #f4f4f2;
     transition: color 0.2s ease;
   }
   @media (min-width: 700px) {
     .piece--wide .piece-title {
-      font-size: clamp(1.75rem, 3.2vw, 2.5rem);
+      font-size: calc(clamp(1.75rem, 3.2vw, 2.5rem) * var(--type-heading-scale, 1));
     }
   }
   .piece--linked:hover .piece-title {
@@ -245,23 +245,23 @@ const Tag = href ? 'a' : 'div';
   .piece-blurb {
     margin: 0;
     max-width: 46ch;
-    font-size: 0.9rem;
+    font-size: calc(0.9rem * var(--type-body-scale, 1));
     line-height: 1.55;
     color: rgb(255 255 255 / 0.74);
   }
 
   .piece-tools {
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: rgb(255 255 255 / 0.5);
   }
 
   .piece-more {
     margin-top: 0.35rem;
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-accent-on-dark);
   }
   .piece-more span {

@@ -750,7 +750,7 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
 
   .ap-lead {
     margin: 0 0 1.75rem;
-    font-size: 1rem;
+    font-size: calc(1rem * var(--type-body-scale, 1));
     line-height: 1.65;
     color: var(--color-ink-muted);
   }
@@ -771,13 +771,13 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
   }
   .ap-promise-k {
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    font-weight: calc(700 + var(--type-label-weight, 0));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-accent);
   }
   .ap-promise-v {
-    font-size: 0.88rem;
+    font-size: calc(0.88rem * var(--type-label-scale, 1));
     line-height: 1.55;
     color: var(--color-ink-muted);
   }
@@ -792,7 +792,7 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
 
   .ap-alt {
     margin: 1.5rem 0 0;
-    font-size: 0.85rem;
+    font-size: calc(0.85rem * var(--type-label-scale, 1));
     line-height: 1.6;
     color: var(--color-ink-faint);
   }
@@ -859,8 +859,8 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
   }
   .ap-mode-t {
     font-family: var(--font-label);
-    font-size: 0.95rem;
-    font-weight: 600;
+    font-size: calc(0.95rem * var(--type-label-scale, 1));
+    font-weight: calc(600 + var(--type-label-weight, 0));
     color: var(--color-ink-muted);
     transition: color 0.18s ease;
   }
@@ -868,7 +868,7 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
     color: var(--color-ink);
   }
   .ap-mode-s {
-    font-size: 0.78rem;
+    font-size: calc(0.78rem * var(--type-label-scale, 1));
     color: var(--color-ink-faint);
   }
 
@@ -906,9 +906,9 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
 
   .ap-label {
     font-family: var(--font-label);
-    font-size: 0.78rem;
-    font-weight: 600;
-    letter-spacing: 0.01em;
+    font-size: calc(0.78rem * var(--type-label-scale, 1));
+    font-weight: calc(600 + var(--type-label-weight, 0));
+    letter-spacing: calc(0.01em + var(--type-label-track, 0em));
     color: var(--color-ink);
   }
   /* The asterisk is the accent colour and nothing else is, so "required"
@@ -924,7 +924,7 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
     width: 100%;
     padding: 0.75rem 0.9rem;
     font-family: inherit;
-    font-size: 0.95rem;
+    font-size: calc(0.95rem * var(--type-body-scale, 1));
     color: var(--color-ink);
     background: var(--color-ground);
     border: 1px solid var(--color-line);
@@ -955,7 +955,7 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
   }
 
   .ap-hint {
-    font-size: 0.8rem;
+    font-size: calc(0.8rem * var(--type-label-scale, 1));
     line-height: 1.55;
     color: var(--color-ink-faint);
   }
@@ -969,7 +969,7 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
     border-left: 2px solid var(--color-accent);
     background: var(--color-surface-2);
     border-radius: 0 0.4rem 0.4rem 0;
-    font-size: 0.85rem;
+    font-size: calc(0.85rem * var(--type-label-scale, 1));
     line-height: 1.6;
     color: var(--color-ink-muted);
   }
@@ -986,21 +986,21 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
   }
   .ap-locked-k {
     font-family: var(--font-label);
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.015em;
+    font-size: calc(0.7rem * var(--type-label-scale, 1));
+    font-weight: calc(700 + var(--type-label-weight, 0));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-accent);
   }
   .ap-locked-v {
     font-family: var(--font-display);
-    font-weight: 700;
+    font-weight: calc(700 + var(--type-heading-weight, 0));
     font-stretch: 108%;
-    letter-spacing: -0.02em;
-    font-size: 1.15rem;
+    letter-spacing: calc(-0.02em + var(--type-heading-track, 0em));
+    font-size: calc(1.15rem * var(--type-heading-scale, 1));
     color: var(--color-ink);
   }
   .ap-locked-m {
-    font-size: 0.83rem;
+    font-size: calc(0.83rem * var(--type-label-scale, 1));
     color: var(--color-ink-faint);
   }
 
@@ -1016,7 +1016,7 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
   /* --- Status and actions ---------------------------------------------- */
   .ap-msg {
     margin: 0;
-    font-size: 0.88rem;
+    font-size: calc(0.88rem * var(--type-label-scale, 1));
     line-height: 1.55;
     color: var(--color-ink-muted);
   }
@@ -1044,9 +1044,9 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
     appearance: none;
     padding: 0.85rem 1.9rem;
     font-family: var(--font-label);
-    font-size: 0.9rem;
-    font-weight: 700;
-    letter-spacing: 0.01em;
+    font-size: calc(0.9rem * var(--type-label-scale, 1));
+    font-weight: calc(700 + var(--type-label-weight, 0));
+    letter-spacing: calc(0.01em + var(--type-label-track, 0em));
     color: var(--color-cta-ink);
     background: var(--color-cta);
     border: 0;
@@ -1067,7 +1067,7 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
   .ap-consent {
     flex: 1 1 18ch;
     margin: 0;
-    font-size: 0.76rem;
+    font-size: calc(0.76rem * var(--type-label-scale, 1));
     line-height: 1.5;
     color: var(--color-ink-faint);
   }
@@ -1077,7 +1077,7 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
     padding: 0.9rem 1rem;
     border: 1px dashed var(--color-line-strong);
     border-radius: 0.5rem;
-    font-size: 0.82rem;
+    font-size: calc(0.82rem * var(--type-label-scale, 1));
     line-height: 1.6;
     color: var(--color-ink-muted);
   }
@@ -1101,27 +1101,27 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
     border-radius: 100px;
     background: color-mix(in srgb, var(--color-accent) 18%, transparent);
     color: var(--color-accent);
-    font-size: 1.4rem;
+    font-size: calc(1.4rem * var(--type-heading-scale, 1));
   }
   .ap-main :global(.ap-done h3) {
     margin: 0 0 0.9rem;
     font-family: var(--font-display);
-    font-weight: 750;
+    font-weight: calc(750 + var(--type-display-weight, 0));
     font-stretch: 108%;
-    letter-spacing: -0.025em;
-    font-size: clamp(1.4rem, 3vw, 2rem);
+    letter-spacing: calc(-0.025em + var(--type-display-track, 0em));
+    font-size: calc(clamp(1.4rem, 3vw, 2rem) * var(--type-display-scale, 1));
     color: var(--color-ink);
   }
   .ap-main :global(.ap-done p) {
     margin: 0 auto;
     max-width: 48ch;
-    font-size: 0.97rem;
+    font-size: calc(0.97rem * var(--type-body-scale, 1));
     line-height: 1.65;
     color: var(--color-ink-muted);
   }
   .ap-main :global(.ap-done-note) {
     margin-top: 1.25rem !important;
-    font-size: 0.85rem !important;
+    font-size: calc(0.85rem !important * var(--type-label-scale, 1));
     color: var(--color-ink-faint) !important;
   }
   .ap-main :global(.ap-done a) {

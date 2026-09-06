@@ -276,9 +276,9 @@ const blogIndex = allPosts.map((p) => ({
     padding-bottom: 0.65rem;
     border-bottom: 1px solid var(--color-line);
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    font-weight: 500;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    font-weight: calc(500 + var(--type-label-weight, 0));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-ink-faint);
   }
 
@@ -294,7 +294,7 @@ const blogIndex = allPosts.map((p) => ({
     background: var(--color-surface);
     color: var(--color-ink);
     font-family: var(--font-body);
-    font-size: 0.9rem;
+    font-size: calc(0.9rem * var(--type-body-scale, 1));
   }
   .rail-search-input::placeholder {
     color: var(--color-ink-faint);
@@ -335,8 +335,8 @@ const blogIndex = allPosts.map((p) => ({
   }
   .rail-results :global(.rr-title) {
     display: block;
-    font-size: 0.86rem;
-    font-weight: 500;
+    font-size: calc(0.86rem * var(--type-heading-scale, 1));
+    font-weight: calc(500 + var(--type-heading-weight, 0));
     line-height: 1.35;
     color: var(--color-ink);
     transition: color 0.2s ease;
@@ -348,13 +348,13 @@ const blogIndex = allPosts.map((p) => ({
     display: block;
     margin-top: 0.2rem;
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-ink-faint);
   }
   .rail-empty {
     margin: 0.85rem 0 0;
-    font-size: 0.85rem;
+    font-size: calc(0.85rem * var(--type-label-scale, 1));
     color: var(--color-ink-faint);
   }
 
@@ -370,7 +370,7 @@ const blogIndex = allPosts.map((p) => ({
     padding: 0.4rem 0 0.4rem 0.9rem;
     margin-left: -1px;
     border-left: 1px solid transparent;
-    font-size: 0.84rem;
+    font-size: calc(0.84rem * var(--type-label-scale, 1));
     line-height: 1.45;
     color: var(--color-ink-faint);
     text-decoration: none;
@@ -416,8 +416,8 @@ const blogIndex = allPosts.map((p) => ({
     min-width: 0;
   }
   .rail-post-title {
-    font-size: 0.86rem;
-    font-weight: 500;
+    font-size: calc(0.86rem * var(--type-heading-scale, 1));
+    font-weight: calc(500 + var(--type-heading-weight, 0));
     line-height: 1.35;
     color: var(--color-ink);
     transition: color 0.2s ease;
@@ -427,8 +427,8 @@ const blogIndex = allPosts.map((p) => ({
   }
   .rail-post-date {
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-ink-faint);
   }
 
@@ -445,7 +445,7 @@ const blogIndex = allPosts.map((p) => ({
     gap: 1rem;
     padding: 0.6rem 0;
     border-bottom: 1px solid var(--color-line);
-    font-size: 0.88rem;
+    font-size: calc(0.88rem * var(--type-label-scale, 1));
     color: var(--color-ink-muted);
     text-decoration: none;
     transition: color 0.2s ease;
@@ -462,7 +462,7 @@ const blogIndex = allPosts.map((p) => ({
   }
   .rail-n {
     font-family: var(--font-label);
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
     color: var(--color-ink-faint);
   }
 
@@ -482,7 +482,7 @@ const blogIndex = allPosts.map((p) => ({
     border: 1px solid var(--color-line);
     border-radius: 100px;
     font-family: var(--font-label);
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
     color: var(--color-ink-faint);
     text-decoration: none;
     transition:
@@ -531,25 +531,25 @@ const blogIndex = allPosts.map((p) => ({
   }
   .rail-promo-title {
     font-family: var(--font-display);
-    font-size: 1.3rem;
-    font-weight: 760;
+    font-size: calc(1.3rem * var(--type-heading-scale, 1));
+    font-weight: calc(760 + var(--type-heading-weight, 0));
     font-stretch: 106%;
-    letter-spacing: -0.02em;
+    letter-spacing: calc(-0.02em + var(--type-heading-track, 0em));
     line-height: 1.15;
     /* Sits on its own dark gradient in both themes, so it is pinned rather
        than following the theme tokens. */
     color: #f4f4f2;
   }
   .rail-promo-text {
-    font-size: 0.85rem;
+    font-size: calc(0.85rem * var(--type-label-scale, 1));
     line-height: 1.5;
     color: rgb(255 255 255 / 0.75);
   }
   .rail-promo-cta {
     margin-top: 0.5rem;
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     /* Follows the theme, unlike the hero's gold: this sits on a card that
        turns pale in light mode, where the dark-theme gold was unreadable. */
     color: var(--color-accent);

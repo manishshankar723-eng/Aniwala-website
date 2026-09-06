@@ -305,12 +305,12 @@ const ui = await getUiCopy();
     border: 0;
     outline: none;
     font-family: var(--font-body);
-    font-size: 1.05rem;
+    font-size: calc(1.05rem * var(--type-body-scale, 1));
     color: var(--color-ink);
   }
   @media (min-width: 640px) {
     .search-input {
-      font-size: 1.25rem;
+      font-size: calc(1.25rem * var(--type-heading-scale, 1));
     }
   }
   .search-input::placeholder {
@@ -383,21 +383,21 @@ const ui = await getUiCopy();
     background: var(--color-surface-2);
   }
   .search-results :global(.search-result-title) {
-    font-size: 1rem;
-    font-weight: 500;
+    font-size: calc(1rem * var(--type-heading-scale, 1));
+    font-weight: calc(500 + var(--type-heading-weight, 0));
     color: var(--color-ink);
   }
   .search-results :global(.search-result-section) {
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-ink-faint);
   }
 
   .search-empty {
     margin: 0;
     padding: 1rem 0.9rem 1.5rem;
-    font-size: 0.95rem;
+    font-size: calc(0.95rem * var(--type-body-scale, 1));
     color: var(--color-ink-faint);
   }
 

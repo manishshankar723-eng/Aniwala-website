@@ -213,7 +213,7 @@ const caseSchema = {
     border: 1px solid color-mix(in srgb, var(--color-accent) 35%, var(--color-line));
     border-radius: 0.6rem;
     background: color-mix(in srgb, var(--color-accent) 6%, transparent);
-    font-size: 0.95rem;
+    font-size: calc(0.95rem * var(--type-label-scale, 1));
     line-height: 1.65;
     color: var(--color-ink-muted);
   }
@@ -243,14 +243,14 @@ const caseSchema = {
   }
   .fact dt {
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-ink-faint);
     margin-bottom: 0.5rem;
   }
   .fact dd {
     margin: 0;
-    font-size: 0.98rem;
+    font-size: calc(0.98rem * var(--type-body-scale, 1));
     line-height: 1.4;
     color: var(--color-ink);
   }
@@ -265,17 +265,17 @@ const caseSchema = {
   .figure dd {
     margin: 0 0 0.35rem;
     font-family: var(--font-display);
-    font-weight: 800;
+    font-weight: calc(800 + var(--type-display-weight, 0));
     font-stretch: 112%;
-    letter-spacing: -0.03em;
+    letter-spacing: calc(-0.03em + var(--type-display-track, 0em));
     line-height: 1;
-    font-size: clamp(1.9rem, 4.5vw, 3rem);
+    font-size: calc(clamp(1.9rem, 4.5vw, 3rem) * var(--type-display-scale, 1));
     color: var(--color-accent);
   }
   .figure dt {
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-ink-faint);
   }
 
@@ -309,9 +309,9 @@ const caseSchema = {
   .rail-title {
     margin: 0 0 0.9rem;
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    font-weight: 500;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    font-weight: calc(500 + var(--type-label-weight, 0));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-ink-faint);
   }
 
@@ -328,10 +328,10 @@ const caseSchema = {
   }
   .rail-links a {
     font-family: var(--font-display);
-    font-size: 1.05rem;
-    font-weight: 700;
+    font-size: calc(1.05rem * var(--type-heading-scale, 1));
+    font-weight: calc(700 + var(--type-heading-weight, 0));
     font-stretch: 106%;
-    letter-spacing: -0.015em;
+    letter-spacing: calc(-0.015em + var(--type-heading-track, 0em));
     color: var(--color-ink);
     text-decoration: none;
     transition: color 0.2s ease;
@@ -351,7 +351,7 @@ const caseSchema = {
   .rail-list li {
     padding: 0.6rem 0;
     border-bottom: 1px solid var(--color-line);
-    font-size: 0.88rem;
+    font-size: calc(0.88rem * var(--type-label-scale, 1));
     line-height: 1.5;
     color: var(--color-ink-muted);
   }
@@ -369,7 +369,7 @@ const caseSchema = {
     border: 1px solid var(--color-line);
     border-radius: 100px;
     font-family: var(--font-label);
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
     color: var(--color-ink-faint);
   }
 

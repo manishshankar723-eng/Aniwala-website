@@ -182,7 +182,7 @@ pre {
 }
 
 small {
-  font-size: 80%;
+  font-size: calc(80% * var(--type-label-scale, 1));
 }
 
 sub,
@@ -514,7 +514,7 @@ html.lenis body {
   background: var(--color-cta);
   color: var(--color-cta-ink);
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: calc(0.75rem * var(--type-mono-scale, 1));
   text-decoration: none;
   transition: top 0.2s ease;
 }
@@ -582,11 +582,11 @@ section[id] {
   margin: 0;
   max-width: 34ch;
   font-family: var(--font-display);
-  font-weight: 600;
+  font-weight: calc(600 + var(--type-display-weight, 0));
   font-stretch: 105%;
-  letter-spacing: -0.015em;
+  letter-spacing: calc(-0.015em + var(--type-display-track, 0em));
   line-height: 1.25;
-  font-size: clamp(1.35rem, 3.4vw, 3rem);
+  font-size: calc(clamp(1.35rem, 3.4vw, 3rem) * var(--type-display-scale, 1));
   text-wrap: balance;
 }
 
@@ -603,9 +603,9 @@ section[id] {
    editorial furniture, and it was the loudest template signal on the site. */
 .section-eyebrow {
   font-family: var(--font-label);
-  font-size: 0.88rem;
-  font-weight: 600;
-  letter-spacing: 0.005em;
+  font-size: calc(0.88rem * var(--type-label-scale, 1));
+  font-weight: calc(600 + var(--type-label-weight, 0));
+  letter-spacing: calc(0.005em + var(--type-label-track, 0em));
   color: var(--color-accent);
   margin: 0 0 0.9rem;
   flex-basis: 100%;
@@ -613,19 +613,19 @@ section[id] {
 .section-title {
   margin: 0;
   font-family: var(--font-display);
-  font-weight: 750;
+  font-weight: calc(750 + var(--type-display-weight, 0));
   font-stretch: 110%;
-  letter-spacing: -0.025em;
+  letter-spacing: calc(-0.025em + var(--type-display-track, 0em));
   line-height: 1.05;
-  font-size: clamp(1.75rem, 4.5vw, 4rem);
+  font-size: calc(clamp(1.75rem, 4.5vw, 4rem) * var(--type-display-scale, 1));
   text-wrap: balance;
   flex: 1 1 20ch;
 }
 .section-link {
   font-family: var(--font-label);
-  font-size: 0.85rem;
-  font-weight: 600;
-  letter-spacing: 0.005em;
+  font-size: calc(0.85rem * var(--type-label-scale, 1));
+  font-weight: calc(600 + var(--type-label-weight, 0));
+  letter-spacing: calc(0.005em + var(--type-label-track, 0em));
   color: var(--color-accent);
   text-decoration: none;
   white-space: nowrap;
@@ -722,7 +722,7 @@ section[id] {
    ------------------------------------------------------------------ */
 .prose {
   max-width: 68ch;
-  font-size: clamp(1rem, 1.4vw, 1.09rem);
+  font-size: calc(clamp(1rem, 1.4vw, 1.09rem) * var(--type-body-scale, 1));
   line-height: 1.75;
   color: var(--color-ink-muted);
 }
@@ -737,23 +737,23 @@ section[id] {
 .prose h4 {
   color: var(--color-ink);
   font-family: var(--font-display);
-  letter-spacing: -0.022em;
+  letter-spacing: calc(-0.022em + var(--type-heading-track, 0em));
   text-wrap: balance;
   /* Extra air above, so a heading belongs to what follows it, not above. */
   margin-top: 2.6em;
   margin-bottom: 0;
 }
 .prose h2 {
-  font-size: clamp(1.35rem, 3vw, 1.9rem);
-  font-weight: 760;
+  font-size: calc(clamp(1.35rem, 3vw, 1.9rem) * var(--type-heading-scale, 1));
+  font-weight: calc(760 + var(--type-heading-weight, 0));
   font-stretch: 108%;
   line-height: 1.2;
   /* Anchor jumps land under the fixed header rather than behind it. */
   scroll-margin-top: calc(var(--announce-h) + var(--header-h) + 1.5rem);
 }
 .prose h3 {
-  font-size: clamp(1.12rem, 2.2vw, 1.35rem);
-  font-weight: 700;
+  font-size: calc(clamp(1.12rem, 2.2vw, 1.35rem) * var(--type-heading-scale, 1));
+  font-weight: calc(700 + var(--type-heading-weight, 0));
   font-stretch: 106%;
   line-height: 1.3;
   margin-top: 2.2em;
@@ -827,11 +827,11 @@ section[id] {
   padding: 0.25em 0 0.25em 1.5rem;
   border-left: 2px solid var(--color-accent);
   font-family: var(--font-display);
-  font-size: clamp(1.1rem, 2.2vw, 1.4rem);
-  font-weight: 500;
+  font-size: calc(clamp(1.1rem, 2.2vw, 1.4rem) * var(--type-heading-scale, 1));
+  font-weight: calc(500 + var(--type-heading-weight, 0));
   font-stretch: 104%;
   line-height: 1.45;
-  letter-spacing: -0.015em;
+  letter-spacing: calc(-0.015em + var(--type-heading-track, 0em));
   color: var(--color-ink);
   text-wrap: balance;
 }
@@ -858,7 +858,7 @@ section[id] {
   background: var(--color-surface);
   /* Long lines scroll inside the block; the page itself must never move. */
   overflow-x: auto;
-  font-size: 0.85rem;
+  font-size: calc(0.85rem * var(--type-mono-scale, 1));
   line-height: 1.6;
 }
 .prose pre code {
@@ -874,7 +874,7 @@ section[id] {
   overflow-x: auto;
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.92rem;
+  font-size: calc(0.92rem * var(--type-body-scale, 1));
 }
 .prose th,
 .prose td {
@@ -885,9 +885,9 @@ section[id] {
 }
 .prose th {
   font-family: var(--font-label);
-  font-size: 0.72rem;
-  font-weight: 500;
-  letter-spacing: 0.015em;
+  font-size: calc(0.72rem * var(--type-label-scale, 1));
+  font-weight: calc(500 + var(--type-label-weight, 0));
+  letter-spacing: calc(0.015em + var(--type-label-track, 0em));
   color: var(--color-ink-faint);
   border-bottom-color: var(--color-line-strong);
   white-space: nowrap;
@@ -911,7 +911,7 @@ section[id] {
 .prose figcaption {
   margin-top: 0.75rem;
   font-family: var(--font-label);
-  font-size: 0.72rem;
+  font-size: calc(0.72rem * var(--type-label-scale, 1));
   line-height: 1.5;
   color: var(--color-ink-faint);
 }

@@ -48,14 +48,14 @@ const testimonials = await getTestimonials();
   }
   .quote blockquote {
     margin: 0 0 1.25rem;
-    font-size: 1.02rem;
+    font-size: calc(1.02rem * var(--type-body-scale, 1));
     line-height: 1.6;
   }
   .quote figcaption {
     display: flex;
     flex-direction: column;
     gap: 0.15rem;
-    font-size: 0.85rem;
+    font-size: calc(0.85rem * var(--type-label-scale, 1));
     color: var(--color-ink-muted);
   }
   .quote figcaption strong {

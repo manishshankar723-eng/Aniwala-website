@@ -209,7 +209,7 @@ const {
   .flow-lead {
     margin: -1rem 0 clamp(2rem, 4vw, 3rem);
     max-width: 58ch;
-    font-size: 1rem;
+    font-size: calc(1rem * var(--type-body-scale, 1));
     line-height: 1.7;
     color: var(--color-ink-muted);
   }
@@ -300,26 +300,26 @@ const {
   .flow-n {
     margin: 0 0 0.4rem;
     font-family: var(--font-label);
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.14em;
+    font-size: calc(0.7rem * var(--type-label-scale, 1));
+    font-weight: calc(700 + var(--type-label-weight, 0));
+    letter-spacing: calc(0.14em + var(--type-label-track, 0em));
     text-transform: uppercase;
     color: var(--color-accent);
   }
   .flow-title {
     margin: 0 0 0.6rem;
     font-family: var(--font-display);
-    font-weight: 750;
+    font-weight: calc(750 + var(--type-display-weight, 0));
     font-stretch: 108%;
-    letter-spacing: -0.025em;
+    letter-spacing: calc(-0.025em + var(--type-display-track, 0em));
     line-height: 1.15;
-    font-size: clamp(1.15rem, 2.4vw, 1.6rem);
+    font-size: calc(clamp(1.15rem, 2.4vw, 1.6rem) * var(--type-display-scale, 1));
     color: var(--color-ink);
   }
   .flow-body {
     margin: 0;
     max-width: 46ch;
-    font-size: 0.95rem;
+    font-size: calc(0.95rem * var(--type-body-scale, 1));
     line-height: 1.65;
     color: var(--color-ink-muted);
   }
@@ -329,8 +329,8 @@ const {
     border-top: 1px solid var(--color-line);
     max-width: 46ch;
     font-family: var(--font-label);
-    font-size: 0.76rem;
-    letter-spacing: 0.01em;
+    font-size: calc(0.76rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.01em + var(--type-label-track, 0em));
     color: var(--color-ink-faint);
   }
 

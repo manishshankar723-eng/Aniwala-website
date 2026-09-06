@@ -142,10 +142,10 @@ const showSetupHint = !live && import.meta.env.DEV;
   .comments-title {
     margin: 0 0 1.75rem;
     font-family: var(--font-display);
-    font-size: clamp(1.4rem, 3vw, 1.9rem);
-    font-weight: 750;
+    font-size: calc(clamp(1.4rem, 3vw, 1.9rem) * var(--type-display-scale, 1));
+    font-weight: calc(750 + var(--type-display-weight, 0));
     font-stretch: 108%;
-    letter-spacing: -0.022em;
+    letter-spacing: calc(-0.022em + var(--type-display-track, 0em));
   }
 
   /* --- Thread ---------------------------------------------------------- */
@@ -157,7 +157,7 @@ const showSetupHint = !live && import.meta.env.DEV;
   }
   .comments-status {
     margin: 0;
-    font-size: 0.92rem;
+    font-size: calc(0.92rem * var(--type-body-scale, 1));
     color: var(--color-ink-faint);
   }
 
@@ -178,19 +178,19 @@ const showSetupHint = !live && import.meta.env.DEV;
     margin-bottom: 0.6rem;
   }
   .comments-list :global(.comment-author) {
-    font-weight: 600;
-    font-size: 0.95rem;
+    font-weight: calc(600 + var(--type-body-weight, 0));
+    font-size: calc(0.95rem * var(--type-body-scale, 1));
     color: var(--color-ink);
   }
   .comments-list :global(.comment-date) {
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-ink-faint);
   }
   .comments-list :global(.comment-body) {
     margin: 0;
-    font-size: 0.95rem;
+    font-size: calc(0.95rem * var(--type-body-scale, 1));
     line-height: 1.65;
     color: var(--color-ink-muted);
     /* Comment text is plain text, never markup — newlines still need to
@@ -209,13 +209,13 @@ const showSetupHint = !live && import.meta.env.DEV;
   .comments-form-title {
     margin: 0 0 1.25rem;
     font-family: var(--font-display);
-    font-size: 1.1rem;
-    font-weight: 700;
+    font-size: calc(1.1rem * var(--type-heading-scale, 1));
+    font-weight: calc(700 + var(--type-heading-weight, 0));
     font-stretch: 104%;
   }
   .comments-form-note {
     margin: -0.5rem 0 1.5rem;
-    font-size: 0.85rem;
+    font-size: calc(0.85rem * var(--type-label-scale, 1));
     line-height: 1.55;
     color: var(--color-ink-faint);
   }
@@ -238,8 +238,8 @@ const showSetupHint = !live && import.meta.env.DEV;
     display: block;
     margin-bottom: 0.4rem;
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-ink-faint);
   }
   .comments-field input,
@@ -251,7 +251,7 @@ const showSetupHint = !live && import.meta.env.DEV;
     background: var(--color-ground);
     color: var(--color-ink);
     font-family: var(--font-body);
-    font-size: 0.95rem;
+    font-size: calc(0.95rem * var(--type-body-scale, 1));
     line-height: 1.5;
   }
   .comments-field textarea {
@@ -278,7 +278,7 @@ const showSetupHint = !live && import.meta.env.DEV;
     align-items: flex-start;
     gap: 0.6rem;
     margin: 0 0 1.25rem;
-    font-size: 0.88rem;
+    font-size: calc(0.88rem * var(--type-label-scale, 1));
     line-height: 1.5;
     color: var(--color-ink-muted);
     cursor: pointer;
@@ -296,7 +296,7 @@ const showSetupHint = !live && import.meta.env.DEV;
     margin-top: 1.5rem;
     padding-top: 1.25rem;
     border-top: 1px dashed var(--color-line-strong);
-    font-size: 0.85rem;
+    font-size: calc(0.85rem * var(--type-label-scale, 1));
     line-height: 1.6;
     color: var(--color-ink-muted);
   }
@@ -333,9 +333,9 @@ const showSetupHint = !live && import.meta.env.DEV;
     background: var(--color-cta);
     color: var(--color-cta-ink);
     font-family: var(--font-label);
-    font-size: 0.92rem;
-    font-weight: 600;
-    letter-spacing: 0.005em;
+    font-size: calc(0.92rem * var(--type-label-scale, 1));
+    font-weight: calc(600 + var(--type-label-weight, 0));
+    letter-spacing: calc(0.005em + var(--type-label-track, 0em));
     cursor: pointer;
     transition: background-color 0.2s ease;
   }
@@ -347,13 +347,13 @@ const showSetupHint = !live && import.meta.env.DEV;
     cursor: not-allowed;
   }
   .comments-note {
-    font-size: 0.8rem;
+    font-size: calc(0.8rem * var(--type-label-scale, 1));
     color: var(--color-ink-faint);
   }
 
   .comments-msg {
     margin: 0 0 1rem;
-    font-size: 0.9rem;
+    font-size: calc(0.9rem * var(--type-body-scale, 1));
     line-height: 1.5;
   }
   .comments-msg:empty {
@@ -375,14 +375,14 @@ const showSetupHint = !live && import.meta.env.DEV;
   .comments-off-lead {
     margin: 0;
     font-family: var(--font-display);
-    font-size: 1.05rem;
-    font-weight: 700;
+    font-size: calc(1.05rem * var(--type-heading-scale, 1));
+    font-weight: calc(700 + var(--type-heading-weight, 0));
     font-stretch: 104%;
     color: var(--color-ink);
   }
   .comments-off-body {
     margin: 0.75rem 0 0;
-    font-size: 0.95rem;
+    font-size: calc(0.95rem * var(--type-body-scale, 1));
     line-height: 1.65;
     color: var(--color-ink-muted);
   }
@@ -390,7 +390,7 @@ const showSetupHint = !live && import.meta.env.DEV;
     display: inline-block;
     margin-top: 1.25rem;
     font-family: var(--font-label);
-    font-size: 0.8rem;
+    font-size: calc(0.8rem * var(--type-label-scale, 1));
     color: var(--color-accent);
     text-decoration: none;
     padding-bottom: 0.25rem;

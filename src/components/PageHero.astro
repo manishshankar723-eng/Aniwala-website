@@ -224,8 +224,8 @@ const crumbSchema =
     margin: 0 0 1.75rem;
     padding: 0;
     font-family: var(--font-label);
-    font-size: 0.82rem;
-    letter-spacing: 0.005em;
+    font-size: calc(0.82rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.005em + var(--type-label-track, 0em));
     color: var(--color-ink-faint);
   }
   .crumbs li + li::before {
@@ -249,9 +249,9 @@ const crumbSchema =
   /* --- Type ---------------------------------------------------------- */
   .page-hero-eyebrow {
     font-family: var(--font-label);
-    font-size: 0.95rem;
-    font-weight: 600;
-    letter-spacing: 0.005em;
+    font-size: calc(0.95rem * var(--type-label-scale, 1));
+    font-weight: calc(600 + var(--type-label-weight, 0));
+    letter-spacing: calc(0.005em + var(--type-label-track, 0em));
     color: var(--color-accent);
     margin: 0 0 1.25rem;
   }
@@ -259,23 +259,23 @@ const crumbSchema =
   .page-hero-title {
     margin: 0;
     font-family: var(--font-display);
-    font-weight: 800;
+    font-weight: calc(800 + var(--type-display-weight, 0));
     font-stretch: 115%;
-    letter-spacing: -0.03em;
+    letter-spacing: calc(-0.03em + var(--type-display-track, 0em));
     line-height: 1;
-    font-size: clamp(2.4rem, 6.5vw, 6.5rem);
+    font-size: calc(clamp(2.4rem, 6.5vw, 6.5rem) * var(--type-display-scale, 1));
     text-wrap: balance;
     max-width: 18ch;
     color: var(--color-ink);
   }
   .page-hero--compact .page-hero-title {
-    font-size: clamp(2rem, 5.5vw, 4rem);
+    font-size: calc(clamp(2rem, 5.5vw, 4rem) * var(--type-display-scale, 1));
   }
 
   .page-hero-lead {
     margin: 1.75rem 0 0;
     max-width: 52ch;
-    font-size: clamp(1rem, 1.6vw, 1.15rem);
+    font-size: calc(clamp(1rem, 1.6vw, 1.15rem) * var(--type-heading-scale, 1));
     line-height: 1.65;
     color: var(--color-ink-muted);
   }
@@ -289,8 +289,8 @@ const crumbSchema =
     margin: 1.75rem 0 0;
     padding: 0;
     font-family: var(--font-label);
-    font-size: 0.82rem;
-    letter-spacing: 0.005em;
+    font-size: calc(0.82rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.005em + var(--type-label-track, 0em));
     color: var(--color-ink-faint);
   }
   .page-hero-meta li + li::before {

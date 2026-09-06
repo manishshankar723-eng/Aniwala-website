@@ -2,6 +2,7 @@ import { defineCollection, z } from 'astro:content';
 import { CATEGORIES } from './config/categories';
 import { DISCIPLINES, EMPLOYMENT_KINDS } from './config/disciplines';
 import { IMAGE_SLOT_NAMES } from './config/imageSlots';
+import { FONT_CHOICE_NAMES } from './config/fonts';
 import { SOCIAL_ICONS } from './config/contact';
 import {
   UI_COPY_FIELDS,
@@ -88,6 +89,17 @@ const line = (...names: string[]) =>
 const hexColour = z
   .string()
   .regex(/^(#[0-9a-fA-F]{6})?$/, 'Use a hex colour like #e4c24c, or leave it blank.')
+  .default('');
+
+/* A typeface key, or blank for "keep the face the site ships with".
+   Validated against the same list the Studio dropdown is built from, so a key
+   that no longer exists fails the build by name instead of resolving to no
+   stack and silently leaving the font unchanged. */
+const fontChoice = z
+  .string()
+  .refine((v) => v === '' || FONT_CHOICE_NAMES.includes(v), {
+    message: 'Unknown font. It must be one of the keys in src/config/fonts.ts.',
+  })
   .default('');
 
 /**
@@ -944,6 +956,34 @@ const brand = defineCollection({
     accentLight: hexColour,
     buttonFill: hexColour,
     buttonInk: hexColour,
+    /* --- Typography -------------------------------------------------
+       Written out rather than generated, for the reason the colours above
+       give: a spread of computed keys does not survive into the inferred
+       type, and the templates would lose autocomplete on every one.
+
+       A blank face means "keep the one the site ships with". The numbers
+       default to the values that reproduce the original design, so an
+       absent field and a deliberate 100 are the same thing. */
+    fontDisplay: fontChoice,
+    fontBody: fontChoice,
+    fontLabel: fontChoice,
+    fontMono: fontChoice,
+    textScale: z.number().min(50).max(200).default(100),
+    typeDisplayScale: z.number().min(50).max(200).default(100),
+    typeDisplayWeight: z.number().min(-300).max(300).default(0),
+    typeDisplayTrack: z.number().min(-0.1).max(0.5).default(0),
+    typeHeadingScale: z.number().min(50).max(200).default(100),
+    typeHeadingWeight: z.number().min(-300).max(300).default(0),
+    typeHeadingTrack: z.number().min(-0.1).max(0.5).default(0),
+    typeBodyScale: z.number().min(50).max(200).default(100),
+    typeBodyWeight: z.number().min(-300).max(300).default(0),
+    typeBodyTrack: z.number().min(-0.1).max(0.5).default(0),
+    typeLabelScale: z.number().min(50).max(200).default(100),
+    typeLabelWeight: z.number().min(-300).max(300).default(0),
+    typeLabelTrack: z.number().min(-0.1).max(0.5).default(0),
+    typeMonoScale: z.number().min(50).max(200).default(100),
+    typeMonoWeight: z.number().min(-300).max(300).default(0),
+    typeMonoTrack: z.number().min(-0.1).max(0.5).default(0),
     favicon: sanityImage.omit({ alt: true }).optional(),
     /* Hex or blank. Validated in the Studio too, where the editor can see the
        message; the pattern here is what stops a malformed one reaching the

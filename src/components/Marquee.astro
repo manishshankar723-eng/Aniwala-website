@@ -105,9 +105,9 @@ const copies = [false, true];
        capitals are the right call for a strip of single words. The 0.16em
        tracking is what made it read as terminal output, so that goes. */
     font-family: var(--font-display);
-    font-size: clamp(0.78rem, 1.35vw, 0.98rem);
-    font-weight: 700;
-    letter-spacing: 0.04em;
+    font-size: calc(clamp(0.78rem, 1.35vw, 0.98rem) * var(--type-heading-scale, 1));
+    font-weight: calc(700 + var(--type-heading-weight, 0));
+    letter-spacing: calc(0.04em + var(--type-heading-track, 0em));
     text-transform: uppercase;
     white-space: nowrap;
   }

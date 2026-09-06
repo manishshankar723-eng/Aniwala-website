@@ -170,8 +170,8 @@ const attribution = isStudioProject ? sector : `${client} · ${sector}`;
     align-items: center;
     gap: 0.45rem 0.7rem;
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-ink-faint);
   }
 
@@ -191,18 +191,18 @@ const attribution = isStudioProject ? sector : `${client} · ${sector}`;
   .case-title {
     margin: 0;
     font-family: var(--font-display);
-    font-weight: 760;
+    font-weight: calc(760 + var(--type-display-weight, 0));
     font-stretch: 108%;
-    letter-spacing: -0.024em;
+    letter-spacing: calc(-0.024em + var(--type-display-track, 0em));
     line-height: 1.12;
-    font-size: clamp(1.35rem, 2.6vw, 1.8rem);
+    font-size: calc(clamp(1.35rem, 2.6vw, 1.8rem) * var(--type-display-scale, 1));
     text-wrap: balance;
     color: var(--color-ink);
     transition: color 0.2s ease;
   }
   @media (min-width: 900px) {
     .case--featured .case-title {
-      font-size: clamp(1.8rem, 3.2vw, 2.6rem);
+      font-size: calc(clamp(1.8rem, 3.2vw, 2.6rem) * var(--type-heading-scale, 1));
       line-height: 1.05;
     }
   }
@@ -212,13 +212,13 @@ const attribution = isStudioProject ? sector : `${client} · ${sector}`;
 
   .case-desc {
     margin: 0;
-    font-size: 0.93rem;
+    font-size: calc(0.93rem * var(--type-body-scale, 1));
     line-height: 1.6;
     color: var(--color-ink-muted);
   }
   @media (min-width: 900px) {
     .case--featured .case-desc {
-      font-size: 1.02rem;
+      font-size: calc(1.02rem * var(--type-body-scale, 1));
       max-width: 50ch;
     }
   }
@@ -234,18 +234,18 @@ const attribution = isStudioProject ? sector : `${client} · ${sector}`;
   }
   .case-results dt {
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-ink-faint);
     margin-bottom: 0.25rem;
   }
   .case-results dd {
     margin: 0;
     font-family: var(--font-display);
-    font-size: 1.02rem;
-    font-weight: 700;
+    font-size: calc(1.02rem * var(--type-heading-scale, 1));
+    font-weight: calc(700 + var(--type-heading-weight, 0));
     font-stretch: 106%;
-    letter-spacing: -0.015em;
+    letter-spacing: calc(-0.015em + var(--type-heading-track, 0em));
     color: var(--color-ink);
   }
 
@@ -253,8 +253,8 @@ const attribution = isStudioProject ? sector : `${client} · ${sector}`;
     margin-top: auto;
     padding-top: 0.6rem;
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-accent);
   }
   .case-more span {

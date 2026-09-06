@@ -65,14 +65,14 @@ const { block } = Astro.props;
   .model-title {
     margin: 0;
     font-family: var(--font-display);
-    font-size: 1.3rem;
-    font-weight: 700;
+    font-size: calc(1.3rem * var(--type-heading-scale, 1));
+    font-weight: calc(700 + var(--type-heading-weight, 0));
     font-stretch: 108%;
-    letter-spacing: -0.015em;
+    letter-spacing: calc(-0.015em + var(--type-heading-track, 0em));
   }
   .model-body {
     margin: 0;
-    font-size: 0.93rem;
+    font-size: calc(0.93rem * var(--type-body-scale, 1));
     line-height: 1.65;
     color: var(--color-ink-muted);
   }
@@ -80,7 +80,7 @@ const { block } = Astro.props;
     margin: auto 0 0;
     padding-top: 1.25rem;
     border-top: 1px solid var(--color-line);
-    font-size: 0.88rem;
+    font-size: calc(0.88rem * var(--type-label-scale, 1));
     line-height: 1.5;
     color: var(--color-ink);
   }
@@ -88,8 +88,8 @@ const { block } = Astro.props;
     display: block;
     margin-bottom: 0.35rem;
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-ink-faint);
   }
 </style>

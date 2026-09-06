@@ -127,11 +127,55 @@ silently landing on our own elements that happened to share those names.
 **Never hardcode a colour.** Every one resolves through a token in
 `global.css`, and a raw hex will break in one of the two themes.
 
+**Never hardcode a type size either.** Every `font-size`, and every numeric
+`font-weight` and `letter-spacing`, is written to scale from its role:
+
+```css
+font-size:      calc(1.35rem * var(--type-heading-scale, 1));
+font-weight:    calc(750    + var(--type-heading-weight, 0));
+letter-spacing: calc(-0.015em + var(--type-heading-track, 0em));
+```
+
+A new declaration that skips this is not broken — it just stops responding to
+the Typography tab in the Studio, silently, for that one element. The five
+roles are `display`, `heading`, `body`, `label` and `mono`, defined in
+`src/config/fonts.ts`.
+
+The `var()` fallbacks are the whole safety story: with nothing set in the CMS
+every one of these computes to exactly the value written in the source, so the
+untouched site is byte-for-byte what it was before any of it was editable.
+
+Two things are deliberately NOT scaled, and should not be: values in `em` or
+`%` (their parent has already been scaled — doing it twice compounds), and the
+`@font-face` weight ranges.
+
+## Typography in the Studio
+
+**Logo & icons → Typography.** Four typeface dropdowns, one overall size, and
+three controls for each of the five roles.
+
+Reach for **Overall text size** first. It scales everything together and so
+cannot break the relationship between a heading and the paragraph under it.
+The per-role sizes then move one group *relative* to the rest, which is the
+part worth being careful with — pushing labels up 30% while headings stay put
+will not look like a bigger site, it will look like a broken one.
+
+The typefaces are a **dropdown, not a text box**, because the fonts are
+self-hosted files. A typed-in family nothing has loaded would fall silently
+through to the next name in the stack: the field would appear to save and then
+do nothing at all. To offer a new face, add the `.woff2`, add an `@font-face`
+block, add an entry to `src/config/fonts.ts`, and redeploy the Studio.
+
+Weight is an *offset*, not a value — the faces carry a real variable weight
+axis, so `+100` is about one step bolder and moves smoothly rather than
+snapping to the nearest cut.
+
 ## Fonts
 
 Self-hosted from `public/fonts/`, declared at the top of `global.css`. All
 three families are variable, so one file covers the whole weight range, and
-only `latin` + `latin-ext` are shipped.
+only `latin` + `latin-ext` are shipped. Which of them each role uses is set in
+the Studio — see *Typography in the Studio* above.
 
 To update one: fetch the woff2 from Google's `css2` endpoint **with a modern
 browser User-Agent** (an old one gets you `.ttf`), drop it in `public/fonts/`,

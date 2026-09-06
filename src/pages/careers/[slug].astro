@@ -291,8 +291,8 @@ const jobSchema = {
     border: 1px solid var(--color-line-strong);
     border-radius: 100px;
     font-family: var(--font-label);
-    font-size: 0.85rem;
-    font-weight: 600;
+    font-size: calc(0.85rem * var(--type-label-scale, 1));
+    font-weight: calc(600 + var(--type-label-weight, 0));
     color: var(--color-ink);
     text-decoration: none;
     transition:
@@ -342,23 +342,23 @@ const jobSchema = {
   .block-title {
     margin: 0 0 1rem;
     font-family: var(--font-display);
-    font-weight: 750;
+    font-weight: calc(750 + var(--type-display-weight, 0));
     font-stretch: 108%;
-    letter-spacing: -0.025em;
+    letter-spacing: calc(-0.025em + var(--type-display-track, 0em));
     line-height: 1.15;
-    font-size: clamp(1.25rem, 2.6vw, 1.7rem);
+    font-size: calc(clamp(1.25rem, 2.6vw, 1.7rem) * var(--type-display-scale, 1));
     color: var(--color-ink);
   }
   .block-lead {
     margin: 0;
     max-width: 68ch;
-    font-size: clamp(1rem, 1.5vw, 1.1rem);
+    font-size: calc(clamp(1rem, 1.5vw, 1.1rem) * var(--type-heading-scale, 1));
     line-height: 1.75;
     color: var(--color-ink-muted);
   }
   .block-note {
     margin: -0.5rem 0 1rem;
-    font-size: 0.86rem;
+    font-size: calc(0.86rem * var(--type-label-scale, 1));
     color: var(--color-ink-faint);
   }
   .block-aside {
@@ -368,7 +368,7 @@ const jobSchema = {
     border-left: 2px solid var(--color-accent);
     background: var(--color-surface);
     border-radius: 0 0.45rem 0.45rem 0;
-    font-size: 0.9rem;
+    font-size: calc(0.9rem * var(--type-body-scale, 1));
     line-height: 1.65;
     color: var(--color-ink-muted);
   }
@@ -387,7 +387,7 @@ const jobSchema = {
   .pluses li {
     position: relative;
     padding-left: 1.85rem;
-    font-size: 0.97rem;
+    font-size: calc(0.97rem * var(--type-body-scale, 1));
     line-height: 1.7;
     color: var(--color-ink-muted);
   }
@@ -408,7 +408,7 @@ const jobSchema = {
     left: 0.3rem;
     top: 0;
     font-family: var(--font-mono);
-    font-size: 1rem;
+    font-size: calc(1rem * var(--type-mono-scale, 1));
     line-height: 1.7;
     color: var(--color-ink-faint);
   }
@@ -426,7 +426,7 @@ const jobSchema = {
     border: 1px solid var(--color-line);
     border-radius: 100px;
     font-family: var(--font-label);
-    font-size: 0.8rem;
+    font-size: calc(0.8rem * var(--type-label-scale, 1));
     color: var(--color-ink-muted);
   }
 
@@ -440,19 +440,19 @@ const jobSchema = {
   .reel-eyebrow {
     margin: 0 0 0.85rem;
     font-family: var(--font-label);
-    font-size: 0.74rem;
-    font-weight: 700;
-    letter-spacing: 0.015em;
+    font-size: calc(0.74rem * var(--type-label-scale, 1));
+    font-weight: calc(700 + var(--type-label-weight, 0));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-accent);
   }
   .reel-body {
     margin: 0;
     max-width: 62ch;
     font-family: var(--font-display);
-    font-weight: 500;
+    font-weight: calc(500 + var(--type-heading-weight, 0));
     font-stretch: 104%;
-    letter-spacing: -0.015em;
-    font-size: clamp(1.05rem, 2vw, 1.3rem);
+    letter-spacing: calc(-0.015em + var(--type-heading-track, 0em));
+    font-size: calc(clamp(1.05rem, 2vw, 1.3rem) * var(--type-heading-scale, 1));
     line-height: 1.5;
     color: var(--color-ink);
     text-wrap: balance;
@@ -462,7 +462,7 @@ const jobSchema = {
     padding-top: 1.25rem;
     border-top: 1px solid var(--color-line);
     max-width: 62ch;
-    font-size: 0.87rem;
+    font-size: calc(0.87rem * var(--type-label-scale, 1));
     line-height: 1.6;
     color: var(--color-ink-faint);
   }
@@ -492,9 +492,9 @@ const jobSchema = {
   .rail-title {
     margin: 0 0 1.15rem;
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    font-weight: calc(700 + var(--type-label-weight, 0));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-accent);
   }
 
@@ -512,13 +512,13 @@ const jobSchema = {
   }
   .fact dt {
     font-family: var(--font-label);
-    font-size: 0.7rem;
-    letter-spacing: 0.01em;
+    font-size: calc(0.7rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.01em + var(--type-label-track, 0em));
     color: var(--color-ink-faint);
   }
   .fact dd {
     margin: 0;
-    font-size: 0.9rem;
+    font-size: calc(0.9rem * var(--type-body-scale, 1));
     line-height: 1.45;
     color: var(--color-ink);
   }
@@ -529,8 +529,8 @@ const jobSchema = {
     background: var(--color-cta);
     border-radius: 100px;
     font-family: var(--font-label);
-    font-size: 0.86rem;
-    font-weight: 700;
+    font-size: calc(0.86rem * var(--type-label-scale, 1));
+    font-weight: calc(700 + var(--type-label-weight, 0));
     color: var(--color-cta-ink);
     text-align: center;
     text-decoration: none;
@@ -541,7 +541,7 @@ const jobSchema = {
   }
   .rail-note {
     margin: 1rem 0 0;
-    font-size: 0.78rem;
+    font-size: calc(0.78rem * var(--type-label-scale, 1));
     line-height: 1.55;
     color: var(--color-ink-faint);
   }
@@ -567,25 +567,25 @@ const jobSchema = {
     border-bottom: 0;
   }
   .mini-t {
-    font-size: 0.86rem;
+    font-size: calc(0.86rem * var(--type-label-scale, 1));
     color: var(--color-ink-muted);
   }
   .mini-t::before {
     content: counter(mini, decimal-leading-zero) ' ';
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: calc(0.75rem * var(--type-mono-scale, 1));
     color: var(--color-ink-faint);
   }
   .mini-w {
     font-family: var(--font-label);
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
     color: var(--color-ink-faint);
     white-space: nowrap;
   }
   .rail-link {
     font-family: var(--font-label);
-    font-size: 0.78rem;
-    font-weight: 600;
+    font-size: calc(0.78rem * var(--type-label-scale, 1));
+    font-weight: calc(600 + var(--type-label-weight, 0));
     color: var(--color-accent);
     text-decoration: none;
   }
@@ -637,29 +637,29 @@ const jobSchema = {
   }
   .other-d {
     font-family: var(--font-label);
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.015em;
+    font-size: calc(0.7rem * var(--type-label-scale, 1));
+    font-weight: calc(700 + var(--type-label-weight, 0));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-accent);
   }
   .other-t {
     font-family: var(--font-display);
-    font-weight: 700;
+    font-weight: calc(700 + var(--type-heading-weight, 0));
     font-stretch: 106%;
-    letter-spacing: -0.02em;
-    font-size: 1.1rem;
+    letter-spacing: calc(-0.02em + var(--type-heading-track, 0em));
+    font-size: calc(1.1rem * var(--type-heading-scale, 1));
     line-height: 1.2;
     color: var(--color-ink);
   }
   .other-s {
-    font-size: 0.87rem;
+    font-size: calc(0.87rem * var(--type-label-scale, 1));
     line-height: 1.55;
     color: var(--color-ink-muted);
   }
   .other-m {
     margin-top: 0.35rem;
     font-family: var(--font-label);
-    font-size: 0.74rem;
+    font-size: calc(0.74rem * var(--type-label-scale, 1));
     color: var(--color-ink-faint);
   }
 </style>

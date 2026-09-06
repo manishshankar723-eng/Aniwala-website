@@ -119,8 +119,47 @@ const rule = (selector: string, pairs: [string, string][]) => {
  * alternative — relying on being emitted after the stylesheets — depends on
  * Astro's asset ordering, which is not ours to promise.
  */
+/**
+ * Typography overrides, as CSS custom properties.
+ *
+ * Two kinds, both theme-independent — type does not change between light and
+ * dark, so unlike the colours above there is no second block.
+ *
+ * THE FACES are the four `--font-*` tokens the stylesheet already defined and
+ * 184 of the 190 `font-family` declarations already pointed at. Overriding
+ * them here moves the whole site from one line, which is exactly what those
+ * tokens were introduced for.
+ *
+ * THE ROLES are newer. Every `font-size` on the site is written as
+ * `calc(<designed value> * var(--type-<role>-scale, 1))`, and the weight and
+ * letter-spacing equivalents add rather than multiply. So a role left at its
+ * default emits NOTHING here, the `var()` fallback applies, and the page
+ * computes byte for byte what it did before any of this existed.
+ *
+ * That is why each value is compared against its default before being
+ * emitted: the common case is an untouched document, and the common case
+ * should put no bytes in the head at all.
+ */
+const typeVars: [string, string][] = [
+  ['--font-display', brand.fonts.display ?? ''],
+  ['--font-body', brand.fonts.body ?? ''],
+  ['--font-label', brand.fonts.label ?? ''],
+  ['--font-mono', brand.fonts.mono ?? ''],
+];
+
+for (const role of brand.typeRoles) {
+  /* `!== 1` rather than a tolerance: the value is rounded to four places
+     upstream, so an untouched role is exactly 1 and a nudged one never is. */
+  if (role.scale !== 1) typeVars.push([`--type-${role.name}-scale`, String(role.scale)]);
+  if (role.weight !== 0) typeVars.push([`--type-${role.name}-weight`, String(role.weight)]);
+  /* Emitted with its unit. The declarations it feeds add it to an em value,
+     and `calc(0.18em + 0)` is invalid CSS — a bare zero would take out the
+     whole declaration and the letter-spacing with it. */
+  if (role.track !== 0) typeVars.push([`--type-${role.name}-track`, `${role.track}em`]);
+}
+
 const brandCss =
-  rule(':root:root', brandVars) +
+  rule(':root:root', [...brandVars, ...typeVars]) +
   rule(':root:root[data-theme="light"]', brandVarsLight);
 
 const { profileSocials } = await getContactDetails();

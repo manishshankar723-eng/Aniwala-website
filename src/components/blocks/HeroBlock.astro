@@ -99,8 +99,8 @@ const hasCta = Boolean(block.ctaLabel && block.ctaHref);
     border: 1px solid rgb(255 255 255 / 0.45);
     border-radius: 100px;
     font-family: var(--font-label);
-    font-size: 0.75rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.75rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: #f4f4f2;
     text-decoration: none;
     transition:

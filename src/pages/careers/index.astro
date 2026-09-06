@@ -391,17 +391,17 @@ const jobSchema = roles.map((r) => ({
   }
   .hero-stat-n {
     font-family: var(--font-display);
-    font-weight: 800;
+    font-weight: calc(800 + var(--type-display-weight, 0));
     font-stretch: 112%;
-    letter-spacing: -0.04em;
+    letter-spacing: calc(-0.04em + var(--type-display-track, 0em));
     line-height: 1;
-    font-size: clamp(2rem, 4vw, 2.9rem);
+    font-size: calc(clamp(2rem, 4vw, 2.9rem) * var(--type-display-scale, 1));
     color: var(--color-accent);
   }
   .hero-stat-l {
     max-width: 16ch;
     font-family: var(--font-label);
-    font-size: 0.78rem;
+    font-size: calc(0.78rem * var(--type-label-scale, 1));
     line-height: 1.4;
     color: var(--color-ink-faint);
   }
@@ -417,8 +417,8 @@ const jobSchema = roles.map((r) => ({
     border: 1px solid var(--color-line-strong);
     border-radius: 100px;
     font-family: var(--font-label);
-    font-size: 0.85rem;
-    font-weight: 600;
+    font-size: calc(0.85rem * var(--type-label-scale, 1));
+    font-weight: calc(600 + var(--type-label-weight, 0));
     color: var(--color-ink);
     text-decoration: none;
     transition:
@@ -458,8 +458,8 @@ const jobSchema = roles.map((r) => ({
     border: 1px solid var(--color-line);
     border-radius: 100px;
     font-family: var(--font-label);
-    font-size: 0.8rem;
-    font-weight: 600;
+    font-size: calc(0.8rem * var(--type-label-scale, 1));
+    font-weight: calc(600 + var(--type-label-weight, 0));
     color: var(--color-ink-muted);
     cursor: pointer;
     transition:
@@ -477,7 +477,7 @@ const jobSchema = roles.map((r) => ({
     color: var(--color-ground);
   }
   .filter-n {
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
     opacity: 0.6;
   }
 
@@ -543,11 +543,11 @@ const jobSchema = roles.map((r) => ({
   .job-title {
     margin: 0;
     font-family: var(--font-display);
-    font-weight: 750;
+    font-weight: calc(750 + var(--type-display-weight, 0));
     font-stretch: 108%;
-    letter-spacing: -0.025em;
+    letter-spacing: calc(-0.025em + var(--type-display-track, 0em));
     line-height: 1.15;
-    font-size: clamp(1.3rem, 2.6vw, 1.85rem);
+    font-size: calc(clamp(1.3rem, 2.6vw, 1.85rem) * var(--type-display-scale, 1));
     color: var(--color-ink);
   }
   .job-title a {
@@ -572,16 +572,16 @@ const jobSchema = roles.map((r) => ({
     background: color-mix(in srgb, var(--color-accent) 18%, transparent);
     border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
     font-family: var(--font-label);
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
+    font-size: calc(0.68rem * var(--type-label-scale, 1));
+    font-weight: calc(700 + var(--type-label-weight, 0));
+    letter-spacing: calc(0.02em + var(--type-label-track, 0em));
     color: var(--color-accent);
   }
 
   .job-summary {
     margin: 0;
     max-width: 62ch;
-    font-size: 0.97rem;
+    font-size: calc(0.97rem * var(--type-body-scale, 1));
     line-height: 1.6;
     color: var(--color-ink-muted);
   }
@@ -599,7 +599,7 @@ const jobSchema = roles.map((r) => ({
     border: 1px solid var(--color-line);
     border-radius: 100px;
     font-family: var(--font-label);
-    font-size: 0.75rem;
+    font-size: calc(0.75rem * var(--type-label-scale, 1));
     color: var(--color-ink-faint);
   }
   .job-tag--kind {
@@ -619,7 +619,7 @@ const jobSchema = roles.map((r) => ({
   .job-posted {
     margin: 0;
     font-family: var(--font-label);
-    font-size: 0.76rem;
+    font-size: calc(0.76rem * var(--type-label-scale, 1));
     color: var(--color-ink-faint);
   }
   .job-acts {
@@ -632,8 +632,8 @@ const jobSchema = roles.map((r) => ({
   }
   .job-read {
     font-family: var(--font-label);
-    font-size: 0.83rem;
-    font-weight: 600;
+    font-size: calc(0.83rem * var(--type-label-scale, 1));
+    font-weight: calc(600 + var(--type-label-weight, 0));
     color: var(--color-accent);
     text-decoration: none;
   }
@@ -649,8 +649,8 @@ const jobSchema = roles.map((r) => ({
     border: 1px solid var(--color-line-strong);
     border-radius: 100px;
     font-family: var(--font-label);
-    font-size: 0.83rem;
-    font-weight: 700;
+    font-size: calc(0.83rem * var(--type-label-scale, 1));
+    font-weight: calc(700 + var(--type-label-weight, 0));
     color: var(--color-ink);
     text-decoration: none;
     transition:
@@ -676,18 +676,18 @@ const jobSchema = roles.map((r) => ({
     margin: 0 auto;
     max-width: 34ch;
     font-family: var(--font-display);
-    font-weight: 700;
+    font-weight: calc(700 + var(--type-display-weight, 0));
     font-stretch: 106%;
-    letter-spacing: -0.025em;
+    letter-spacing: calc(-0.025em + var(--type-display-track, 0em));
     line-height: 1.2;
-    font-size: clamp(1.35rem, 3vw, 2rem);
+    font-size: calc(clamp(1.35rem, 3vw, 2rem) * var(--type-display-scale, 1));
     color: var(--color-ink);
     text-wrap: balance;
   }
   .empty-body {
     margin: 1.25rem auto 0;
     max-width: 54ch;
-    font-size: 0.97rem;
+    font-size: calc(0.97rem * var(--type-body-scale, 1));
     line-height: 1.65;
     color: var(--color-ink-muted);
   }
@@ -698,8 +698,8 @@ const jobSchema = roles.map((r) => ({
     background: var(--color-cta);
     border-radius: 100px;
     font-family: var(--font-label);
-    font-size: 0.88rem;
-    font-weight: 700;
+    font-size: calc(0.88rem * var(--type-label-scale, 1));
+    font-weight: calc(700 + var(--type-label-weight, 0));
     color: var(--color-cta-ink);
     text-decoration: none;
     transition: background 0.18s ease;
@@ -727,26 +727,26 @@ const jobSchema = roles.map((r) => ({
   .spec-eyebrow {
     margin: 0 0 0.6rem;
     font-family: var(--font-label);
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.015em;
+    font-size: calc(0.75rem * var(--type-label-scale, 1));
+    font-weight: calc(700 + var(--type-label-weight, 0));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-accent);
   }
   .spec-title {
     margin: 0 0 0.85rem;
     font-family: var(--font-display);
-    font-weight: 700;
+    font-weight: calc(700 + var(--type-display-weight, 0));
     font-stretch: 106%;
-    letter-spacing: -0.025em;
+    letter-spacing: calc(-0.025em + var(--type-display-track, 0em));
     line-height: 1.2;
-    font-size: clamp(1.2rem, 2.4vw, 1.6rem);
+    font-size: calc(clamp(1.2rem, 2.4vw, 1.6rem) * var(--type-display-scale, 1));
     color: var(--color-ink);
     text-wrap: balance;
   }
   .spec-body {
     margin: 0;
     max-width: 58ch;
-    font-size: 0.93rem;
+    font-size: calc(0.93rem * var(--type-body-scale, 1));
     line-height: 1.65;
     color: var(--color-ink-muted);
   }
@@ -756,8 +756,8 @@ const jobSchema = roles.map((r) => ({
     border: 1px solid var(--color-accent);
     border-radius: 100px;
     font-family: var(--font-label);
-    font-size: 0.85rem;
-    font-weight: 700;
+    font-size: calc(0.85rem * var(--type-label-scale, 1));
+    font-weight: calc(700 + var(--type-label-weight, 0));
     color: var(--color-accent);
     text-decoration: none;
     white-space: nowrap;
@@ -781,7 +781,7 @@ const jobSchema = roles.map((r) => ({
   .studio-note {
     margin: -1rem 0 2.5rem;
     max-width: 60ch;
-    font-size: 1rem;
+    font-size: calc(1rem * var(--type-label-scale, 1));
     line-height: 1.7;
     color: var(--color-ink-muted);
   }
@@ -811,15 +811,15 @@ const jobSchema = roles.map((r) => ({
   .value-title {
     margin: 0 0 0.75rem;
     font-family: var(--font-display);
-    font-weight: 700;
+    font-weight: calc(700 + var(--type-heading-weight, 0));
     font-stretch: 106%;
-    letter-spacing: -0.02em;
-    font-size: 1.12rem;
+    letter-spacing: calc(-0.02em + var(--type-heading-track, 0em));
+    font-size: calc(1.12rem * var(--type-heading-scale, 1));
     color: var(--color-ink);
   }
   .value-body {
     margin: 0;
-    font-size: 0.92rem;
+    font-size: calc(0.92rem * var(--type-body-scale, 1));
     line-height: 1.65;
     color: var(--color-ink-muted);
   }
@@ -845,11 +845,11 @@ const jobSchema = roles.map((r) => ({
   }
   .hire-n {
     font-family: var(--font-display);
-    font-weight: 800;
+    font-weight: calc(800 + var(--type-display-weight, 0));
     font-stretch: 112%;
-    letter-spacing: -0.04em;
+    letter-spacing: calc(-0.04em + var(--type-display-track, 0em));
     line-height: 1;
-    font-size: 2.25rem;
+    font-size: calc(2.25rem * var(--type-display-scale, 1));
     color: var(--color-line-strong);
   }
   .hire-head {
@@ -862,10 +862,10 @@ const jobSchema = roles.map((r) => ({
   .hire-title {
     margin: 0;
     font-family: var(--font-display);
-    font-weight: 700;
+    font-weight: calc(700 + var(--type-heading-weight, 0));
     font-stretch: 106%;
-    letter-spacing: -0.02em;
-    font-size: clamp(1.1rem, 2.2vw, 1.4rem);
+    letter-spacing: calc(-0.02em + var(--type-heading-track, 0em));
+    font-size: calc(clamp(1.1rem, 2.2vw, 1.4rem) * var(--type-heading-scale, 1));
     color: var(--color-ink);
   }
   .hire-when {
@@ -873,14 +873,14 @@ const jobSchema = roles.map((r) => ({
     border: 1px solid var(--color-line);
     border-radius: 100px;
     font-family: var(--font-label);
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
     color: var(--color-accent);
     white-space: nowrap;
   }
   .hire-text {
     margin: 0;
     max-width: 68ch;
-    font-size: 0.95rem;
+    font-size: calc(0.95rem * var(--type-body-scale, 1));
     line-height: 1.7;
     color: var(--color-ink-muted);
   }

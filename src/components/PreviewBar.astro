@@ -44,8 +44,8 @@ import { previewMode, draftsVisible } from '../lib/sanity/client';
     background: #7c2d12;
     color: #fff7ed;
     font-family: var(--font-label);
-    font-size: 0.75rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.75rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     text-align: center;
   }
   .preview-bar strong {

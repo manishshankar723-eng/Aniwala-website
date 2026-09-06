@@ -718,29 +718,29 @@ const initials = hostName
   }
   .bk-initials {
     font-family: var(--font-display);
-    font-size: 1.5rem;
-    font-weight: 800;
+    font-size: calc(1.5rem * var(--type-heading-scale, 1));
+    font-weight: calc(800 + var(--type-heading-weight, 0));
     color: var(--color-accent);
-    letter-spacing: 0.02em;
+    letter-spacing: calc(0.02em + var(--type-heading-track, 0em));
   }
 
   .bk-host {
     margin: 0;
-    font-weight: 600;
-    font-size: 0.98rem;
+    font-weight: calc(600 + var(--type-body-weight, 0));
+    font-size: calc(0.98rem * var(--type-body-scale, 1));
   }
   .bk-role {
     margin: 0.2rem 0 0;
-    font-size: 0.82rem;
+    font-size: calc(0.82rem * var(--type-label-scale, 1));
     color: var(--color-ink-faint);
   }
   .bk-title {
     margin: 1.1rem 0 1.25rem;
     font-family: var(--font-display);
-    font-size: 1.45rem;
-    font-weight: 750;
+    font-size: calc(1.45rem * var(--type-heading-scale, 1));
+    font-weight: calc(750 + var(--type-heading-weight, 0));
     font-stretch: 106%;
-    letter-spacing: -0.02em;
+    letter-spacing: calc(-0.02em + var(--type-heading-track, 0em));
     line-height: 1.15;
   }
 
@@ -754,7 +754,7 @@ const initials = hostName
     align-items: flex-start;
     gap: 0.65rem;
     min-height: 1.35rem;
-    font-size: 0.86rem;
+    font-size: calc(0.86rem * var(--type-label-scale, 1));
     color: var(--color-ink-muted);
   }
   .bk-row--when {
@@ -782,7 +782,7 @@ const initials = hostName
     border: 1px solid transparent;
     border-radius: 0.3rem;
     font-family: var(--font-body);
-    font-size: 0.78rem;
+    font-size: calc(0.78rem * var(--type-body-scale, 1));
     color: var(--color-ink-muted);
     cursor: pointer;
     transition:
@@ -800,8 +800,8 @@ const initials = hostName
 
   .bk-expect-title {
     margin: 1.75rem 0 0.75rem;
-    font-size: 0.85rem;
-    font-weight: 600;
+    font-size: calc(0.85rem * var(--type-heading-scale, 1));
+    font-weight: calc(600 + var(--type-heading-weight, 0));
   }
   .bk-expect {
     margin: 0;
@@ -814,7 +814,7 @@ const initials = hostName
     gap: 0.5rem;
   }
   .bk-expect li {
-    font-size: 0.85rem;
+    font-size: calc(0.85rem * var(--type-label-scale, 1));
     line-height: 1.5;
     color: var(--color-ink-muted);
   }
@@ -838,8 +838,8 @@ const initials = hostName
   }
   .bk-month {
     font-family: var(--font-display);
-    font-size: 1.15rem;
-    font-weight: 750;
+    font-size: calc(1.15rem * var(--type-heading-scale, 1));
+    font-weight: calc(750 + var(--type-heading-weight, 0));
   }
   .bk-month :global(span) {
     color: var(--color-ink-faint);
@@ -889,8 +889,8 @@ const initials = hostName
   .bk-dow span {
     text-align: center;
     font-family: var(--font-label);
-    font-size: 0.72rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-ink-faint);
   }
 
@@ -909,7 +909,7 @@ const initials = hostName
     border: 1px solid transparent;
     border-radius: 0.4rem;
     font-family: var(--font-body);
-    font-size: 0.9rem;
+    font-size: calc(0.9rem * var(--type-body-scale, 1));
     color: var(--color-ink-faint);
     cursor: default;
   }
@@ -954,8 +954,8 @@ const initials = hostName
   .bk-tz-label {
     display: block;
     margin-bottom: 0.45rem;
-    font-size: 0.82rem;
-    font-weight: 600;
+    font-size: calc(0.82rem * var(--type-label-scale, 1));
+    font-weight: calc(600 + var(--type-label-weight, 0));
   }
   .bk-tz select {
     width: 100%;
@@ -964,7 +964,7 @@ const initials = hostName
     border: 1px solid var(--color-line);
     border-radius: 0.4rem;
     font-family: var(--font-body);
-    font-size: 0.88rem;
+    font-size: calc(0.88rem * var(--type-body-scale, 1));
     color: var(--color-ink);
   }
 
@@ -991,8 +991,8 @@ const initials = hostName
     margin-bottom: 0.9rem;
   }
   .bk-day {
-    font-weight: 600;
-    font-size: 0.92rem;
+    font-weight: calc(600 + var(--type-body-weight, 0));
+    font-size: calc(0.92rem * var(--type-body-scale, 1));
   }
   .bk-hr {
     display: flex;
@@ -1006,7 +1006,7 @@ const initials = hostName
     border: 0;
     border-radius: 0.25rem;
     font-family: var(--font-label);
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--type-label-scale, 1));
     color: var(--color-ink-muted);
     cursor: pointer;
   }
@@ -1055,7 +1055,7 @@ const initials = hostName
     border: 1px solid var(--color-line);
     border-radius: 0.4rem;
     font-family: var(--font-body);
-    font-size: 0.88rem;
+    font-size: calc(0.88rem * var(--type-body-scale, 1));
     color: var(--color-ink);
     cursor: pointer;
     transition:
@@ -1074,8 +1074,8 @@ const initials = hostName
     border: 0;
     border-radius: 0.4rem;
     font-family: var(--font-body);
-    font-size: 0.85rem;
-    font-weight: 600;
+    font-size: calc(0.85rem * var(--type-body-scale, 1));
+    font-weight: calc(600 + var(--type-body-weight, 0));
     color: var(--color-cta-ink);
     cursor: pointer;
   }
@@ -1089,7 +1089,7 @@ const initials = hostName
   }
   .bk-slot-list :global(.bk-none) {
     margin: 0;
-    font-size: 0.86rem;
+    font-size: calc(0.86rem * var(--type-label-scale, 1));
     color: var(--color-ink-faint);
   }
 
@@ -1131,8 +1131,8 @@ const initials = hostName
   .bk-details-title {
     margin: 0;
     font-family: var(--font-display);
-    font-size: 1.25rem;
-    font-weight: 750;
+    font-size: calc(1.25rem * var(--type-heading-scale, 1));
+    font-weight: calc(750 + var(--type-heading-weight, 0));
   }
 
   .bk-form {
@@ -1148,8 +1148,8 @@ const initials = hostName
     gap: 0.45rem;
   }
   .bk-label {
-    font-size: 0.82rem;
-    font-weight: 600;
+    font-size: calc(0.82rem * var(--type-label-scale, 1));
+    font-weight: calc(600 + var(--type-label-weight, 0));
   }
   .bk-form input,
   .bk-form select,
@@ -1160,7 +1160,7 @@ const initials = hostName
     border: 1px solid var(--color-line);
     border-radius: 0.4rem;
     font-family: var(--font-body);
-    font-size: 0.92rem;
+    font-size: calc(0.92rem * var(--type-body-scale, 1));
     color: var(--color-ink);
     transition: border-color 0.2s ease;
   }
@@ -1196,8 +1196,8 @@ const initials = hostName
     border: 0;
     border-radius: 0.4rem;
     font-family: var(--font-body);
-    font-size: 0.88rem;
-    font-weight: 600;
+    font-size: calc(0.88rem * var(--type-body-scale, 1));
+    font-weight: calc(600 + var(--type-body-weight, 0));
     color: var(--color-cta-ink);
     cursor: pointer;
     transition: background-color 0.2s ease;
@@ -1212,7 +1212,7 @@ const initials = hostName
 
   .bk-msg {
     margin: 0;
-    font-size: 0.86rem;
+    font-size: calc(0.86rem * var(--type-label-scale, 1));
     min-height: 1.2em;
   }
   .bk-msg.is-error {
@@ -1228,13 +1228,13 @@ const initials = hostName
     background: var(--color-ground);
     border: 1px dashed var(--color-line-strong);
     border-radius: 0.4rem;
-    font-size: 0.8rem;
+    font-size: calc(0.8rem * var(--type-label-scale, 1));
     line-height: 1.55;
     color: var(--color-ink-muted);
   }
   .bk-warn code {
     font-family: var(--font-label);
-    font-size: 0.76rem;
+    font-size: calc(0.76rem * var(--type-label-scale, 1));
     color: var(--color-accent);
   }
 
@@ -1246,8 +1246,8 @@ const initials = hostName
   .bk-details :global(.bk-done h3) {
     margin: 0;
     font-family: var(--font-display);
-    font-size: 1.4rem;
-    font-weight: 750;
+    font-size: calc(1.4rem * var(--type-heading-scale, 1));
+    font-weight: calc(750 + var(--type-heading-weight, 0));
     color: var(--color-accent);
   }
   .bk-details :global(.bk-done p) {

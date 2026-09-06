@@ -134,7 +134,7 @@ const allOwn = studies.length > 0 && ownCount === studies.length;
     margin: 0 0 clamp(2rem, 4vw, 3rem);
     padding-left: 1rem;
     border-left: 2px solid var(--color-accent);
-    font-size: 0.95rem;
+    font-size: calc(0.95rem * var(--type-label-scale, 1));
     line-height: 1.65;
     color: var(--color-ink-muted);
   }
@@ -164,10 +164,10 @@ const allOwn = studies.length > 0 && ownCount === studies.length;
   .empty-title {
     margin: 0;
     font-family: var(--font-display);
-    font-size: clamp(1.4rem, 3vw, 2rem);
-    font-weight: 750;
+    font-size: calc(clamp(1.4rem, 3vw, 2rem) * var(--type-display-scale, 1));
+    font-weight: calc(750 + var(--type-display-weight, 0));
     font-stretch: 108%;
-    letter-spacing: -0.022em;
+    letter-spacing: calc(-0.022em + var(--type-display-track, 0em));
   }
   .empty-body {
     margin: 1rem auto 0;
@@ -179,8 +179,8 @@ const allOwn = studies.length > 0 && ownCount === studies.length;
     display: inline-block;
     margin-top: 1.75rem;
     font-family: var(--font-label);
-    font-size: 0.75rem;
-    letter-spacing: 0.015em;
+    font-size: calc(0.75rem * var(--type-label-scale, 1));
+    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
     color: var(--color-accent);
     text-decoration: none;
     padding-bottom: 0.3rem;

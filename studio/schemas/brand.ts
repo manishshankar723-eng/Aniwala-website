@@ -31,6 +31,74 @@
  */
 import { defineType, defineField } from 'sanity';
 import { contrastWarning } from '../components/contrast';
+import { FONT_CHOICES, TYPE_ROLES } from '../../src/config/fonts';
+
+/**
+ * A typeface picker.
+ *
+ * A dropdown rather than a text box because the fonts are self-hosted files
+ * — see `src/config/fonts.ts`. A typed-in family nothing has loaded would
+ * fall silently through to the next name in the stack, so the setting would
+ * appear to save and then do nothing.
+ */
+const face = (name: string, title: string, description: string) =>
+  defineField({
+    name,
+    title,
+    type: 'string',
+    group: 'type',
+    description,
+    options: { list: FONT_CHOICES.map((f) => ({ title: f.title, value: f.name })) },
+  });
+
+/**
+ * The three knobs each type role gets.
+ *
+ * MULTIPLIERS AND OFFSETS, never absolute values. Every one of the 305 type
+ * declarations on this site is now written as `calc(<the designed value> *
+ * var(--type-<role>-scale, 1))`, so at 100 / 0 / 0 the page computes exactly
+ * what it did before this document existed. That is what makes these safe to
+ * expose: the worst an editor can do is scale a relationship, not destroy it.
+ *
+ * Leaving a field blank is the same as its default. Nothing here is required.
+ */
+const roleFields = (role: { name: string; title: string; description: string }) => {
+  const cap = role.name[0].toUpperCase() + role.name.slice(1);
+  return [
+    defineField({
+      name: `type${cap}Scale`,
+      title: `${role.title} — size`,
+      type: 'number',
+      group: 'type',
+      description: `${role.description} 100 is the size the site was designed at; 110 is ten per cent larger.`,
+      initialValue: 100,
+      validation: (Rule) =>
+        Rule.min(50)
+          .max(200)
+          .warning('Below 70 or above 150 the layout around this text starts to break down.'),
+    }),
+    defineField({
+      name: `type${cap}Weight`,
+      title: `${role.title} — weight`,
+      type: 'number',
+      group: 'type',
+      description:
+        'Added to the designed weight. 0 leaves it alone; 100 is roughly one step bolder, -100 one step lighter. The fonts carry a real weight axis, so this is smooth rather than snapping.',
+      initialValue: 0,
+      validation: (Rule) => Rule.min(-300).max(300),
+    }),
+    defineField({
+      name: `type${cap}Track`,
+      title: `${role.title} — letter spacing`,
+      type: 'number',
+      group: 'type',
+      description:
+        'Added to the designed spacing, in em. 0 leaves it alone. 0.02 opens it up slightly; -0.01 tightens it. Small numbers — 0.1 is already extreme.',
+      initialValue: 0,
+      validation: (Rule) => Rule.min(-0.1).max(0.5),
+    }),
+  ];
+};
 
 /** A hex field, with the same shape and message every time. */
 const hex = (
@@ -79,6 +147,7 @@ export default defineType({
   groups: [
     { name: 'logo', title: 'Header logo', default: true },
     { name: 'colour', title: 'Brand colour' },
+    { name: 'type', title: 'Typography' },
     { name: 'icon', title: 'Browser icon' },
   ],
 
@@ -158,6 +227,52 @@ export default defineType({
       'The text and icon colour inside a filled button, in both themes. Nearly always a very dark or very light neutral — this is the one that decides whether a button can be read at all.',
       (v, doc) => contrastWarning(v, (doc.accentDark as string) || '#e4c24c', 4.5, 'Button text on the dark-theme fill')
     ),
+
+    /* ---------------------------------------------------------------- */
+
+    /* ================================================================= */
+    /* Typography                                                        */
+    /*                                                                   */
+    /* FOUR FACES, because the site uses four and always has. They were  */
+    /* already CSS variables — 184 of the 190 font-family declarations   */
+    /* pointed at one of these tokens — so this exposes a system that    */
+    /* existed rather than inventing one.                                */
+    /*                                                                   */
+    /* Leave them blank and the site keeps the faces it shipped with.    */
+    /* ================================================================= */
+
+    face(
+      'fontDisplay',
+      'Heading font',
+      'Page titles, section headings and card titles. The face with the most personality on the site — it is what people read first.'
+    ),
+    face(
+      'fontBody',
+      'Body font',
+      'Paragraphs and form fields. Choose for legibility at small sizes rather than character; this is the one people read for minutes at a time.'
+    ),
+    face(
+      'fontLabel',
+      'Label font',
+      'Eyebrows, chips, badges, buttons and meta rows. Used more than any other face on the site — over half of all text set here — so a change is felt on every page.'
+    ),
+    face('fontMono', 'Code font', 'Inline code and code blocks in posts and case studies.'),
+
+    defineField({
+      name: 'textScale',
+      title: 'Overall text size',
+      type: 'number',
+      group: 'type',
+      description:
+        'Scales EVERY size below at once, as a percentage. 100 is the size the site was designed at. Use this first — it keeps every relationship intact. The per-role sizes underneath then adjust one group relative to the rest.',
+      initialValue: 100,
+      validation: (Rule) =>
+        Rule.min(50)
+          .max(200)
+          .warning('Below 80 or above 130 the layout starts to fight the text.'),
+    }),
+
+    ...TYPE_ROLES.flatMap(roleFields),
 
     /* ---------------------------------------------------------------- */
 

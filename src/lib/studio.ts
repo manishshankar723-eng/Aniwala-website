@@ -22,6 +22,7 @@
 import { getCollection, getEntry } from 'astro:content';
 import { imageUrl, iconUrl, isSvgAsset, previewMode, type SanityImage } from './sanity/client';
 import type { SocialIcon } from '../config/contact';
+import { TYPE_ROLES, fontStack } from '../config/fonts';
 import {
   UI_COPY_FIELDS,
   type UiCopyField,
@@ -681,6 +682,17 @@ export interface Brand {
   accentLight: string;
   buttonFill: string;
   buttonInk: string;
+  /**
+   * Typography.
+   *
+   * `fonts` holds ready-to-use CSS stacks, already resolved from the stored
+   * key — `undefined` for "keep the face the site ships with". `typeRoles`
+   * holds the five roles with the global scale ALREADY folded into each, so
+   * the layout multiplies nothing and there is one place the arithmetic can
+   * be wrong.
+   */
+  fonts: { display?: string; body?: string; label?: string; mono?: string };
+  typeRoles: { name: string; scale: number; weight: number; track: number }[];
   /** Ready-to-render icon URLs at the sizes the head and manifest declare. */
   icon?: { svg?: string; png32: string; png180: string; png192: string; png512: string };
   /** Never blank — the browser-bar tags always render, so these fall back
@@ -720,6 +732,10 @@ const EMPTY_BRAND: Brand = {
   accentLight: '',
   buttonFill: '',
   buttonInk: '',
+  fonts: {},
+  /* Every role at its designed value, which is what an absent document
+     means: the site as drawn. */
+  typeRoles: TYPE_ROLES.map((r) => ({ name: r.name, scale: 1, weight: 0, track: 0 })),
   themeColor: DARK_GROUND,
   themeColorLight: LIGHT_GROUND,
   backgroundColor: '',
@@ -750,6 +766,32 @@ export async function getBrand(): Promise<Brand> {
     accentLight: d.accentLight,
     buttonFill: d.buttonFill,
     buttonInk: d.buttonInk,
+
+    /* Keys in, stacks out. The Studio stores `bricolage`; the site needs the
+       whole fallback chain, which lives in `config/fonts.ts` and is never
+       written into the CMS — so a fallback can be improved without an edit. */
+    fonts: {
+      display: fontStack(d.fontDisplay),
+      body: fontStack(d.fontBody),
+      label: fontStack(d.fontLabel),
+      mono: fontStack(d.fontMono),
+    },
+    /* The global scale is folded in HERE, once, rather than in the template.
+       Both numbers are percentages in the Studio because that is how an
+       editor thinks about text size; CSS wants a plain multiplier. */
+    typeRoles: TYPE_ROLES.map((r) => {
+      const cap = r.name[0].toUpperCase() + r.name.slice(1);
+      const read = (suffix: string) => Number((d as Record<string, unknown>)[`type${cap}${suffix}`]);
+      const scale = ((d.textScale as number) / 100) * (read('Scale') / 100);
+      return {
+        name: r.name,
+        /* Rounded so the emitted CSS does not carry sixteen decimal places
+           of floating-point noise on every one of five variables. */
+        scale: Math.round(scale * 1e4) / 1e4,
+        weight: read('Weight'),
+        track: read('Track'),
+      };
+    }),
     /* Every size the head and the manifest declare, resolved once here so
        neither has to know the image lives on a CDN. An SVG upload also gets
        its own entry, because the CDN does not transform SVGs and the `type`
