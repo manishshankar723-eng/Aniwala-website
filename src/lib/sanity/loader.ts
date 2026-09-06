@@ -273,7 +273,10 @@ export const sanityPosts = (): Loader =>
       ...(doc.updatedDate ? { updatedDate: doc.updatedDate } : {}),
       category: doc.category,
       tags: doc.tags ?? [],
-      author: doc.author ?? 'Aniwala Studios',
+      /* Blank means "the studio", and the template fills in the studio's
+         name from `uiCopy` — the one place it is written down. A literal
+         default here was a second copy of it that a rename would not reach. */
+      author: doc.author ?? '',
       tint: doc.tint ?? '210 70% 22%',
       ...(doc.cover ? { cover: doc.cover } : {}),
       ...(doc.seoTitle ? { seoTitle: doc.seoTitle } : {}),
@@ -674,7 +677,7 @@ export const sanityServices = (): Loader =>
     type: 'service',
     hasBody: false,
     projection: `
-      _id, slug, title, label, shortName, article, tagline, intro, tint, order,
+      _id, slug, title, label, shortName, article, tagline, intro, tint, hero, order,
       offerings, pipeline, tools, deliverables,
       "related": related[]->slug.current, seoTitle, seoDescription, ogImage, noindex, canonicalUrl
     `,
@@ -686,6 +689,10 @@ export const sanityServices = (): Loader =>
       tagline: doc.tagline,
       intro: doc.intro,
       tint: doc.tint,
+      /* Optional, and omitted rather than sent as null — the Zod field is
+         `.optional()`, which null does not satisfy. Same pattern as `cover`
+         on a post. */
+      ...(doc.hero ? { hero: doc.hero } : {}),
       order: doc.order ?? 50,
       offerings: (doc.offerings ?? []).map((o: Record<string, any>) => ({
         title: o.title,
@@ -720,7 +727,7 @@ export const sanityWorkCategories = (): Loader =>
     type: 'workCategory',
     hasBody: false,
     projection: `
-      _id, slug, title, shortName, blurb, intro, tint, wide, order,
+      _id, slug, title, shortName, blurb, intro, tint, image, wide, order,
       "services": services[]->slug.current, seoTitle, seoDescription, ogImage, noindex, canonicalUrl
     `,
     toData: (doc, isDraft) => ({
@@ -729,6 +736,9 @@ export const sanityWorkCategories = (): Loader =>
       blurb: doc.blurb,
       intro: doc.intro,
       tint: doc.tint,
+      /* Optional. Omitted rather than null — see the note on the service
+         hero above. */
+      ...(doc.image ? { image: doc.image } : {}),
       wide: doc.wide ?? false,
       order: doc.order ?? 50,
       services: (doc.services ?? []).filter(Boolean),

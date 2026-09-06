@@ -157,7 +157,11 @@ const blog = defineCollection({
     /** One only. Drives the category filter pages. */
     category: z.enum(CATEGORIES),
     tags: z.array(z.string()).default([]),
-    author: z.string().default('Aniwala Studios'),
+    /* Blank is normal and means "the studio". `blog/[slug].astro` renders
+       `ui.siteName` for it, so the studio's name lives in exactly one place
+       and a rename in the Studio reaches every post that never named a
+       person. */
+    author: z.string().default(''),
     /** Card and hero artwork. Falls back to the `tint` placeholder when unset. */
     cover: sanityImage.optional(),
     /**
@@ -365,13 +369,19 @@ const announcement = defineCollection({
  * Artwork, keyed by slot.
  *
  * The entry id IS the slot name, so a page asks for its picture by a stable
- * key — `getArtwork('service-vfx')` — rather than by hunting through a list.
+ * key — `getArtwork('home-hero-poster')` — rather than by hunting through a
+ * list.
  *
  * `slot` is validated against `config/imageSlots.ts` rather than left free.
  * An image filed against a slot nothing renders is invisible with no error,
  * which is the worst kind of bug: the editor uploaded something, the site
  * looks unchanged, and there is nothing to read. Failing the build names the
  * bad slot instead.
+ *
+ * That validation is also what makes shrinking the slot list safe. The
+ * `portfolio-*` and `service-*` slots were removed when those pictures moved
+ * onto their own documents, and anything still filed against one now fails
+ * the build by name rather than quietly rendering nowhere.
  */
 const artwork = defineCollection({
   loader: sanityArtwork(),
@@ -667,6 +677,11 @@ const servicesCollection = defineCollection({
     tagline: z.string().min(1).max(300),
     intro: z.string().min(1),
     tint: z.string(),
+    /* The hero behind the page title. Optional — an empty one leaves the
+       tint gradient exactly as it was. It lives on the service rather than
+       in the Images list so that a service created in the Studio can have
+       one without a code change; see `config/imageSlots.ts`. */
+    hero: sanityImage.optional(),
     order: z.number().int().default(50),
     offerings: z.array(titleBodyEntry).min(1),
     pipeline: z.array(titleBodyEntry).min(1),
@@ -796,6 +811,9 @@ const workCategories = defineCollection({
     blurb: z.string().min(1),
     intro: z.string().min(1),
     tint: z.string(),
+    /* The tile picture. Optional, on the discipline for the same reason the
+       service hero is on the service — see there. */
+    image: sanityImage.optional(),
     wide: z.boolean().default(false),
     order: z.number().int().default(50),
     services: z.array(z.string()).default([]),

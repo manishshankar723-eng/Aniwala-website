@@ -22,7 +22,7 @@
  * the same person who should add it to search.
  */
 import type { SearchDoc } from '../config/nav';
-import { getNavigation } from './studio';
+import { getNavigation, getUiCopy } from './studio';
 import { getPosts } from './posts';
 import { getCaseStudies } from './caseStudies';
 import { getServices } from './services';
@@ -31,6 +31,11 @@ import { getRoles } from './roles';
 
 export async function buildSearchDocs(): Promise<SearchDoc[]> {
   const searchIndex = (await getNavigation()).searchPages;
+  /* The group label beside each result. On `uiCopy` rather than inline here,
+     which is where every other visible string on the site already lives — the
+     hand-listed pages above carry their own `section`, set beside the row it
+     labels on the Menus document. */
+  const ui = await getUiCopy();
   const posts = await getPosts();
   const studies = await getCaseStudies();
   const roles = await getRoles();
@@ -40,7 +45,7 @@ export async function buildSearchDocs(): Promise<SearchDoc[]> {
   const serviceDocs = (await getServices()).map((s) => ({
     title: s.label,
     href: `/services/${s.slug}/`,
-    section: 'Services',
+    section: ui.searchSectionServices,
     keywords: [s.tagline, ...s.offerings.map((o) => o.title), ...s.tools].join(' ').toLowerCase(),
   }));
 
@@ -49,14 +54,14 @@ export async function buildSearchDocs(): Promise<SearchDoc[]> {
   const postDocs = posts.map((p) => ({
     title: p.data.title,
     href: `/blog/${p.id}/`,
-    section: 'Blog',
+    section: ui.searchSectionBlog,
     keywords: [p.data.description, p.data.category, ...p.data.tags].join(' ').toLowerCase(),
   }));
 
   const caseDocs = studies.map((c) => ({
     title: c.data.title,
     href: `/case-studies/${c.id}/`,
-    section: 'Case studies',
+    section: ui.searchSectionCaseStudies,
     keywords: [c.data.description, c.data.sector, c.data.client, ...c.data.tools]
       .join(' ')
       .toLowerCase(),
@@ -70,7 +75,7 @@ export async function buildSearchDocs(): Promise<SearchDoc[]> {
   const portfolioDocs = (await getWorkCategories()).map((c) => ({
     title: c.title,
     href: categoryHref(c.slug),
-    section: 'Portfolio',
+    section: ui.searchSectionPortfolio,
     keywords: [c.blurb, c.intro].join(' ').toLowerCase(),
   }));
 
@@ -82,7 +87,7 @@ export async function buildSearchDocs(): Promise<SearchDoc[]> {
   const roleDocs = roles.map((r) => ({
     title: r.data.title,
     href: `/careers/${r.id}/`,
-    section: 'Careers',
+    section: ui.searchSectionCareers,
     keywords: [
       r.data.summary,
       r.data.discipline,

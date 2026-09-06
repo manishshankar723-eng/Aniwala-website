@@ -199,6 +199,57 @@ export default defineType({
       validation: req,
     }),
 
+    /*
+     * The grey label beside each search result, saying which part of the site
+     * it came from.
+     *
+     * These were the last visible strings on the site still typed into a
+     * template — `lib/searchDocs.ts` had them inline while the two fields
+     * above it were already here, so an editor could rewrite the placeholder
+     * and the empty state but not the word sitting next to every single
+     * result. They are separate fields rather than one list because each is
+     * attached to a different derived group in that file, not to a row an
+     * editor can add.
+     *
+     * The hand-listed pages are NOT here: each of those carries its own
+     * `section` on the Menus document, beside the row it labels.
+     */
+    defineField({
+      name: 'searchSectionServices',
+      title: 'Search section — services',
+      type: 'string',
+      group: 'chrome',
+      validation: req,
+    }),
+    defineField({
+      name: 'searchSectionPortfolio',
+      title: 'Search section — portfolio',
+      type: 'string',
+      group: 'chrome',
+      validation: req,
+    }),
+    defineField({
+      name: 'searchSectionCaseStudies',
+      title: 'Search section — case studies',
+      type: 'string',
+      group: 'chrome',
+      validation: req,
+    }),
+    defineField({
+      name: 'searchSectionCareers',
+      title: 'Search section — careers',
+      type: 'string',
+      group: 'chrome',
+      validation: req,
+    }),
+    defineField({
+      name: 'searchSectionBlog',
+      title: 'Search section — blog',
+      type: 'string',
+      group: 'chrome',
+      validation: req,
+    }),
+
     /* --- Cards and filter bars --------------------------------------- */
     defineField({
       name: 'cardReadMore',

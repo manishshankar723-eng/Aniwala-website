@@ -34,6 +34,8 @@ export interface Service {
   tagline: string;
   intro: string;
   tint: string;
+  /** Hero behind the page title, or undefined — the page falls back to `tint`. */
+  hero?: SanityImage;
   order: number;
   offerings: Offering[];
   pipeline: PipelineStep[];

@@ -12,30 +12,59 @@
 /* ------------------------------------------------------------------ */
 
 /**
+ * Read a build-time variable.
+ *
+ * The same helper `lib/sanity/client.ts` uses, and for the same reason: this
+ * file is imported from component frontmatter, which runs in Node during the
+ * build where `process.env` is the reliable source. `astro.config.mjs` loads
+ * `.env` into `process.env` before anything else runs, so both paths see the
+ * same values. `import.meta.env` is checked second for the dev server.
+ */
+const env = (key: string): string => {
+  const fromNode = typeof process !== 'undefined' ? process.env?.[key] : undefined;
+  return fromNode ?? (import.meta.env as Record<string, string | undefined>)[key] ?? '';
+};
+
+/**
  * Enquiries, bookings and blog comments all land in one Supabase project,
  * so there is a single dashboard to check and a single export to take.
+ *
+ * THESE USED TO BE STRING LITERALS IN THIS FILE, and they sat as
+ * `PASTE-YOUR-SUPABASE-PROJECT-URL` from the day the forms were written until
+ * the day somebody audited them. That is the predictable outcome: connecting
+ * the forms meant editing a tracked source file, which meant a commit, a
+ * review and a deploy for two values that are configuration rather than code
+ * — so it never happened, and three forms sat dead on the live site while
+ * every page that rendered them looked finished.
+ *
+ * As environment variables they are set once in `.env` locally and in the CI
+ * environment for the deploy, alongside the Sanity credentials they sit
+ * beside in every other respect.
  *
  * SETUP
  *   1. Create a free project at https://supabase.com.
  *   2. SQL Editor -> New query -> paste ALL of `supabase/schema.sql` -> Run.
  *      That creates both tables AND the Row Level Security policies. Do not
  *      skip it: the policies are the only thing protecting the data.
- *   3. Project Settings -> API. Copy "Project URL" and the "anon public"
- *      key into the two constants below.
+ *   3. Project Settings -> API. Copy "Project URL" and the "anon public" key
+ *      into `SUPABASE_URL` and `SUPABASE_ANON_KEY` in `.env`, and add the
+ *      same two to the deploy environment.
  *
  * THE ANON KEY IS PUBLIC. It ships inside the JavaScript bundle and anyone
  * can read it — that is how Supabase is designed. Security comes entirely
  * from the RLS policies, which let anon INSERT and nothing else (comments
- * can additionally read rows you have approved).
+ * can additionally read rows you have approved). It is in `.env` because that
+ * is where configuration belongs, NOT because it is a secret.
  *
  * NEVER put the `service_role` key here. It bypasses RLS completely, and
- * this file is compiled into a public website.
+ * whatever is in these two constants is compiled into a public website.
  *
- * While these are left as placeholders, the booking form and comment form
- * both refuse to submit and say so, rather than dropping data into a void.
+ * While either is unset, the booking form, the application form and the
+ * comment form all refuse to submit and say so, rather than dropping data
+ * into a void.
  */
-export const SUPABASE_URL = 'PASTE-YOUR-SUPABASE-PROJECT-URL';
-export const SUPABASE_ANON_KEY = 'PASTE-YOUR-SUPABASE-ANON-PUBLIC-KEY';
+export const SUPABASE_URL = env('SUPABASE_URL');
+export const SUPABASE_ANON_KEY = env('SUPABASE_ANON_KEY');
 
 /**
  * Comments are held for approval before they appear. Flip `approved` to true

@@ -6,10 +6,13 @@
  * taxonomy rather than a view of the services — a craft and a service are
  * genuinely different things, and character design draws on three services.
  *
- * THE SLUG IS THE URL and the key the artwork slots and the pieces are filed
- * against. Renaming one breaks that page's links, orphans its image, and
- * detaches every piece filed under it. It is the one field here worth being
- * frightened of.
+ * THE SLUG IS THE URL and the key the pieces are filed against. Renaming one
+ * breaks that page's links and detaches every piece filed under it. It is the
+ * one field here worth being frightened of.
+ *
+ * It no longer orphans the tile image: that used to be an `artwork` document
+ * filed against `portfolio-<slug>`, and now lives on this document — see the
+ * note on the `image` field.
  */
 import { defineType, defineField, defineArrayMember } from 'sanity';
 import { seoFields } from './seoFields';
@@ -37,7 +40,7 @@ export default defineType({
       title: 'URL',
       type: 'slug',
       group: 'main',
-      description: 'Becomes /portfolio/<this>/. Pieces and images are filed against it.',
+      description: 'Becomes /portfolio/<this>/. Pieces are filed against it.',
       options: { source: 'title', maxLength: 60 },
       validation: (Rule) => Rule.required(),
     }),
@@ -72,11 +75,44 @@ export default defineType({
       title: 'Tint',
       type: 'string',
       group: 'main',
-      description: 'HSL triple behind the tile until real art exists, e.g. "210 70% 22%".',
+      description:
+        'HSL triple behind the tile, e.g. "210 70% 22%". Stays underneath the image below rather than being replaced by it, so the tile holds its colour while the picture loads and still looks deliberate when there is none.',
       validation: (Rule) =>
         Rule.required().custom((v) =>
           /^\d{1,3} \d{1,3}% \d{1,3}%$/.test(String(v)) ? true : 'Three parts, like "210 70% 22%".'
         ),
+    }),
+
+    /*
+     * The tile image, ON THE DISCIPLINE rather than in the Images list.
+     *
+     * It used to be an `artwork` document filed against the slot name
+     * `portfolio-<slug>`, from a hardcoded list of six in the website's
+     * `src/config/imageSlots.ts` — so a seventh discipline created in the
+     * Studio had nowhere to put a picture, fell back to the flat tint with no
+     * warning, and needed a code change plus a Studio redeploy to fix.
+     *
+     * See the same note on `service.ts`. Here the image is created with the
+     * discipline, deleted with it, and cannot be orphaned by a slug rename.
+     */
+    defineField({
+      name: 'image',
+      title: 'Tile image',
+      type: 'image',
+      group: 'main',
+      options: { hotspot: true },
+      description:
+        'Optional. The picture on this discipline’s tile — on the homepage grid and the portfolio index. Landscape, at least 1600px wide; wide tiles span two columns, so give those something that survives the crop. Leave it empty and the tint above is used on its own.',
+      fields: [
+        defineField({
+          name: 'alt',
+          title: 'Alt text',
+          type: 'string',
+          description:
+            'What the image shows. The tile’s own title and blurb sit beside it, so this is only read when the picture fails to load.',
+          validation: (Rule) => Rule.required().warning('Every image needs alt text.'),
+        }),
+      ],
     }),
     defineField({
       name: 'services',
@@ -110,7 +146,13 @@ export default defineType({
   orderings: [{ title: 'Position', name: 'order', by: [{ field: 'order', direction: 'asc' }] }],
 
   preview: {
-    select: { title: 'title', slug: 'slug.current', order: 'order' },
-    prepare: ({ title, slug, order }) => ({ title, subtitle: `/portfolio/${slug}/  ·  ${order}` }),
+    /* `media` so the "Portfolio disciplines" list under Images reads as a
+       contact sheet rather than a column of identical placeholder squares. */
+    select: { title: 'title', slug: 'slug.current', order: 'order', media: 'image' },
+    prepare: ({ title, slug, order, media }) => ({
+      title,
+      subtitle: `/portfolio/${slug}/  ·  ${order}`,
+      media,
+    }),
   },
 });

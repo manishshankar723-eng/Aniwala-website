@@ -45,6 +45,17 @@ const seoImage = post.data.ogImage;
 
 const ui = await getUiCopy();
 
+/**
+ * Who the post is bylined to.
+ *
+ * `author` is blank on almost every post, and blank means "the studio" — so
+ * the name comes from `uiCopy`, which is where the studio's name is written
+ * down once. It used to default to the literal string "Aniwala Studios" in
+ * two other places, which is two copies a rename would have missed while the
+ * publisher line three lines below already read the editable one.
+ */
+const byline = author || ui.siteName;
+
 const { Content, headings } = await render(post);
 const related = await getRelatedPosts(post);
 
@@ -59,7 +70,7 @@ const articleSchema = {
   description,
   datePublished: isoDate(pubDate),
   dateModified: isoDate(updatedDate ?? pubDate),
-  author: { '@type': 'Organization', name: author },
+  author: { '@type': 'Organization', name: byline },
   publisher: {
     '@type': 'Organization',
     name: ui.siteName,
@@ -87,7 +98,7 @@ const articleSchema = {
       title={title}
       lead={description}
       tint={tint}
-      meta={[formatDate(pubDate), readingTime(post.body), author]}
+      meta={[formatDate(pubDate), readingTime(post.body), byline]}
       crumbs={[
         { label: ui.crumbHome, href: '/' },
         { label: ui.crumbBlog, href: '/blog/' },

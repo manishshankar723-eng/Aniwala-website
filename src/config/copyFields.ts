@@ -47,6 +47,14 @@ export const UI_COPY_FIELDS = [
   'footerCopyright',
   'searchPlaceholder',
   'searchEmpty',
+  /* The group label beside each search result. One per derived group in
+     `lib/searchDocs.ts`; the hand-listed pages carry their own `section` on
+     the Menus document instead. */
+  'searchSectionServices',
+  'searchSectionPortfolio',
+  'searchSectionCaseStudies',
+  'searchSectionCareers',
+  'searchSectionBlog',
   'cardReadMore',
   'cardCaseMore',
   'barAllCategories',

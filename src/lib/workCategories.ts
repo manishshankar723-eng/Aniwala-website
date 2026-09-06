@@ -18,6 +18,8 @@ export interface WorkCategory {
   blurb: string;
   intro: string;
   tint: string;
+  /** Tile picture, or undefined — the tile falls back to `tint`. */
+  image?: SanityImage;
   wide: boolean;
   order: number;
   /** Service slugs. Already dereferenced by the loader. */

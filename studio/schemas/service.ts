@@ -116,12 +116,51 @@ export default defineType({
       title: 'Tint',
       type: 'string',
       group: 'main',
-      description: 'HSL triple driving the page’s placeholder art, e.g. "210 70% 22%".',
+      description:
+        'HSL triple driving the page’s placeholder art, e.g. "210 70% 22%". Stays underneath the hero image below, so the page holds its colour while the picture loads and still looks deliberate when there is none.',
       validation: (Rule) =>
         Rule.required().custom((v) =>
           /^\d{1,3} \d{1,3}% \d{1,3}%$/.test(String(v)) ? true : 'Three parts, like "210 70% 22%".'
         ),
     }),
+
+    /*
+     * The hero image, ON THE SERVICE rather than in the Images list.
+     *
+     * It used to be an `artwork` document filed against the slot name
+     * `service-<slug>`, and those slots were a hardcoded list of six in the
+     * website's `src/config/imageSlots.ts`. That was fine while the services
+     * were themselves six records in a config file. It stopped being fine the
+     * day services became documents an editor can create: a seventh service
+     * had no slot to file a picture against, fell back to the flat tint with
+     * no warning anywhere, and getting it a hero meant a code change AND a
+     * Studio redeploy — for a photograph.
+     *
+     * Here, the image is created with the thing it depicts, is deleted with
+     * it, and cannot be orphaned by a slug rename. That is also how `piece`,
+     * `post`, `caseStudy`, `teamMember` and `client` have always worked; the
+     * slots were the odd ones out.
+     */
+    defineField({
+      name: 'hero',
+      title: 'Hero image',
+      type: 'image',
+      group: 'main',
+      options: { hotspot: true },
+      description:
+        'Optional. Sits behind the title at the top of this service’s page. Landscape, at least 1600px wide — it is cropped hard on narrow screens, so use the crop tool to mark what must stay in frame. Leave it empty and the tint above is used on its own.',
+      fields: [
+        defineField({
+          name: 'alt',
+          title: 'Alt text',
+          type: 'string',
+          description:
+            'What the image shows, for screen readers and for when it fails to load. Describe the content, not the file.',
+          validation: (Rule) => Rule.required().warning('Every image needs alt text.'),
+        }),
+      ],
+    }),
+
     defineField({
       name: 'order',
       title: 'Position',
@@ -208,7 +247,13 @@ export default defineType({
   ],
 
   preview: {
-    select: { title: 'title', slug: 'slug.current', order: 'order' },
-    prepare: ({ title, slug, order }) => ({ title, subtitle: `/services/${slug}/  ·  ${order}` }),
+    /* `media` so the "Service images" list under Images reads as a contact
+       sheet rather than a column of identical placeholder squares. */
+    select: { title: 'title', slug: 'slug.current', order: 'order', media: 'hero' },
+    prepare: ({ title, slug, order, media }) => ({
+      title,
+      subtitle: `/services/${slug}/  ·  ${order}`,
+      media,
+    }),
   },
 });

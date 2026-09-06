@@ -2,26 +2,29 @@
 /**
  * The discipline tiles.
  *
- * A data block: the categories come from `workCategory` documents (they drive the
- * /portfolio/ URLs, so they are structure) and the pictures from the artwork
- * slots. The editor supplies only the heading — which is the point, since the
- * alternative is a second list of disciplines that immediately disagrees with
- * the one the routes are built from.
+ * A data block: the categories come from `workCategory` documents, which drive
+ * the /portfolio/ URLs and so are structure. The editor supplies only the
+ * heading — which is the point, since the alternative is a second list of
+ * disciplines that immediately disagrees with the one the routes are built
+ * from.
+ *
+ * The pictures come off those same documents. They used to be looked up by
+ * the slot name `portfolio-<slug>` against a hardcoded list of six, which
+ * meant a seventh discipline created in the Studio could never have one —
+ * see `config/imageSlots.ts` for the whole argument.
  */
 import SectionHead from './SectionHead.astro';
 import { getWorkCategories, categoryHref } from '../../lib/workCategories';
-import { portfolioSlot } from '../../config/imageSlots';
-import { getArtworkMap } from '../../lib/artwork';
+import { toArtwork } from '../../lib/artwork';
 
 interface Props {
   block: { eyebrow?: string; title?: string; anchor?: string; linkLabel?: string; linkHref?: string };
 }
 const { block } = Astro.props;
 
-/* One lookup for the whole grid. `getArtwork` per tile inside the loop would
-   read the same collection six times for one section. */
-const workCategories = await getWorkCategories();
-const workArt = await getArtworkMap(workCategories.map((w) => portfolioSlot(w.slug)));
+/* Sized once per category here rather than inside the template, where the
+   guard and the two attributes that use it would each rebuild the same URLs. */
+const tiles = (await getWorkCategories()).map((w) => ({ ...w, art: toArtwork(w.image) }));
 ---
 
 <section class="section" id={block.anchor || "work"}>
@@ -34,7 +37,7 @@ const workArt = await getArtworkMap(workCategories.map((w) => portfolioSlot(w.sl
 
   <div class="work-grid">
     {
-      workCategories.map((w) => (
+      tiles.map((w) => (
         <a
           href={categoryHref(w.slug)}
           class:list={['work-tile', w.wide && 'work-tile--wide']}
@@ -51,11 +54,11 @@ const workArt = await getArtworkMap(workCategories.map((w) => portfolioSlot(w.sl
             screen reader read every card twice.
           */}
           <span class="work-media" aria-hidden="true">
-            {workArt.get(portfolioSlot(w.slug)) && (
+            {w.art && (
               <img
                 class="work-img"
-                src={workArt.get(portfolioSlot(w.slug))!.src}
-                srcset={workArt.get(portfolioSlot(w.slug))!.srcset}
+                src={w.art.src}
+                srcset={w.art.srcset}
                 sizes={w.wide ? '(min-width: 900px) 66vw, 100vw' : '(min-width: 900px) 33vw, 100vw'}
                 alt=""
                 loading="lazy"

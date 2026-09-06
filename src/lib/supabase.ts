@@ -14,11 +14,15 @@
  */
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config/site';
 
-export const supabaseConfigured =
-  Boolean(SUPABASE_URL) &&
-  Boolean(SUPABASE_ANON_KEY) &&
-  !SUPABASE_URL.startsWith('PASTE') &&
-  !SUPABASE_ANON_KEY.startsWith('PASTE');
+/**
+ * Whether the forms can actually submit.
+ *
+ * Both values now come from the environment (see `config/site.ts`), so an
+ * unset one is an empty string rather than the `PASTE-YOUR-...` placeholder
+ * this used to also have to recognise. Every caller renders a dev-only note
+ * instead of a form when this is false.
+ */
+export const supabaseConfigured = Boolean(SUPABASE_URL) && Boolean(SUPABASE_ANON_KEY);
 
 const restUrl = (table: string) => `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/${table}`;
 

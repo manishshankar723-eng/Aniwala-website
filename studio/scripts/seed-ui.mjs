@@ -45,6 +45,14 @@ export const UI_COPY = {
   searchPlaceholder: 'Type Your Search...',
   searchEmpty: 'No matches. Try “animation”, “VFX” or “contact”.',
 
+  /* The group label beside each search result, transcribed from the
+     `section:` literals that were still inline in `lib/searchDocs.ts`. */
+  searchSectionServices: 'Services',
+  searchSectionPortfolio: 'Portfolio',
+  searchSectionCaseStudies: 'Case studies',
+  searchSectionCareers: 'Careers',
+  searchSectionBlog: 'Blog',
+
   cardReadMore: 'Read',
   cardCaseMore: 'Read the case study',
   barAllCategories: 'All',

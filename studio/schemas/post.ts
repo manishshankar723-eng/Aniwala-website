@@ -133,7 +133,8 @@ export default defineType({
       name: 'author',
       title: 'Author',
       type: 'string',
-      initialValue: 'Aniwala Studios',
+      description:
+        'Only when a named person wrote it. Leave blank and the post is bylined to the studio, using the name set in Interface copy — so a rename reaches every post at once instead of leaving the old one typed into each.',
     }),
 
     defineField({

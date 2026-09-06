@@ -59,6 +59,10 @@ Never point the workflow at a Node runtime; there isn't one on this plan.
 4. **Sanity** — see *Setting up the CMS* below. The build needs
    `SANITY_PROJECT_ID` and `SANITY_DATASET` as GitHub Actions secrets, or it
    produces a site with no blog, no case studies and no jobs.
+5. **Supabase** — see *Setting up Supabase* below. `SUPABASE_URL` and
+   `SUPABASE_ANON_KEY` go in `.env` locally and as GitHub Actions secrets for
+   the deploy. Without them the booking, application and comment forms render
+   but refuse to submit.
 
 ## Layout
 
@@ -137,22 +141,29 @@ put the visitor's IP in front of Google on every page load.
 
 ### Adding or renaming a service
 
-Add an object to `src/config/services.ts` and a link to `src/config/nav.ts`.
-`src/pages/services/[slug].astro` builds the page — there is no template to
-copy, and search picks it up on its own.
+Entirely in the Studio, with no deploy. Create a **Service**, and add a row to
+the **Menus** document pointing at `/services/<slug>/`.
+`src/pages/services/[slug].astro` builds the page, `check-links.mjs` fails the
+build if the menu href does not resolve, and search picks the page up on its
+own from the document.
+
+The hero picture is the **Hero image** field on the service itself. It used to
+be an `artwork` document filed against a slot named `service-<slug>`, from a
+hardcoded list of six — so a seventh service could be created and published
+from the Studio and then had nowhere to put a picture, falling back to the flat
+tint with no warning anywhere. `src/config/imageSlots.ts` carries that story at
+length; the short version is that an image belongs to the document it depicts.
 
 The six services are **3D Art, 2D Art, Animation, VFX, Integration** and
 **Video Editing**.
 
-Three things have to move together when a `slug` changes, and nothing will
-warn you about the last one:
+Two things have to move together when a `slug` changes:
 
-1. the matching `href` in `src/config/nav.ts`, or the nav link 404s;
+1. the matching row in **Menus**, or the nav link 404s — the build catches
+   this one for you;
 2. the **Services** field on any case study in the Studio — a stale slug is
-   silently dropped from the cross-links rather than erroring, and renaming a
-   slug in code cannot reach into the CMS to fix the documents that use it;
-3. `enquiryTypes` in `src/config/site.ts`, which fills the contact form's
-   dropdown and is matched by label rather than slug.
+   silently dropped from the cross-links rather than erroring, and nothing
+   warns you about it.
 
 Note `shortName` and `article`. They exist because the page writes sentences
 like "Have **an** integration brief?" and "Have **a** VFX brief?" — the article
@@ -258,6 +269,7 @@ Three places, on purpose.
 | Every word the templates say — headings, labels, empty states, the privacy policy, both forms | Sanity, under **Interface copy** and **Privacy policy**. |
 | Anything that decides a URL or drives code behaviour | This repo. Plain files, in git. |
 | Enquiries, bookings, applications, comments | One Supabase project. |
+| Every picture | Sanity, on the document it belongs to — a service's hero, a discipline's tile, a post's cover. Gathered in one place under **Images**. |
 
 The split worth understanding is the last of the three repo/CMS lines. If a
 change is *words*, it belongs in the CMS — including the words nobody thinks
@@ -274,8 +286,11 @@ reason you can point at:
   fixed offset is exact — and why nobody should be able to point the booking
   widget at a timezone that does, where every slot offered would be an hour
   wrong for half the year.
-- **The Supabase credentials and the social-icon list.** Infrastructure, and
-  a list of SVG paths that exist in a component.
+- **The social-icon list.** An icon exists because there is an SVG path for
+  it in `SocialIcon.astro`; a name with no path renders as nothing, visibly to
+  no one. (The Supabase credentials used to be on this line. They are now
+  environment variables — infrastructure, but *configuration*, which is not
+  the same thing as code and should never have needed a deploy.)
 - **`src/config/copyFields.ts`** — the *names* of the CMS copy fields, not
   their text. It is the contract the build validates against.
 
@@ -381,10 +396,19 @@ to say "position filled".
    Do not skip this. It creates the tables *and* the Row Level Security
    policies, and the policies are the only thing protecting the data.
 3. **Project Settings → API** — copy "Project URL" and the **anon public** key
-   into `SUPABASE_URL` and `SUPABASE_ANON_KEY` in `src/config/site.ts`.
+   into `SUPABASE_URL` and `SUPABASE_ANON_KEY` in `.env` (see `.env.example`),
+   and add the same two as GitHub Actions secrets so the deploy has them.
 
-Until those are filled in, the booking form and the comment form both refuse to
-submit and say so, rather than dropping data into a void.
+Until those are filled in, the booking form, the application form and the
+comment form all refuse to submit and say so, rather than dropping data into a
+void.
+
+They are environment variables rather than constants in a tracked file because
+that is the difference between configuration and code. As literals in
+`src/config/site.ts` they sat as `PASTE-YOUR-SUPABASE-PROJECT-URL` from the day
+the forms were written until the day somebody audited them — connecting a form
+meant a commit, a review and a deploy, so it never happened, and three forms
+sat dead on the live site while every page that rendered them looked finished.
 
 **The anon key is public.** It ships inside the JavaScript bundle and anyone can
 read it — that is how Supabase is designed to work. Security comes entirely from
@@ -493,9 +517,9 @@ the homepage, all of them at `/case-studies/`.
 
 A few fields behave differently from the blog:
 
-- **Services** is a dropdown of the slugs in `config/services.ts`. It drives
-  the cross-links back to the service pages, so a case study and the service
-  it demonstrates always point at each other.
+- **Services** references the Service documents. It drives the cross-links
+  back to the service pages, so a case study and the service it demonstrates
+  always point at each other.
 - **Results** wants facts you can point at — shot counts, runtimes, asset
   counts. Not invented percentages: "40% faster" with nothing behind it is
   the kind of claim a producer asks you to substantiate in a meeting.

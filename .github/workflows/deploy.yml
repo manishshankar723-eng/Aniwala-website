@@ -14,9 +14,29 @@ on:
   repository_dispatch:
     types: [sanity-publish]
 
+#
+# Two groups, and only one of them may cancel a run that is already going.
+#
+# This used to be a single fixed group with `cancel-in-progress: true`, which
+# put pull requests and production deploys in the SAME queue. Opening a PR
+# while a deploy was uploading cancelled the deploy — and the FTP upload is
+# not atomic, so killing it half way leaves public_html holding some files
+# from the new build and some from the old, with no error raised anywhere and
+# nothing in the Actions log that reads like a broken site.
+#
+# A pull request only ever builds, so superseding one is free: a second push
+# to the same branch should cancel the first.
+#
+# Anything that can DEPLOY — a push to main, a manual re-run, or the Sanity
+# publish webhook — shares one group and waits its turn instead. Two documents
+# published a few seconds apart is the likeliest way to fire two deploys at
+# once, and that is exactly the case where the second must not interrupt the
+# first. Queueing costs a couple of minutes; cancelling costs a half-uploaded
+# site until somebody happens to notice.
+#
 concurrency:
-  group: deploy-production
-  cancel-in-progress: true
+  group: ${{ github.event_name == 'pull_request' && format('deploy-pr-{0}', github.head_ref) || 'deploy-production' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # ------------------------------------------------------------------
@@ -36,6 +56,20 @@ jobs:
       SANITY_PROJECT_ID: ${{ secrets.SANITY_PROJECT_ID }}
       SANITY_DATASET: ${{ secrets.SANITY_DATASET }}
       SANITY_READ_TOKEN: ${{ secrets.SANITY_READ_TOKEN }}
+
+      # Where the booking, application and comment forms post. Both are baked
+      # into the built JavaScript, so they have to be present at BUILD time —
+      # this job — not at deploy time.
+      #
+      # The anon key is public by design: it ships inside the bundle and any
+      # visitor can read it. It is a secret here only to keep it out of the
+      # repo, not because exposure would matter. Row Level Security is what
+      # protects the data — see supabase/schema.sql.
+      #
+      # Absent, the build is still correct: the forms render a "not connected"
+      # notice and refuse to submit, rather than losing what somebody typed.
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
     steps:
       - uses: actions/checkout@v4
@@ -67,6 +101,23 @@ jobs:
             exit 1
           fi
           echo "SANITY_PROJECT_ID is present (${#SANITY_PROJECT_ID} characters)."
+
+      # A WARNING, not an error, and deliberately so: a site with no Supabase
+      # is a valid site — the forms say they are not connected and refuse to
+      # submit. Failing the build over it would block a deploy for something
+      # that is not broken.
+      #
+      # It is worth saying out loud all the same. The values live in `.env`
+      # locally and as repository secrets here, so the easy mistake is setting
+      # them on your own machine, watching the forms work, and shipping a
+      # build where they silently do not. Nothing else would tell you.
+      - name: Check the Supabase keys reached this job
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::warning::Supabase is not configured in CI — the booking, application and comment forms will render a 'not connected' notice and refuse to submit. Add SUPABASE_URL and SUPABASE_ANON_KEY under Settings -> Secrets and variables -> Actions (Repository secrets)."
+          else
+            echo "Supabase is configured (URL ${#SUPABASE_URL} chars, key ${#SUPABASE_ANON_KEY} chars)."
+          fi
 
       # Type and template errors that `astro build` happily ignores: a bad
       # prop type, a missing import, a component called with the wrong shape.

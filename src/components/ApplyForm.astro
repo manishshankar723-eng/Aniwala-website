@@ -356,9 +356,10 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
         {
           !configured && (
             <p class="ap-warn">
-              <strong>Not connected yet.</strong> Add your Supabase project URL and anon
-              key to <code>src/config/site.ts</code>, and run <code>supabase/schema.sql</code>{' '}
-              in the Supabase SQL editor so the <code>applications</code> table exists.
+              <strong>Not connected yet.</strong> Set <code>SUPABASE_URL</code> and{' '}
+              <code>SUPABASE_ANON_KEY</code> in <code>.env</code>, and run{' '}
+              <code>supabase/schema.sql</code> in the Supabase SQL editor so the{' '}
+              <code>applications</code> table exists.
               Until then this will refuse to submit rather than dropping somebody's
               application into a void.
             </p>

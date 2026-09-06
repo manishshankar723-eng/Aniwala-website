@@ -242,7 +242,13 @@ export default defineConfig({
                   .title('Images')
                   .items([
                     /* The only images that ARE their own documents: site
-                       furniture, filed against a slot a page asks for by name. */
+                       furniture, filed against a slot a page asks for by name.
+
+                       Down to one slot — the homepage hero still. The
+                       portfolio and service pictures used to live here too and
+                       have moved onto the documents they depict, which is why
+                       they now appear below with the other five rather than
+                       above with the furniture. See src/config/imageSlots.ts. */
                     S.listItem()
                       .title('Site artwork')
                       .id('images-artwork')
@@ -253,6 +259,23 @@ export default defineConfig({
                       ),
 
                     S.divider(),
+
+                    S.listItem()
+                      .title('Service heroes')
+                      .id('images-services')
+                      .child(
+                        S.documentTypeList('service')
+                          .title('Service heroes')
+                          .defaultOrdering([{ field: 'order', direction: 'asc' }])
+                      ),
+                    S.listItem()
+                      .title('Portfolio disciplines')
+                      .id('images-work-categories')
+                      .child(
+                        S.documentTypeList('workCategory')
+                          .title('Portfolio disciplines')
+                          .defaultOrdering([{ field: 'order', direction: 'asc' }])
+                      ),
 
                     S.listItem()
                       .title('Blog covers')

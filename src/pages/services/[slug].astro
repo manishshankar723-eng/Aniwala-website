@@ -1,8 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import PageHero from '../../components/PageHero.astro';
-import { serviceSlot } from '../../config/imageSlots';
-import { getArtwork } from '../../lib/artwork';
+import { toArtwork } from '../../lib/artwork';
 import { getFaqs, getUiCopy } from '../../lib/studio';
 import { shareCard } from '../../lib/sanity/client';
 import { fill } from '../../lib/copy';
@@ -61,8 +60,13 @@ const serviceSchema = {
   },
 };
 
-/* Optional. An empty slot leaves the tint gradient exactly as it was. */
-const heroArt = await getArtwork(serviceSlot(service.slug));
+/* Optional. An empty field leaves the tint gradient exactly as it was.
+
+   Read off the service document rather than looked up by the slot name
+   `service-<slug>`, which came from a hardcoded list of six and so could
+   never cover a seventh service created in the Studio. See
+   `config/imageSlots.ts`. */
+const heroArt = toArtwork(service.hero);
 
 /* FAQs moved to the CMS — they are the most-edited copy on a service page. */
 const faqs = await getFaqs(`service:${service.slug}`);
