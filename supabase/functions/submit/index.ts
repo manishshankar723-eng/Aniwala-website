@@ -71,8 +71,28 @@ const TABLE: Record<string, string> = {
 function allowedOrigin(req: Request): string | null {
   const origin = req.headers.get('origin');
   if (!origin) return null;
+
   const site = (Deno.env.get('SITE_URL') ?? 'https://aniwala.com').replace(/\/$/, '');
-  const ok = [site, 'http://localhost:4321', 'http://localhost:4322'];
+
+  /*
+   * EXTRA_ORIGINS exists for the staging site, and it is a list rather than a
+   * wildcard on purpose.
+   *
+   * The obvious shortcut — allowing anything under *.aniwala.com, or worse
+   * reflecting whatever Origin arrives — would let any page that can obtain a
+   * Turnstile token drive this endpoint. Naming each host keeps the door the
+   * width of the things that are actually meant to come through it.
+   *
+   *   supabase secrets set EXTRA_ORIGINS=https://new.aniwala.com
+   *
+   * Comma-separated for more than one. Unset is the normal production state.
+   */
+  const extra = (Deno.env.get('EXTRA_ORIGINS') ?? '')
+    .split(',')
+    .map((o) => o.trim().replace(/\/$/, ''))
+    .filter(Boolean);
+
+  const ok = [site, ...extra, 'http://localhost:4321', 'http://localhost:4322'];
   return ok.includes(origin) ? origin : null;
 }
 

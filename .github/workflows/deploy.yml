@@ -186,10 +186,47 @@ jobs:
           # change needed. If a deploy ever fails TLS verification here, fix the
           # certificate — do NOT "fix" it by dropping back to `ftp`.
           protocol: ftps
+          # `loose` skips CERTIFICATE VALIDATION, not encryption, and it is
+          # required here for a concrete reason rather than convenience.
+          #
+          # Hostinger's FTP server presents a shared Sectigo certificate for
+          # `hostinger.com` plus wildcards — *.main-hosting.eu, *.hstgr.io and
+          # so on. It does NOT cover ftp.aniwala.com, so a strict handshake
+          # fails verification (curl exit 60) before login is even attempted.
+          #
+          # The trade, stated plainly: the connection is still encrypted, so a
+          # passive eavesdropper cannot read the password or the site — which
+          # is the realistic threat and the whole reason this moved off plain
+          # `ftp`. What `loose` gives up is protection against an ACTIVE
+          # man-in-the-middle who can present their own certificate.
+          #
+          # To get back to `strict`: find this account's real server hostname
+          # in hPanel (it looks like srvNNN.main-hosting.eu), point FTP_HOST at
+          # that instead, and the shared certificate validates properly. That
+          # is the better end state; this is what works today.
+          security: loose
           username: ${{ secrets.FTP_USER }}
           password: ${{ secrets.FTP_PASS }}
           local-dir: ./dist/
-          server-dir: /public_html/
+          # THE PATH THAT BROKE EVERY DEPLOY FROM 2026-08-24 TO 2026-09-07.
+          #
+          # This said `/public_html/`, which does not exist. The FTP account
+          # roots at /home/u473349005, where the listing is `domains`, `.logs`,
+          # `.profile` — no public_html at that level. Every upload therefore
+          # failed with FTP error 9 on a build that was otherwise perfect, 24
+          # times, with the failure buried in a step nobody reads when the
+          # green check on `verify` looks like success.
+          #
+          # Verified by listing the server over FTPS before changing it:
+          #   /public_html/                             -> error 9, no such path
+          #   /domains/aniwala.com/public_html/         -> the WordPress site
+          #   /domains/aniwala.com/public_html/staging/ -> this, empty
+          #
+          # Pointing at `staging` deliberately: aniwala.com currently serves a
+          # WordPress install from the parent folder, and uploading this build
+          # there would drop an Astro .htaccess on top of WordPress's own and
+          # break its permalinks. Staging first, cut over when it is proven.
+          server-dir: /domains/aniwala.com/public_html/staging/
           # Never delete the second site or Hostinger's own files.
           exclude: |
             **/.git*

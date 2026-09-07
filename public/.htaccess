@@ -36,6 +36,25 @@ RewriteCond %{HTTP_HOST} ^www\.aniwala\.com$ [NC,OR]
 RewriteCond %{HTTP_HOST} ^(www\.)?aniwala\.in$ [NC]
 RewriteRule ^(.*)$ https://aniwala.com/$1 [R=301,L]
 
+# --- Staging safety net ------------------------------------------
+# Anything reached on a hostname OTHER than the canonical one is a staging
+# or preview copy of this site, and must never reach a search index.
+#
+# This is a real hazard rather than a theoretical one: a staging host serving
+# the same 65 pages is duplicate content, and the copy Google keeps might be
+# the one nobody is maintaining. The canonical tags already point at
+# aniwala.com, but a canonical is a hint — `noindex` is an instruction.
+#
+# Deliberately host-based rather than a separate staging .htaccess: the file
+# is built from public/ and deployed identically everywhere, so a rule that
+# has to be remembered per environment is a rule that gets forgotten. Add the
+# real hostname here if the canonical one ever changes, or the LIVE site
+# quietly de-indexes itself.
+#
+# The condition is skipped for the redirects above, which never reach here.
+RewriteCond %{HTTP_HOST} !^aniwala\.com$ [NC]
+RewriteRule ^ - [E=STAGING:1]
+
 ErrorDocument 404 /404.html
 
 # --- Caching -----------------------------------------------------
@@ -53,6 +72,11 @@ ErrorDocument 404 /404.html
   # --- Security headers ------------------------------------------
   Header set X-Content-Type-Options "nosniff"
   Header set Referrer-Policy "strict-origin-when-cross-origin"
+
+  # Keeps the staging copy out of search. Paired with the STAGING env var set
+  # by the rewrite near the top of this file; on the canonical hostname the
+  # variable is never set and this header is never sent.
+  Header always set X-Robots-Tag "noindex, nofollow" env=STAGING
 
   # Tells browsers to reach this host over HTTPS for the next two years,
   # so the http:// redirect above is never used a second time — and a
