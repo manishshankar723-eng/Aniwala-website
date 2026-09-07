@@ -209,7 +209,16 @@ jobs:
           name: dist
           path: dist/
 
+      # ------------------------------------------------------------------
+      # UPLOADED TWICE, ON PURPOSE — see the retry step below. A dropped FTP
+      # connection is the one failure here that means nothing about the build,
+      # and it should not need a human to press a button.
+      # ------------------------------------------------------------------
       - name: Upload the site
+        id: upload
+        # A failure here is handled below rather than ending the job. The
+        # retry is NOT exempt, so two failures still fail the deploy.
+        continue-on-error: true
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_HOST }}
@@ -265,6 +274,37 @@ jobs:
           # there would drop an Astro .htaccess on top of WordPress's own and
           # break its permalinks. Staging first, cut over when it is proven.
           server-dir: ${{ env.REMOTE_DIR }}
+          # The action defaults to 30 seconds, and run #38 spent exactly that
+          # before dying with `Timeout (control socket)` on a build that was
+          # otherwise perfect. Shared hosting throttles bursts of FTP sessions,
+          # and a Sanity publish can queue several deploys in a few minutes, so
+          # the control socket going quiet for half a minute is normal here
+          # rather than a sign anything is wrong.
+          timeout: 60000
+
+      # A pause, not an immediate second attempt. The usual cause of the first
+      # failure is Hostinger throttling connections; retrying into the same
+      # throttle just fails again a second time.
+      - name: Wait before retrying the upload
+        if: steps.upload.outcome == 'failure'
+        run: sleep 30
+
+      # Same inputs as the step above — see there for why each one is set the
+      # way it is. The FTP action writes its sync-state file only after a
+      # successful run, so a half-finished upload leaves the state untouched
+      # and this attempt simply resends what did not land.
+      - name: Upload the site (retry)
+        if: steps.upload.outcome == 'failure'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          protocol: ftps
+          security: loose
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASS }}
+          local-dir: ./dist/
+          server-dir: ${{ env.REMOTE_DIR }}
+          timeout: 60000
 
       # ------------------------------------------------------------------
       # .htaccess, uploaded explicitly — belt and braces, and here is the
