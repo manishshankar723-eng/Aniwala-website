@@ -154,6 +154,21 @@ jobs:
           name: dist
           path: dist/
           retention-days: 1
+          # WITHOUT THIS, .htaccess NEVER LEAVES THIS JOB.
+          #
+          # upload-artifact@v4 excludes hidden files by default — a change from
+          # v3, and a silent one: the upload succeeds, reports the file count
+          # without them, and the deploy job downloads a dist/ that simply has
+          # no .htaccess in it.
+          #
+          # The consequence is a site that serves all 65 pages perfectly with
+          # every security header, the whole Content-Security-Policy, the HTTPS
+          # redirect and the caching rules missing. Nothing fails. It looks
+          # like a successful deploy, which is exactly what happened on the
+          # first one that ever succeeded.
+          #
+          # `dist/` currently has one hidden file and it is load bearing.
+          include-hidden-files: true
 
   # ------------------------------------------------------------------
   # Deploy. Only from main, and only if verify passed.
@@ -252,25 +267,23 @@ jobs:
           server-dir: ${{ env.REMOTE_DIR }}
 
       # ------------------------------------------------------------------
-      # THE DEPLOY ACTION DOES NOT UPLOAD DOTFILES, and .htaccess is a dotfile.
+      # .htaccess, uploaded explicitly — belt and braces, and here is the
+      # honest reason rather than the one that seemed obvious first.
       #
-      # This is not theoretical and it is not loud when it happens. The first
-      # deploy that ever succeeded put all 65 pages on the server and silently
-      # left .htaccess behind — so the site served perfectly while every
-      # security header, the entire Content-Security-Policy, the HTTPS
-      # redirect, the caching rules and the 404 handler were simply absent.
-      # Nothing failed. The only way to notice is to go and look at the
-      # response headers, which is not something anybody does after a green
-      # tick.
+      # The first deploy that ever succeeded put all 65 pages on the server
+      # and left .htaccess behind, so the site served perfectly with every
+      # security header, the whole CSP, the HTTPS redirect and the caching
+      # rules absent. Nothing failed.
       #
-      # The action writes its own `.ftp-deploy-sync-state.json` through a
-      # different code path, which is why one dotfile appears on the server
-      # and this one does not — and why the gap is easy to misdiagnose.
+      # The actual cause was upstream: upload-artifact@v4 drops hidden files
+      # unless told otherwise, so the file never reached this job at all. That
+      # is fixed in the verify job with `include-hidden-files: true`, and the
+      # guard below proves it — the step fails loudly if dist/.htaccess is
+      # missing rather than deploying a site with no headers.
       #
-      # So it goes up explicitly, with --fail so a failure is an actual
-      # failure rather than a quiet one. This is exactly the kind of step that
-      # gets deleted as redundant by someone who sees a dotfile on the server
-      # and assumes dotfiles work. They do not.
+      # Whether the FTP action itself handles dotfiles is UNPROVEN either way,
+      # which is why this explicit upload stays. It is cheap, idempotent, and
+      # the failure it guards against is completely silent.
       # ------------------------------------------------------------------
       - name: Upload .htaccess separately
         env:
