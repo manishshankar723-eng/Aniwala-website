@@ -73,9 +73,10 @@ const roleFields = (role: { name: string; title: string; description: string }) 
       description: `${role.description} 100 is the size the site was designed at; 110 is ten per cent larger.`,
       initialValue: 100,
       validation: (Rule) =>
-        Rule.min(50)
-          .max(200)
-          .warning('Below 70 or above 150 the layout around this text starts to break down.'),
+        [
+          Rule.min(50).max(200),
+          Rule.min(70).max(150).warning('Below 70 or above 150 the layout around this text starts to break down.'),
+        ],
     }),
     defineField({
       name: `type${cap}Weight`,
@@ -182,9 +183,10 @@ export default defineType({
         'A percentage of the size the mark is drawn at now. 100 leaves it exactly as it is; 150 makes it half again as tall. THE HEADER GROWS WITH IT — the bar gets taller and the menu moves down to stay centred, rather than the logo overflowing a fixed strip.',
       initialValue: 100,
       validation: (Rule) =>
-        Rule.min(50)
-          .max(300)
-          .warning('Past about 200 the header eats a large part of a phone screen before anything is read.'),
+        [
+          Rule.min(50).max(300),
+          Rule.max(200).warning('Past about 200 the header eats a large part of a phone screen before anything is read.'),
+        ],
     }),
 
     defineField({
@@ -376,9 +378,10 @@ export default defineType({
         'Scales EVERY size below at once, as a percentage. 100 is the size the site was designed at. Use this first — it keeps every relationship intact. The per-role sizes underneath then adjust one group relative to the rest.',
       initialValue: 100,
       validation: (Rule) =>
-        Rule.min(50)
-          .max(200)
-          .warning('Below 80 or above 130 the layout starts to fight the text.'),
+        [
+          Rule.min(50).max(200),
+          Rule.min(80).max(130).warning('Below 80 or above 130 the layout starts to fight the text.'),
+        ],
     }),
 
     ...TYPE_ROLES.flatMap(roleFields),
@@ -401,7 +404,10 @@ export default defineType({
       group: 'layout',
       description:
         'How wide the site is allowed to grow on a large monitor, in pixels. 2240 is the design. Below about 1200 the wider grids start to feel cramped; above 2600 lines of text get too long to track comfortably.',
-      validation: (Rule) => Rule.min(900).max(4000).warning('Outside 1200–2600 the grids stop behaving.'),
+      validation: (Rule) => [
+        Rule.min(900).max(4000),
+        Rule.min(1200).max(2600).warning('Outside 1200–2600 the grids stop behaving.'),
+      ],
     }),
     defineField({
       name: 'radiusScale',
@@ -419,7 +425,10 @@ export default defineType({
       group: 'layout',
       description:
         'Scales the space between the page content and the edge of the window, as a percentage. 100 is the design. Lower means more content per line; higher gives it more room to breathe.',
-      validation: (Rule) => Rule.min(25).max(250).warning('Below 50 the text touches the edge on a phone.'),
+      validation: (Rule) => [
+        Rule.min(25).max(250),
+        Rule.min(50).warning('Below 50 the text touches the edge on a phone.'),
+      ],
     }),
 
 

@@ -156,7 +156,7 @@ export default defineType({
           type: 'string',
           description:
             'What the image shows, for screen readers and for when it fails to load. Describe the content, not the file.',
-          validation: (Rule) => Rule.required().warning('Every image needs alt text.'),
+          validation: (Rule) => Rule.required().error('Every image needs alt text.'),
         }),
       ],
     }),

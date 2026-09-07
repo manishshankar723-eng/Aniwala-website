@@ -48,9 +48,10 @@ export default defineType({
       description:
         'One line. Shown on the card and used as the meta description in search results. Google cuts it off after about 160 characters.',
       validation: (Rule) =>
-        Rule.required()
-          .max(160)
-          .warning('Over 160 characters gets truncated in Google. Tighten it if you can.'),
+        [
+          Rule.required().max(300),
+          Rule.max(160).warning('Over 160 characters gets truncated in Google. Tighten it if you can.'),
+        ],
     }),
 
     defineField({
@@ -156,7 +157,7 @@ export default defineType({
           name: 'alt',
           type: 'string',
           title: 'Alt text',
-          validation: (Rule) => Rule.required().warning('Every image needs alt text.'),
+          validation: (Rule) => Rule.required().error('Every image needs alt text.'),
         },
       ],
     }),

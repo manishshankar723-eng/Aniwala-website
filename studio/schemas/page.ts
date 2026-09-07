@@ -151,7 +151,9 @@ export default defineType({
       description:
         'The blue line in Google and the browser tab. Google truncates around 60 characters, so put the page first and the studio name last.',
       validation: (Rule) =>
-        Rule.required().max(70).warning('Over ~60 characters usually gets cut off in search results.'),
+        /* Required is fatal to the build; the length is only advice — a
+           single chain ending in .warning() would have downgraded both. */
+        [Rule.required(), Rule.max(70).warning('Over ~60 characters usually gets cut off in search results.')],
     }),
     defineField({
       name: 'seoDescription',
@@ -162,9 +164,10 @@ export default defineType({
       description:
         'The grey paragraph under the title in Google. Write it as a reason to click, not a summary of the markup.',
       validation: (Rule) =>
-        Rule.required()
-          .max(300)
-          .warning('Google cuts this around 160 characters — the rest is indexed, just not shown.'),
+        [
+          Rule.required().max(300),
+          Rule.max(160).warning('Google cuts this around 160 characters — the rest is indexed, just not shown.'),
+        ],
     }),
     defineField({
       name: 'ogImage',

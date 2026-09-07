@@ -110,7 +110,7 @@ export default defineType({
           type: 'string',
           description:
             'What the image shows. The tile’s own title and blurb sit beside it, so this is only read when the picture fails to load.',
-          validation: (Rule) => Rule.required().warning('Every image needs alt text.'),
+          validation: (Rule) => Rule.required().error('Every image needs alt text.'),
         }),
       ],
     }),

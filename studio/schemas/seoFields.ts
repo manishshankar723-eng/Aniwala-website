@@ -80,7 +80,8 @@ export const seoFields = [
     description:
       'Overrides the automatic one. Google truncates around 60 characters, so lead with the thing people search for and put the studio name last. Leave blank to use the page title.',
     validation: (Rule) =>
-      Rule.max(70).warning('Over ~60 characters usually gets cut off in search results.'),
+      /* 70 is the build's cap; 60 is the advice. See index.ts. */
+      [Rule.max(70), Rule.max(60).warning('Over ~60 characters usually gets cut off in search results.')],
   }),
   defineField({
     name: 'seoDescription',
@@ -91,7 +92,10 @@ export const seoFields = [
     description:
       'The grey paragraph under the title in Google. It is not a ranking factor — it is the sentence that decides whether somebody clicks, so write it as a reason to. Leave blank to use the page summary.',
     validation: (Rule) =>
-      Rule.max(300).warning('Google cuts this around 160 characters — the rest is indexed, just not shown.'),
+      [
+        Rule.max(300),
+        Rule.max(160).warning('Google cuts this around 160 characters — the rest is indexed, just not shown.'),
+      ],
   }),
   /**
    * The canonical override.

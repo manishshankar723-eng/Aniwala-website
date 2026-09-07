@@ -56,9 +56,10 @@ export default defineType({
          does not block saving. Somebody who has a good reason for 165
          characters should not be stopped by a linter. */
       validation: (Rule) =>
-        Rule.required()
-          .max(160)
-          .warning('Over 160 characters gets truncated in Google. Tighten it if you can.'),
+        [
+          Rule.required().max(300),
+          Rule.max(160).warning('Over 160 characters gets truncated in Google. Tighten it if you can.'),
+        ],
     }),
 
     defineField({
@@ -113,7 +114,7 @@ export default defineType({
           type: 'string',
           title: 'Alt text',
           description: 'What the image shows, for screen readers.',
-          validation: (Rule) => Rule.required().warning('Every image needs alt text.'),
+          validation: (Rule) => Rule.required().error('Every image needs alt text.'),
         },
       ],
     }),

@@ -62,10 +62,10 @@ export default defineType({
         'Milliseconds. The curtain lifts as soon as the page is ready; this is the ceiling for when something on the network hangs. A loader that can strand somebody behind a blank screen is worse than no loader, so this cannot be turned off — 1500–2500 is sensible.',
       initialValue: 2200,
       validation: (Rule) =>
-        Rule.required()
-          .min(500)
-          .max(5000)
-          .warning('Over about 3 seconds and people assume the site is broken.'),
+        [
+          Rule.required().min(500).max(5000),
+          Rule.max(3000).warning('Over about 3 seconds and people assume the site is broken.'),
+        ],
       hidden: ({ document }) => !document?.enabled,
     }),
   ],
