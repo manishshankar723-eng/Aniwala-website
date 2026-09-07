@@ -703,7 +703,15 @@ export interface Brand {
    * all 65 pages.
    */
   palette: Record<string, string>;
-  layout: { contentWidth: number | null; radiusScale: number | null; gutterScale: number | null };
+  /* `logoScale` rides here rather than beside `logoDark` because this is the
+     bag Base.astro turns into custom properties, and it is one — the Studio
+     still files it under "Header logo", which is where an editor looks. */
+  layout: {
+    contentWidth: number | null;
+    radiusScale: number | null;
+    gutterScale: number | null;
+    logoScale: number | null;
+  };
   fonts: { display?: string; body?: string; label?: string; mono?: string };
   typeRoles: { name: string; scale: number; weight: number; track: number }[];
   /** Ready-to-render icon URLs at the sizes the head and manifest declare. */
@@ -778,7 +786,7 @@ const EMPTY_BRAND: Brand = {
   buttonFill: '',
   buttonInk: '',
   palette: {},
-  layout: { contentWidth: null, radiusScale: null, gutterScale: null },
+  layout: { contentWidth: null, radiusScale: null, gutterScale: null, logoScale: null },
   fonts: {},
   /* Every role at its designed value, which is what an absent document
      means: the site as drawn. */
@@ -799,11 +807,23 @@ export async function getBrand(): Promise<Brand> {
   const bothLogos = Boolean(d.logoDark && d.logoLight);
   const favicon = d.favicon as SanityImage | undefined;
 
+  /*
+   * How wide to ask the CDN for the logo, and it has to follow the scale.
+   *
+   * 320px was chosen against a 11rem (176px) cap — comfortable headroom on a
+   * 2x screen. Scaling the mark up without scaling this leaves the request
+   * below 1x on the same screen, so the one edit whose whole point is "make
+   * the logo bigger" would make it blurrier. Capped, because past this the
+   * bytes buy nothing a header can show.
+   */
+  const logoScale = numOrNull(d.logoScale);
+  const logoWidth = Math.min(1280, Math.round(320 * ((logoScale ?? 100) / 100)));
+
   return {
     ...(bothLogos
       ? {
-          logoDark: imageUrl(d.logoDark as SanityImage, 320),
-          logoLight: imageUrl(d.logoLight as SanityImage, 320),
+          logoDark: imageUrl(d.logoDark as SanityImage, logoWidth),
+          logoLight: imageUrl(d.logoLight as SanityImage, logoWidth),
         }
       : {}),
     showWordmark: d.showWordmark,
@@ -848,6 +868,7 @@ export async function getBrand(): Promise<Brand> {
       contentWidth: numOrNull(d.contentWidth),
       radiusScale: numOrNull(d.radiusScale),
       gutterScale: numOrNull(d.gutterScale),
+      logoScale,
     },
 
     /* Keys in, stacks out. The Studio stores `bricolage`; the site needs the

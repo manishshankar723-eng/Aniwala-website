@@ -1,0 +1,83 @@
+---
+/**
+ * The Cloudflare Turnstile widget.
+ *
+ * Drop it inside a <form>. The widget injects a hidden `cf-turnstile-response`
+ * input into the enclosing form, which is where `lib/submit.ts` reads the
+ * token from — so nothing has to be wired up by hand at the call site.
+ *
+ * RENDERS NOTHING when TURNSTILE_SITE_KEY is unset, which is the supported
+ * "not configured yet" state described in lib/submit.ts. The forms then take
+ * their original path and this component is invisible.
+ *
+ * Turnstile is used rather than reCAPTCHA because it does not show puzzles to
+ * people, does not profile them across sites, and does not send anything to an
+ * advertising company — which matters for a form that a privacy policy has to
+ * describe honestly.
+ */
+import { TURNSTILE_SITE_KEY } from '../config/site';
+
+interface Props {
+  /** Extra classes for spacing at the call site. */
+  class?: string;
+}
+const { class: className } = Astro.props;
+---
+
+{
+  TURNSTILE_SITE_KEY && (
+    <div class:list={['turnstile', className]}>
+      {/*
+        `data-appearance="interaction-only"` keeps the widget out of the way
+        until Cloudflare actually wants something from the visitor. For the
+        overwhelming majority it never renders at all, so a contact form does
+        not grow a compliance box for no reason.
+      */}
+      <div
+        class="cf-turnstile"
+        data-sitekey={TURNSTILE_SITE_KEY}
+        data-theme="auto"
+        data-appearance="interaction-only"
+      />
+      <noscript>
+        <p class="turnstile-noscript">
+          This form needs JavaScript to verify you are human. Please email us instead.
+        </p>
+      </noscript>
+    </div>
+  )
+}
+
+{
+  /*
+    Loaded once per page even when several forms are on it: the `id` makes a
+    repeat render a no-op in the browser, and Astro hoists `is:inline` scripts
+    as written rather than bundling them.
+  */
+  TURNSTILE_SITE_KEY && (
+    <script
+      is:inline
+      id="cf-turnstile-api"
+      src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+      async
+      defer
+    />
+  )
+}
+
+<style>
+  .turnstile {
+    margin: 0 0 1rem;
+  }
+  /* The widget renders nothing at all in the common case, so it must not
+     leave a gap where it would have been. */
+  .turnstile:empty {
+    display: none;
+  }
+  .turnstile-noscript {
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--color-ink-faint);
+  }
+</style>

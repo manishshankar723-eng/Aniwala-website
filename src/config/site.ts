@@ -66,6 +66,38 @@ const env = (key: string): string => {
 export const SUPABASE_URL = env('SUPABASE_URL');
 export const SUPABASE_ANON_KEY = env('SUPABASE_ANON_KEY');
 
+/**
+ * Cloudflare Turnstile — the check that a submission came from a person.
+ *
+ * PUBLIC, like the anon key, and for the same reason: it identifies the widget
+ * to Cloudflare and has to be in the page for the widget to render. The half
+ * that matters is TURNSTILE_SECRET_KEY, which lives only in the Edge Function
+ * environment (`supabase secrets set`) and never appears in this repo or in
+ * the bundle. Never put the secret key here.
+ *
+ * UNSET IS A SUPPORTED STATE, and deliberately so. Empty means the three forms
+ * behave exactly as they did before Turnstile existed: they post straight to
+ * PostgREST under the anon key, protected by RLS and by the database rate
+ * limiter. Set it and they switch to posting through the `submit` Edge
+ * Function, which verifies the token before writing anything.
+ *
+ * That fallback is what makes this safe to ship before the keys exist. Get
+ * them at dash.cloudflare.com -> Turnstile -> Add site, then put the site key
+ * here (and in the CI environment) and the secret key on the function:
+ *
+ *   supabase secrets set TURNSTILE_SECRET_KEY=0x4AAA... --project-ref <ref>
+ */
+export const TURNSTILE_SITE_KEY = env('TURNSTILE_SITE_KEY');
+
+/**
+ * Where the Edge Functions live. Derived rather than configured — it is always
+ * the project URL plus `/functions/v1`, so a second environment variable would
+ * only be a second thing to get wrong.
+ */
+export const FUNCTIONS_BASE_URL = SUPABASE_URL
+  ? `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1`
+  : '';
+
 /*
  * `commentsEnabled` was here. It is now a switch on the Interface copy
  * document, under Comments — turning a comment form off was a deploy, a

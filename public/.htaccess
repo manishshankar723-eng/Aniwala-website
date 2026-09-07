@@ -103,7 +103,18 @@ ErrorDocument 404 /404.html
   # pressure is `img-src *`.
   #
   # media-src gets it too: the hero background video is a CMS-supplied URL.
-  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.sanity.io; font-src 'self'; connect-src 'self' https://*.supabase.co; media-src 'self' https://cdn.sanity.io; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests"
+  #
+  # challenges.cloudflare.com is Turnstile, the "are you human" check in front
+  # of the three forms. It needs TWO directives and the second is easy to
+  # forget: `script-src` for its api.js, and `frame-src` for the iframe the
+  # widget renders itself into. There is no `frame-src` fallback to be had —
+  # without naming it, the directive inherits `default-src 'self'`, the iframe
+  # is blocked, and the widget never produces a token, so every form rejects
+  # every submission with "please complete the check" and no way to do so.
+  #
+  # frame-ancestors stays 'none': that governs who may frame US, which is
+  # still nobody. It is unrelated to what we are allowed to frame.
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.sanity.io; font-src 'self'; connect-src 'self' https://*.supabase.co; media-src 'self' https://cdn.sanity.io; frame-src https://challenges.cloudflare.com; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests"
 </IfModule>
 
 # --- Fonts need CORS to be preloaded -----------------------------

@@ -973,6 +973,10 @@ const brand = defineCollection({
     showWordmark: z.boolean().default(true),
     wordmark: z.string().default(''),
     wordmarkSub: z.string().default(''),
+    /* Null, not 100, and for the same reason as the layout numbers below:
+       "untouched" has to survive to Base.astro so it emits no custom property
+       and the stylesheet's own value stands. */
+    logoScale: z.number().min(50).max(300).nullable().default(null),
     /* Blank means "keep the site's own gold". A malformed value is rejected
        rather than defaulted, because a bad hex in a custom property makes the
        whole declaration invalid and the colour silently reverts — which looks

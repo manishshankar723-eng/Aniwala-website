@@ -9,6 +9,7 @@ import { getContactDetails, getCareersContent } from '../lib/studio';
 import { fill, fillHtml, plural } from '../lib/copy';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config/site';
 import { supabaseConfigured } from '../lib/supabase';
+import Turnstile from './Turnstile.astro';
 
 /**
  * The application form. One form, two jobs.
@@ -346,6 +347,8 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
 
         <p class="ap-msg" id="ap-msg" role="status" aria-live="polite"></p>
 
+        <Turnstile />
+
         <div class="ap-actions">
           <button type="submit" class="ap-submit" id="ap-submit">
             {locked ? copy.applySubmitRole : copy.applySubmitOpen}
@@ -427,6 +430,7 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
 
 <script>
   import { fill, fillHtml, esc } from '../lib/copy';
+  import { submitForm } from '../lib/submit';
 
   function initApply() {
     const root = document.getElementById('ap');
@@ -621,46 +625,27 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
       submit.textContent = copy.submitBusy;
 
       try {
-        const res = await fetch(`${cfg.supabaseUrl.replace(/\/$/, '')}/rest/v1/applications`, {
-          method: 'POST',
-          headers: {
-            apikey: cfg.supabaseKey,
-            Authorization: `Bearer ${cfg.supabaseKey}`,
-            'Content-Type': 'application/json',
-            /* Anon has no SELECT policy on applications, so asking PostgREST
-               to echo the row back would fail the request after a perfectly
-               good insert. Minimal returns nothing but the status. */
-            Prefer: 'return=minimal',
-          },
-          body: JSON.stringify({
-            kind: cfg.locked ? 'role' : mode,
-            role_slug: roleSlug,
-            role_title: roleTitle,
-            discipline,
-            desired_role: desiredRole,
-            name,
-            email,
-            phone: val('ap-phone') || null,
-            location: location_,
-            experience,
-            availability: val('ap-availability') || null,
-            portfolio_url: portfolio,
-            cv_url: cv || null,
-            message,
-            source_path: location.pathname,
-          }),
+        /* `submitForm` chooses the path: straight to PostgREST under the anon
+           key, or through the Turnstile-verified `submit` Edge Function when
+           TURNSTILE_SITE_KEY is set. Neither one is spelled out here, so the
+           switch is a deploy decision rather than an edit. See lib/submit.ts. */
+        await submitForm('application', form, {
+          kind: cfg.locked ? 'role' : mode,
+          role_slug: roleSlug,
+          role_title: roleTitle,
+          discipline,
+          desired_role: desiredRole,
+          name,
+          email,
+          phone: val('ap-phone') || null,
+          location: location_,
+          experience,
+          availability: val('ap-availability') || null,
+          portfolio_url: portfolio,
+          cv_url: cv || null,
+          message,
+          source_path: location.pathname,
         });
-
-        if (!res.ok) {
-          let detail = `HTTP ${res.status}`;
-          try {
-            const j = await res.json();
-            if (j?.message) detail = j.message;
-          } catch {
-            /* non-JSON error body — the status is all we have */
-          }
-          throw new Error(detail);
-        }
 
         /*
          * Everything below goes into innerHTML, and every value in it came

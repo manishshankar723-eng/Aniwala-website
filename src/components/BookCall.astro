@@ -7,6 +7,7 @@ import { studioUtcOffsetMinutes, studioTimezone } from '../config/site';
 
 import { supabaseConfigured } from '../lib/supabase';
 import { getContactDetails, getBookingSettings } from '../lib/studio';
+import Turnstile from './Turnstile.astro';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config/site';
 
 const { email } = await getContactDetails();
@@ -240,6 +241,8 @@ const initials = hostName
 
         <p class="bk-msg" id="bk-msg" role="status" aria-live="polite"></p>
 
+        <Turnstile />
+
         <div class="bk-actions">
           <button type="submit" class="bk-submit" id="bk-submit">{booking.submitLabel}</button>
         </div>
@@ -303,6 +306,7 @@ const initials = hostName
 
 <script>
   import { fill, fillHtml } from '../lib/copy';
+  import { submitForm } from '../lib/submit';
 
   function initBooking() {
     const found = document.getElementById('bk');
@@ -603,50 +607,30 @@ const initials = hostName
          * worked. Casing cannot drift between a `getElementById` and an `id`
          * attribute the way it can between a form name and an object key.
          */
-        const res = await fetch(`${cfg.supabaseUrl.replace(/\/$/, '')}/rest/v1/enquiries`, {
-          method: 'POST',
-          headers: {
-            apikey: cfg.supabaseKey,
-            Authorization: `Bearer ${cfg.supabaseKey}`,
-            'Content-Type': 'application/json',
-            // Anon has no SELECT policy on enquiries, so asking PostgREST to
-            // echo the row back would fail the request after a successful
-            // insert. Minimal returns nothing but the status.
-            Prefer: 'return=minimal',
-          },
-          body: JSON.stringify({
-            name,
-            email,
-            enquiry_type: $<HTMLSelectElement>('bk-enquiry').value || null,
-            message: $<HTMLTextAreaElement>('bk-message').value.trim() || null,
-            /* The number this component is already working in, not a string
-               parsed back out of the DOM. `Number('30 minutes')` is NaN, and
-               `NaN || null` is null — which is what this was storing. */
-            duration_mins: duration || null,
-            /* What an editor reads: "10:00 - 10:30, Monday 8 September", in
-               the VISITOR's timezone. */
-            slot_label: $<HTMLInputElement>('bk-f-when').value || null,
-            /* What a calendar needs. `chosenSlot` is a real instant — see
-               `slotInstant`, which subtracts the studio's fixed offset from a
-               UTC construction — so this is unambiguous no matter which
-               timezone either party is reading it in. Without it the only
-               record of when was a sentence in someone else's local time. */
-            slot_utc: chosenSlot ? chosenSlot.toISOString() : null,
-            visitor_tz: tz || null,
-            source_path: location.pathname,
-          }),
+        /* `submitForm` picks the path — straight to PostgREST under the anon
+           key, or through the Turnstile-verified `submit` Edge Function once
+           TURNSTILE_SITE_KEY is set. See lib/submit.ts. */
+        await submitForm('enquiry', form, {
+          name,
+          email,
+          enquiry_type: $<HTMLSelectElement>('bk-enquiry').value || null,
+          message: $<HTMLTextAreaElement>('bk-message').value.trim() || null,
+          /* The number this component is already working in, not a string
+             parsed back out of the DOM. `Number('30 minutes')` is NaN, and
+             `NaN || null` is null — which is what this was storing. */
+          duration_mins: duration || null,
+          /* What an editor reads: "10:00 - 10:30, Monday 8 September", in
+             the VISITOR's timezone. */
+          slot_label: $<HTMLInputElement>('bk-f-when').value || null,
+          /* What a calendar needs. `chosenSlot` is a real instant — see
+             `slotInstant`, which subtracts the studio's fixed offset from a
+             UTC construction — so this is unambiguous no matter which
+             timezone either party is reading it in. Without it the only
+             record of when was a sentence in someone else's local time. */
+          slot_utc: chosenSlot ? chosenSlot.toISOString() : null,
+          visitor_tz: tz || null,
+          source_path: location.pathname,
         });
-
-        if (!res.ok) {
-          let detail = `HTTP ${res.status}`;
-          try {
-            const j = await res.json();
-            if (j?.message) detail = j.message;
-          } catch {
-            /* non-JSON error body — the status is all we have */
-          }
-          throw new Error(detail);
-        }
 
         /* Both values came out of a form, so the sentence and everything
            filled into it are escaped. `{{when}}` is left for the bold below,

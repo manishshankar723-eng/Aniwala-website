@@ -363,9 +363,11 @@ const isCurrent = (href?: string) =>
     text-decoration: none;
     color: var(--color-ink);
   }
+  /* Square, so both axes take the same variable. The uploaded <img> below
+     overrides the width — see the note there. */
   .brand-icon {
-    width: 2.1rem;
-    height: 2.1rem;
+    width: var(--logo-h);
+    height: var(--logo-h);
     flex-shrink: 0;
   }
 
@@ -375,10 +377,16 @@ const isCurrent = (href?: string) =>
    * An <img> has its own aspect ratio, unlike the square inline SVG, so it is
    * constrained by HEIGHT and left to be as wide as it needs — a wordmark-
    * shaped logo would otherwise be squashed into a 2.1rem box.
+   *
+   * The cap scales with the same control. Left at a flat 11rem it becomes the
+   * real constraint the moment the logo is enlarged: a wide wordmark would
+   * hit it, stop growing sideways, and — with object-fit keeping the ratio —
+   * stop growing taller too, so the size field would visibly do nothing past
+   * a certain point while the header underneath it kept expanding.
    */
   img.brand-icon {
     width: auto;
-    max-width: 11rem;
+    max-width: calc(11rem * var(--logo-scale, 1));
     object-fit: contain;
   }
 

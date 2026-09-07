@@ -174,6 +174,20 @@ export default defineType({
     ),
 
     defineField({
+      name: 'logoScale',
+      title: 'Logo size',
+      type: 'number',
+      group: 'logo',
+      description:
+        'A percentage of the size the mark is drawn at now. 100 leaves it exactly as it is; 150 makes it half again as tall. THE HEADER GROWS WITH IT — the bar gets taller and the menu moves down to stay centred, rather than the logo overflowing a fixed strip.',
+      initialValue: 100,
+      validation: (Rule) =>
+        Rule.min(50)
+          .max(300)
+          .warning('Past about 200 the header eats a large part of a phone screen before anything is read.'),
+    }),
+
+    defineField({
       name: 'showWordmark',
       title: 'Show the studio name beside the logo',
       type: 'boolean',

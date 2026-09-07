@@ -71,6 +71,16 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
+      # The Turnstile SITE key — public, and baked into the bundle like the
+      # anon key above. Its secret half lives only on the Edge Functions.
+      #
+      # Absent, the build is still correct: the forms fall back to posting
+      # straight to PostgREST, which is what they did before Turnstile
+      # existed. That is also the quiet failure worth watching for — set it
+      # locally, see the widget, and ship a production build without it, and
+      # the live forms silently keep taking the unverified path.
+      TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
+
     steps:
       - uses: actions/checkout@v4
 

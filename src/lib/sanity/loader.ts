@@ -915,7 +915,7 @@ export const sanityBrand = (): Loader =>
     hasBody: false,
     idFrom: () => 'brand',
     projection: `
-      _id, logoDark, logoLight, showWordmark, wordmark, wordmarkSub,
+      _id, logoDark, logoLight, logoScale, showWordmark, wordmark, wordmarkSub,
       accentDark, accentLight, buttonFill, buttonInk,
       groundDark, surfaceDark, surface2Dark, lineDark, lineStrongDark, inkDark, inkMutedDark, inkFaintDark, groundLight, surfaceLight, surface2Light, lineLight, lineStrongLight, inkLight, inkMutedLight, inkFaintLight, dangerDark, dangerLight,
       contentWidth, radiusScale, gutterScale,
@@ -934,6 +934,7 @@ export const sanityBrand = (): Loader =>
       showWordmark: doc.showWordmark ?? true,
       wordmark: doc.wordmark ?? '',
       wordmarkSub: doc.wordmarkSub ?? '',
+      logoScale: doc.logoScale ?? null,
       accentDark: doc.accentDark ?? '',
       accentLight: doc.accentLight ?? '',
       buttonFill: doc.buttonFill ?? '',

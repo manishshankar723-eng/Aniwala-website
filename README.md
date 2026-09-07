@@ -508,6 +508,46 @@ If you ever need to bulk-import rows, do it from the SQL editor or with the
 service key: requests with no forwarded client address are deliberately not
 limited, so your own maintenance never locks you out.
 
+### Turnstile — the layer in front of the rate limiter
+
+**Optional, and off until you add the keys.** With `TURNSTILE_SITE_KEY` unset
+the three forms behave exactly as they always did: straight to PostgREST under
+the anon key, protected by RLS and the rate limiter. Set it and they post
+through the `submit` Edge Function, which verifies a Cloudflare Turnstile token
+before writing anything — so automated traffic never reaches the database.
+
+That fallback exists because the site, the Edge Functions and the Cloudflare
+account are three separate deploys that do not land at the same moment. A build
+made before the keys exist has to keep working, or the forms go dark in the gap.
+
+`submit` holds the service role key, which bypasses RLS *and* the column grants
+in section 4 of the schema. That is why it copies fields through an explicit
+allowlist rather than spreading the request body: without it, the internet
+could set `approved = true` on a comment — the exact thing the column grants
+were written to prevent, undone by the layer meant to protect them. **If you
+add a column to a form, add it to `FIELDS` in `supabase/functions/submit/index.ts`
+as well**, or it will be silently dropped.
+
+**Setup, in this order:**
+
+1. dash.cloudflare.com → Turnstile → Add site. You get a site key and a secret key.
+2. Give the function the secret half:
+   ```bash
+   supabase secrets set TURNSTILE_SECRET_KEY=0x4AAA... --project-ref <ref>
+   supabase functions deploy submit --no-verify-jwt --project-ref <ref>
+   ```
+3. Put the site key in `.env` **and** in the GitHub Actions repository secrets.
+   Setting it in only one place is the failure nobody notices: the widget
+   appears locally while the live site quietly keeps taking the fallback path.
+4. Deploy the site, then **submit a real form on aniwala.com and confirm it
+   arrives.**
+5. Only once that works, run the cutover in section 7 of `supabase/schema.sql`
+   to remove anon's INSERT grants. Doing it earlier breaks every live form.
+
+The CSP already names `challenges.cloudflare.com` in both `script-src` and
+`frame-src`. The widget renders in an iframe, so it needs both — with only the
+first, it never produces a token and every form rejects every submission.
+
 ### Moderating comments
 
 **Nothing a visitor writes appears on the site until you approve it.**

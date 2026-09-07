@@ -391,7 +391,27 @@ summary {
   --radius-md: calc(0.75rem * var(--radius-scale, 1));
   --radius-lg: calc(1.1rem * var(--radius-scale, 1));
 
-  --header-h: 5rem;
+  /*
+   * The mark's drawn height, and the bar around it.
+   *
+   * --logo-h is the one place the 2.1rem the logo was designed at is written
+   * down; Header.astro sizes both the inline SVG and the uploaded <img> from
+   * it, so "Logo size" in the Studio moves all three together.
+   *
+   * --header-h then GROWS TO FIT rather than staying at 5rem, which is the
+   * behaviour anyone arriving from WordPress expects: enlarge the logo and
+   * the header gets taller, the nav stays vertically centred in it, and
+   * everything anchored to the header — the mobile menu's top edge, every
+   * scroll-margin for an in-page link — follows, because all of them are
+   * already expressed in terms of this variable.
+   *
+   * max(), so the default is not merely unchanged but PROVABLY unchanged: at
+   * a scale of 1 the second term is 3.7rem, the first wins, and the bar is
+   * the 5rem it always was. Only a logo tall enough to actually crowd the
+   * strip pushes it open. The 1.6rem is the breathing room above and below.
+   */
+  --logo-h: calc(2.1rem * var(--logo-scale, 1));
+  --header-h: max(5rem, calc(var(--logo-h) + 1.6rem));
   /* Height of the announcement strip above the header. Everything fixed to
      the top offsets by this, so dismissing it collapses the layout cleanly. */
   --announce-h: 2.75rem;

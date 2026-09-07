@@ -343,10 +343,15 @@ set search_path = public, pg_temp
 as $$
 declare
   hdrs          json;
+  caller_role   text;
   client_addr   text;
   per_addr_max  int := coalesce(nullif(tg_argv[0], ''), '5')::int;
   window_mins   int := coalesce(nullif(tg_argv[1], ''), '60')::int;
   global_max    int := coalesce(nullif(tg_argv[2], ''), '40')::int;
+  /* Optional fourth argument. Reading past tg_nargs yields NULL rather than
+     erroring, so a trigger created with three arguments simply skips the
+     daily ceiling. */
+  daily_max     int := nullif(tg_argv[3], '')::int;
   since         timestamptz;
   n             int;
 begin
@@ -361,12 +366,46 @@ begin
     hdrs := null;
   end;
 
-  client_addr := nullif(btrim(coalesce(
-    hdrs ->> 'cf-connecting-ip',
-    split_part(hdrs ->> 'x-forwarded-for', ',', 1),
-    hdrs ->> 'x-real-ip',
-    ''
-  )), '');
+  /*
+   * WHOSE address is this?
+   *
+   * Two shapes of caller reach these tables:
+   *
+   *   1. The browser, posting straight to PostgREST with the anon key. The
+   *      edge sets cf-connecting-ip / x-forwarded-for and the visitor cannot
+   *      forge them.
+   *
+   *   2. The `submit` Edge Function, which verifies a Turnstile token and
+   *      then inserts as service_role. Its OWN address is on those headers —
+   *      the same one for every visitor on earth — so reading them here would
+   *      put the whole internet in one bucket. It forwards the real visitor
+   *      address on x-client-ip instead.
+   *
+   * x-client-ip is trusted ONLY for service_role. The anon key is public, so
+   * an anon caller allowed to set its own address could send a different one
+   * on every request and never reach a limit — which would quietly undo this
+   * entire section.
+   *
+   * `current_user` is NOT usable for that test: this function is SECURITY
+   * DEFINER, so inside it current_user is the owner, not the caller. The
+   * role PostgREST authenticated as is in the verified JWT claims.
+   */
+  begin
+    caller_role := current_setting('request.jwt.claims', true)::json ->> 'role';
+  exception when others then
+    caller_role := null;
+  end;
+
+  if caller_role = 'service_role' then
+    client_addr := nullif(btrim(coalesce(hdrs ->> 'x-client-ip', '')), '');
+  else
+    client_addr := nullif(btrim(coalesce(
+      hdrs ->> 'cf-connecting-ip',
+      split_part(hdrs ->> 'x-forwarded-for', ',', 1),
+      hdrs ->> 'x-real-ip',
+      ''
+    )), '');
+  end if;
 
   -- No identifiable caller means this is not a web request: the dashboard,
   -- psql, or the service role doing something deliberate. Never limit those,
@@ -400,35 +439,69 @@ begin
       using errcode = 'PT429';
   end if;
 
+  /*
+   * Ceiling three: everybody, per DAY. This is the one that actually bounds
+   * the mail bill, and its absence was a hole in the two above.
+   *
+   * An HOURLY ceiling limits the rate and not the total. At 40 an hour,
+   * enquiries alone can produce 960 notification emails in a day and roughly
+   * 29,000 in a month — so a script running flat out still walks through a
+   * free Resend tier (about 3,000 a month, and about 100 a day) in a little
+   * over a day, which is precisely the outcome sections 5 exists to prevent.
+   * Rate limiting without a total is a slower leak, not a plugged one.
+   *
+   * The daily numbers on the triggers below add up to well under the daily
+   * allowance, and every one of them is several times real traffic. A studio
+   * site does not receive thirty genuine enquiries in a day; if it ever does,
+   * raise this deliberately rather than discovering it was already raised.
+   */
+  if daily_max is not null then
+    select count(*) into n
+      from public.submission_log l
+     where l.kind = tg_table_name
+       and l.at > now() - interval '24 hours';
+
+    if n >= daily_max then
+      raise exception
+        'We have taken a lot of submissions today. Please email us directly instead.'
+        using errcode = 'PT429';
+    end if;
+  end if;
+
   insert into public.submission_log (addr, kind) values (client_addr, tg_table_name);
   return new;
 end;
 $$;
 
 /*
- * Limits per table. These are ceilings on abuse, not targets — every one of
- * them is far above what real use looks like.
+ * Limits per table: (per address, window in minutes, per window, PER DAY).
  *
- *   enquiries     3 per address per hour, 40 an hour in total.
- *   comments      5 per address per hour, 60 an hour in total.
- *   applications  5 per address per DAY, 80 a day in total. Somebody may
- *                 genuinely apply for two or three roles in one sitting, so
- *                 the window is long and the per-address number is generous.
+ * Ceilings on abuse, not targets — every number is several times what real
+ * use looks like. The daily column is the one sized against the mail plan:
+ *
+ *   enquiries      30/day  \
+ *   comments       30/day   >  80 a day worst case, all three combined,
+ *   applications   20/day  /   comfortably inside a free Resend tier.
+ *
+ * Applications keep a 24-hour window rather than an hour: somebody may
+ * genuinely apply for two or three roles in one sitting, so the per-address
+ * allowance is generous and long. Its window IS a day, which makes the third
+ * argument its daily ceiling already — hence no fourth.
  */
 drop trigger if exists enquiries_rate_limit on public.enquiries;
 create trigger enquiries_rate_limit
   before insert on public.enquiries
-  for each row execute function public.enforce_rate_limit('3', '60', '40');
+  for each row execute function public.enforce_rate_limit('3', '60', '40', '30');
 
 drop trigger if exists comments_rate_limit on public.comments;
 create trigger comments_rate_limit
   before insert on public.comments
-  for each row execute function public.enforce_rate_limit('5', '60', '60');
+  for each row execute function public.enforce_rate_limit('5', '60', '60', '30');
 
 drop trigger if exists applications_rate_limit on public.applications;
 create trigger applications_rate_limit
   before insert on public.applications
-  for each row execute function public.enforce_rate_limit('5', '1440', '80');
+  for each row execute function public.enforce_rate_limit('5', '1440', '20');
 
 /*
  * Housekeeping. The log only ever needs the current window, and nothing reads
@@ -486,3 +559,46 @@ from information_schema.triggers
 where trigger_schema = 'public'
   and trigger_name like '%_rate_limit'
 order by event_object_table;
+
+
+-- ---------------------------------------------------------------------
+-- 7. THE TURNSTILE CUTOVER  —  COMMENTED OUT ON PURPOSE. DO NOT RUN YET.
+--
+-- Once every form posts through the `submit` Edge Function, the anon role
+-- has no remaining reason to write to these tables, and taking the grants
+-- away is what finally closes the direct-to-PostgREST door:
+--
+--   curl -X POST '.../rest/v1/enquiries' -H "apikey: <key from the bundle>"
+--
+-- After this, that returns 401 no matter what it sends. `submit` is
+-- unaffected — it writes as service_role, which bypasses grants and RLS.
+--
+-- ORDER MATTERS, AND GETTING IT WRONG TAKES THE FORMS DOWN.
+--
+-- The live site keeps posting under the anon key until a build made WITH
+-- TURNSTILE_SITE_KEY is actually deployed to Hostinger. Run this before that
+-- build is live and every form on aniwala.com starts failing immediately,
+-- with a permission error the visitor cannot do anything about.
+--
+-- So the sequence is, in this order and not another:
+--
+--   1. Get a Turnstile site key and secret key from Cloudflare.
+--   2. supabase secrets set TURNSTILE_SECRET_KEY=0x... --project-ref <ref>
+--   3. supabase functions deploy submit --no-verify-jwt
+--   4. Put TURNSTILE_SITE_KEY in .env AND in the GitHub Actions secrets.
+--   5. Deploy the site. CONFIRM a real submission works on aniwala.com.
+--   6. Only then, uncomment and run the three statements below.
+--
+-- To roll back, re-run section 4 of this file: it restores exactly these
+-- grants. Keep that in mind rather than reconstructing them by hand.
+-- ---------------------------------------------------------------------
+
+-- revoke insert on public.enquiries    from anon;
+-- revoke insert on public.comments     from anon;
+-- revoke insert on public.applications from anon;
+
+-- The comment SELECT grant must SURVIVE this: reading approved comments is
+-- how the blog thread renders, and it has nothing to do with submitting one.
+-- Section 4 grants it as `grant select (id, created_at, post_slug,
+-- author_name, body)`. Do not revoke that, and do not use a bare
+-- `revoke all` here, which would take it with everything else.

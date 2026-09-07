@@ -1,6 +1,7 @@
 ---
 import { supabaseConfigured } from '../lib/supabase';
 import { getContactDetails, getUiCopy } from '../lib/studio';
+import Turnstile from './Turnstile.astro';
 
 /**
  * Blog comments, stored in Supabase alongside enquiries — one project, one
@@ -91,6 +92,8 @@ const showSetupHint = !live && import.meta.env.DEV;
           </label>
 
           <p class="comments-msg" data-comments-msg role="status" aria-live="polite"></p>
+
+          <Turnstile />
 
           <div class="comments-actions">
             <button type="submit" class="comments-submit">{ui.commentsSubmit}</button>
@@ -426,7 +429,8 @@ const showSetupHint = !live && import.meta.env.DEV;
 </script>
 
 <script>
-  import { insertRow, selectRows } from '../lib/supabase';
+  import { selectRows } from '../lib/supabase';
+  import { submitForm } from '../lib/submit';
   import { fill } from '../lib/copy';
 
   interface CommentRow {
@@ -580,10 +584,11 @@ const showSetupHint = !live && import.meta.env.DEV;
       submit.disabled = true;
       submit.textContent = copy.submitBusy;
       try {
-        // `approved` is deliberately absent: anon holds no INSERT grant on
-        // that column, so it cannot be set from here at all. The column
-        // default supplies false and the RLS check confirms it.
-        await insertRow('comments', {
+        // `approved` is deliberately absent, and is refused twice over: anon
+        // holds no INSERT grant on that column, and the `submit` function
+        // drops anything outside its field allowlist. The column default
+        // supplies false and the RLS check confirms it.
+        await submitForm('comment', form, {
           post_slug: slug,
           author_name: author,
           author_email: email,
