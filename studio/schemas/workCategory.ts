@@ -102,7 +102,7 @@ export default defineType({
       group: 'main',
       options: { hotspot: true },
       description:
-        'Optional. The picture on this discipline’s tile — on the homepage grid and the portfolio index. Landscape, at least 1600px wide; wide tiles span two columns, so give those something that survives the crop. Leave it empty and the tint above is used on its own.',
+        'Optional. The picture on this discipline’s tile — on the homepage grid and the portfolio index. Landscape, at least 1600px wide. Every tile is the same size and is cropped to it, so use the crop tool to mark what must stay in frame. Leave it empty and the tint above is used on its own.',
       fields: [
         defineField({
           name: 'alt',
@@ -123,14 +123,6 @@ export default defineType({
         'The services somebody actually commissions to get this work. Stated rather than derived, because a craft and a service are not the same thing.',
       of: [defineArrayMember({ type: 'reference', to: [{ type: 'service' }] })],
       validation: (Rule) => Rule.unique(),
-    }),
-    defineField({
-      name: 'wide',
-      title: 'Wide tile',
-      type: 'boolean',
-      group: 'main',
-      description: 'Spans two columns on the homepage grid. Use sparingly — one in three at most.',
-      initialValue: false,
     }),
     defineField({
       name: 'order',

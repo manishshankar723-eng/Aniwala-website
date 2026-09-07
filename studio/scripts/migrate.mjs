@@ -738,7 +738,6 @@ async function migrateWorkCategories() {
     blurb: c.blurb,
     intro: c.intro,
     tint: c.tint,
-    wide: c.wide,
     order: c.order,
     services: (c.services ?? [])
       .filter((slug) => {

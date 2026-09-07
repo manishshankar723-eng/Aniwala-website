@@ -40,7 +40,7 @@ const tiles = (await getWorkCategories()).map((w) => ({ ...w, art: toArtwork(w.i
       tiles.map((w) => (
         <a
           href={categoryHref(w.slug)}
-          class:list={['work-tile', w.wide && 'work-tile--wide']}
+          class="work-tile"
           style={`--tint:${w.tint}`}
           data-reveal
         >
@@ -59,7 +59,7 @@ const tiles = (await getWorkCategories()).map((w) => ({ ...w, art: toArtwork(w.i
                 class="work-img"
                 src={w.art.src}
                 srcset={w.art.srcset}
-                sizes={w.wide ? '(min-width: 900px) 66vw, 100vw' : '(min-width: 900px) 33vw, 100vw'}
+                sizes="(min-width: 1050px) 33vw, (min-width: 700px) 50vw, 100vw"
                 alt=""
                 loading="lazy"
                 decoding="async"
@@ -77,12 +77,32 @@ const tiles = (await getWorkCategories()).map((w) => ({ ...w, art: toArtwork(w.i
 </section>
 
 <style>
+  /*
+   * SIX EQUAL TILES, and the count is the reason.
+   *
+   * These used to run three across with a `wide` tile spanning two columns.
+   * Six tiles with two of them wide is eight column-units in a three-column
+   * grid, which cannot fill three rows — so the last row came up one short
+   * and the section ended on a hole. Worse, the tiles are a SET: six
+   * disciplines, equal in standing, and sizing two of them larger read as a
+   * layout fault rather than as emphasis. (Portfolio PIECES are a different
+   * case and still use their wide modifier — an uneven gallery of stills
+   * reads as rhythm. A menu of what the studio does does not.)
+   *
+   * Both column counts divide six exactly: two across gives three rows,
+   * three across gives two. Whatever the screen, the grid comes out square.
+   */
   .work-grid {
     display: grid;
     gap: 0.75rem;
     grid-template-columns: 1fr;
   }
   @media (min-width: 700px) {
+    .work-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (min-width: 1050px) {
     .work-grid {
       grid-template-columns: repeat(3, 1fr);
     }
@@ -93,20 +113,20 @@ const tiles = (await getWorkCategories()).map((w) => ({ ...w, art: toArtwork(w.i
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
+    /*
+     * PROPORTIONAL, not a fixed height. At a fixed 20rem a tile in a
+     * three-column grid on a large monitor is 740px wide and 320 tall — a
+     * letterbox slot that crops the picture to a strip. The ratio holds the
+     * shape at every width; the floor keeps a narrow tile tall enough for the
+     * title and blurb to sit in.
+     */
+    aspect-ratio: 16 / 10;
     min-height: 16rem;
     padding: 1.5rem;
     border-radius: 0.75rem;
     overflow: hidden;
     text-decoration: none;
     isolation: isolate;
-  }
-  @media (min-width: 700px) {
-    .work-tile {
-      min-height: 20rem;
-    }
-    .work-tile--wide {
-      grid-column: span 2;
-    }
   }
 
   /* The colour placeholder. Visible when a slot has no image filed against

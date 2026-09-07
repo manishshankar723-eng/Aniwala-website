@@ -20,7 +20,6 @@ export interface WorkCategory {
   tint: string;
   /** Tile picture, or undefined — the tile falls back to `tint`. */
   image?: SanityImage;
-  wide: boolean;
   order: number;
   /** Service slugs. Already dereferenced by the loader. */
   services: string[];

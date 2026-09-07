@@ -852,7 +852,6 @@ const workCategories = defineCollection({
     /* The tile picture. Optional, on the discipline for the same reason the
        service hero is on the service — see there. */
     image: sanityImage.optional(),
-    wide: z.boolean().default(false),
     order: z.number().int().default(50),
     services: z.array(z.string()).default([]),
     ...seoOverrides,
