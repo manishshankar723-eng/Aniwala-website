@@ -48,6 +48,63 @@ export const turnstileEnabled = (): boolean => {
 };
 
 /**
+ * Wait for Turnstile to produce a token, rather than assuming it already has.
+ *
+ * THE RACE THIS FIXES, which looked exactly like a broken widget.
+ *
+ * api.js is loaded `async defer`, so the sequence is: page paints, script
+ * arrives, widget initialises, challenge runs, token appears. Somebody who
+ * types a short comment and hits the button beats all of that — the hidden
+ * `cf-turnstile-response` input is still empty, and the form told them to
+ * complete a check that was already running invisibly. Cloudflare's own
+ * dashboard showed the truth: challenges issued, some solved, and siteverify
+ * never called, because the request was never made.
+ *
+ * A few hundred milliseconds of patience is the entire fix. The caller has
+ * already put the button into its "sending" state, so the wait reads as the
+ * form working rather than the form hanging.
+ *
+ * Two ways out other than success, and both matter:
+ *   - the widget reported an error, so waiting is pointless and it stops
+ *     immediately with the code;
+ *   - the deadline passes, and the caller reports something honest.
+ *
+ * `getResponse()` is consulted as well as the form input because the widget
+ * knows it has a token slightly before the input is populated.
+ */
+async function waitForToken(form: HTMLFormElement, timeoutMs = 8_000): Promise<string> {
+  const api = () =>
+    (window as unknown as { turnstile?: { getResponse?: (id?: string) => string | undefined } })
+      .turnstile;
+  const failed = () =>
+    (window as unknown as { __aniwalaTurnstileErr?: string }).__aniwalaTurnstileErr;
+
+  const read = (): string => {
+    const fromInput = String(new FormData(form).get('cf-turnstile-response') ?? '');
+    if (fromInput) return fromInput;
+    try {
+      const fromApi = api()?.getResponse?.();
+      return typeof fromApi === 'string' ? fromApi : '';
+    } catch {
+      /* widget not ready — that is what the wait is for */
+      return '';
+    }
+  };
+
+  const immediate = read();
+  if (immediate) return immediate;
+
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (failed()) return '';
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const token = read();
+    if (token) return token;
+  }
+  return '';
+}
+
+/**
  * Send one submission.
  *
  * `form` is needed only to read the token: the Turnstile widget injects a
@@ -68,9 +125,29 @@ export async function submitForm(
     return;
   }
 
-  const token = String(new FormData(form).get('cf-turnstile-response') ?? '');
+  const token = await waitForToken(form);
   if (!token) {
-    throw new SupabaseError('Please complete the "I am human" check below, then send again.');
+    /*
+     * No token has two completely different causes and they need different
+     * messages. Telling somebody to "complete the check below" when the widget
+     * failed to load is a dead end: there is nothing below to complete, and no
+     * amount of trying again will change it.
+     *
+     * `Turnstile.astro` records the widget's own error code, so the
+     * misconfiguration case says what actually happened. 110200 is a hostname
+     * missing from the widget's allow-list, which is the usual one.
+     */
+    const widgetError = (window as unknown as { __aniwalaTurnstileErr?: string })
+      .__aniwalaTurnstileErr;
+    if (widgetError) {
+      throw new SupabaseError(
+        `The human-verification check could not load (error ${widgetError}), so this cannot be sent from here yet. ` +
+          `Please email us instead — and if you run this site, check the domain is listed on the Turnstile widget.`
+      );
+    }
+    throw new SupabaseError(
+      'The human-verification check has not finished yet. Give it a moment and send again.'
+    );
   }
 
   let res: Response;

@@ -85,6 +85,7 @@ Deno.serve(async (req) => {
           `<table style="border-collapse:collapse;width:100%">
              ${row('Name', record.name)}
              ${row('Email', record.email)}
+             ${row('Phone', record.phone)}
              ${row('Company', record.company)}
              ${row('About', type)}
              ${row('Slot', record.slot_label)}

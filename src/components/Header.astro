@@ -11,7 +11,7 @@ const path = Astro.url.pathname;
 
 /* Some routes are worth a footer link and a search entry but not one of the
    header's few slots. Both the desktop nav and the drawer read this. */
-const { headerItems: headerNav, ctaLabel, ctaHref } = await getNavigation();
+const { headerItems: headerNav, ctaLabel, ctaHref } = await getNavigation(Astro.url.pathname);
 const ui = await getUiCopy();
 const brand = await getBrand();
 
@@ -920,6 +920,29 @@ const isCurrent = (href?: string) =>
     };
     toggle.addEventListener('click', () =>
       setMenu(toggle.getAttribute('aria-expanded') !== 'true')
+    );
+
+    /*
+     * Any link in the drawer closes the drawer.
+     *
+     * It used to close by accident: every link went to another page, and a
+     * page swap rebuilt the header without `is-open`. The gold button is now
+     * an in-page jump on the two pages that carry the booking widget, and
+     * there is no swap to clean up after it — so tapping it scrolled the page
+     * behind a drawer still covering it, with scrolling still locked.
+     *
+     * IN THE CAPTURE PHASE, so this runs before the anchor's own handler in
+     * lib/motion.ts. That handler scrolls through Lenis, and `lockScroll`
+     * has stopped Lenis; the drawer has to be closed — and Lenis started
+     * again — before the scroll is asked for, not after. Registration order
+     * between two `astro:page-load` listeners is not something to rely on.
+     */
+    menu.addEventListener(
+      'click',
+      (e) => {
+        if ((e.target as Element).closest('a')) setMenu(false);
+      },
+      true
     );
 
     // --- Dropdowns: click and keyboard, alongside CSS hover -----------

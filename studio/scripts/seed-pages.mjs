@@ -489,6 +489,16 @@ export const PAGES = [
         tint: '28 75% 26%',
       },
       {
+        /* FIRST, under the hero. Writing to the studio is what this page is
+           for, so it is not three sections down past the address, the example
+           briefs and the calendar. */
+        _type: 'enquiryFormBlock',
+        eyebrow: 'Start here',
+        title: 'Send us the brief',
+        anchor: 'enquiry',
+        lead: 'No mail client, no attachments to dig out. Tell us the work and the date, and you get the same answer you would get by email — a scope, a straight yes or no, and what it would take. The inbox and the address are below if you would rather use them.',
+      },
+      {
         _type: 'reachBlock',
         anchor: 'reach',
         note: 'The fastest route. Send the cut, the asset list, the script, or just the problem. Whatever you have is enough to get a useful answer back, and every enquiry is read by someone who could do the work.',

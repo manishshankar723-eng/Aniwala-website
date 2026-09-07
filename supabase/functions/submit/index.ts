@@ -44,7 +44,7 @@ const TURNSTILE_VERIFY = 'https://challenges.cloudflare.com/turnstile/v0/sitever
    drives moderation or triage state appears in any of them. */
 const FIELDS: Record<string, string[]> = {
   enquiry: [
-    'name', 'email', 'company', 'enquiry_type', 'message',
+    'name', 'email', 'phone', 'company', 'enquiry_type', 'message',
     'duration_mins', 'slot_label', 'slot_utc', 'visitor_tz', 'source_path',
   ],
   application: [

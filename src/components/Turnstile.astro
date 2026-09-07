@@ -38,6 +38,7 @@ const { class: className } = Astro.props;
         data-sitekey={TURNSTILE_SITE_KEY}
         data-theme="auto"
         data-appearance="interaction-only"
+        data-error-callback="aniwalaTurnstileError"
       />
       <noscript>
         <p class="turnstile-noscript">
@@ -50,9 +51,43 @@ const { class: className } = Astro.props;
 
 {
   /*
+    WHY AN ERROR CALLBACK IS NOT OPTIONAL HERE.
+
+    `interaction-only` means the widget renders NOTHING when Cloudflare is
+    satisfied — which is the pleasant case and the whole reason to use it. It
+    also means the widget renders nothing when it FAILS. A site key whose
+    hostname list does not include this domain produces no widget, no token
+    and no visible error, so the form says "please complete the check below"
+    while there is demonstrably nothing below to complete. That is a dead end
+    for whoever is trying to leave a comment, and an unfalsifiable bug report
+    for whoever has to fix it.
+
+    So the error code is captured and the form reports it. Turnstile's codes
+    are documented, and 110200 in particular means "this domain is not on the
+    widget's hostname list" — the single most likely misconfiguration, and
+    now a legible one.
+  */
+  TURNSTILE_SITE_KEY && (
+    <script is:inline>
+      window.aniwalaTurnstileError = function (code) {
+        window.__aniwalaTurnstileErr = String(code || 'unknown');
+        try {
+          console.error('[turnstile] failed to issue a token, code ' + code);
+        } catch (e) {}
+        return true;
+      };
+    </script>
+  )
+}
+
+{
+  /*
     Loaded once per page even when several forms are on it: the `id` makes a
     repeat render a no-op in the browser, and Astro hoists `is:inline` scripts
     as written rather than bundling them.
+
+    AFTER the callback above, which api.js looks up by name the moment it
+    initialises the widget.
   */
   TURNSTILE_SITE_KEY && (
     <script

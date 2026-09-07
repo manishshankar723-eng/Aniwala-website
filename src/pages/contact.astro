@@ -6,8 +6,48 @@
  * brief we can scope quickly, and the booking widget. The inbox, address and
  * social accounts are not stored on this page — they come from Contact details,
  * so the footer and this page can never disagree about the address.
+ *
+ * THE ONE THING THIS ROUTE GUARANTEES is that there is a way to write to the
+ * studio without opening a mail client. The page's sections are the editor's
+ * to arrange, but a contact page whose only routes are a `mailto:` link and a
+ * calendar quietly turns away everybody who has a question rather than a slot
+ * to book — on a phone, a `mailto:` opens an app they may not use, or nothing
+ * at all.
+ *
+ * So the form is BOTH a block, placeable anywhere in the Studio, and a
+ * fallback here for as long as the document has not been given one. The check
+ * is what stops those two from becoming two forms on the same page: place the
+ * "Enquiry form" block where it belongs and this one stops rendering, with
+ * nothing to remove here.
+ *
+ * IT GOES DIRECTLY UNDER THE HERO — the `after-hero` slot rather than the
+ * default one at the foot of the page. Writing to the studio is what this
+ * page is for, so it is the first thing under the headline that promises an
+ * answer in two working days, not the last thing after the address, the
+ * example briefs and the calendar.
  */
+import { getEntry } from 'astro:content';
 import BuiltPage from '../layouts/BuiltPage.astro';
+import EnquiryForm from '../components/EnquiryForm.astro';
+
+/* A second read of the same document BuiltPage renders. Astro's content layer
+   serves it from the same store, so this is a lookup rather than a fetch. A
+   missing page is left to BuiltPage, which fails the build with a message
+   that says how to fix it. */
+const page = await getEntry('builtPages', 'contact');
+const placed = page?.data.blocks.some((b) => b._type === 'enquiryFormBlock') ?? false;
 ---
 
-<BuiltPage slug="contact" />
+<BuiltPage slug="contact">
+  {
+    !placed && (
+      <EnquiryForm
+        slot="after-hero"
+        eyebrow="Start here"
+        title="Send us the brief"
+        anchor="enquiry"
+        lead="No mail client, no attachments to dig out. Tell us the work and the date, and you get the same answer you would get by email — a scope, a straight yes or no, and what it would take. The inbox and the address are below if you would rather use them."
+      />
+    )
+  }
+</BuiltPage>

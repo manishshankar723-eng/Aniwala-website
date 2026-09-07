@@ -43,6 +43,7 @@ import TeamGridBlock from './TeamGridBlock.astro';
 import MilestoneBlock from './MilestoneBlock.astro';
 import FaqBlock from './FaqBlock.astro';
 import ReachBlock from './ReachBlock.astro';
+import EnquiryFormBlock from './EnquiryFormBlock.astro';
 import BookCallBlock from './BookCallBlock.astro';
 import { previewMode } from '../../lib/sanity/client';
 
@@ -56,9 +57,19 @@ interface Props {
   blocks: Block[];
   /** For the error message, so a failure names the page and not just the type. */
   label?: string;
+  /**
+   * Where this slice starts in the page's block array.
+   *
+   * A page is rendered in more than one call — BuiltPage splits the array to
+   * put a slot after the hero — and `index` below ends up in the DOM as an
+   * accordion group name. Numbered per slice, the first block of the second
+   * call would collide with the first block of the first, and two FAQ blocks
+   * would share one group: opening a question in either would close the other.
+   */
+  offset?: number;
 }
 
-const { blocks, label = 'this page' } = Astro.props;
+const { blocks, label = 'this page', offset = 0 } = Astro.props;
 
 const KNOWN = new Set([
   'heroBlock',
@@ -84,6 +95,7 @@ const KNOWN = new Set([
   'milestoneBlock',
   'faqBlock',
   'reachBlock',
+  'enquiryFormBlock',
   'bookCallBlock',
 ]);
 
@@ -155,9 +167,11 @@ if (unknown.length) {
       case 'milestoneBlock':
         return <MilestoneBlock block={block as never} />;
       case 'faqBlock':
-        return <FaqBlock block={block as never} index={index} />;
+        return <FaqBlock block={block as never} index={offset + index} />;
       case 'reachBlock':
         return <ReachBlock block={block as never} />;
+      case 'enquiryFormBlock':
+        return <EnquiryFormBlock block={block as never} />;
       case 'bookCallBlock':
         return <BookCallBlock />;
       default:

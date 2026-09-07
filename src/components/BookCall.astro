@@ -54,7 +54,13 @@ const initials = hostName
     <h2 class="section-title">{booking.sectionTitle}</h2>
   </div>
 
-  <div class="bk" id="bk" data-reveal>
+  {/*
+    `data-anchor-fit` marks the card as the part a jump to #book has to leave
+    on screen — the section's padding and its centred headline are otherwise
+    tall enough to push the calendar below the fold. See `fitShift` in
+    lib/motion.ts.
+  */}
+  <div class="bk" id="bk" data-anchor-fit data-reveal>
     <!-- ── Panel 1: who and what ─────────────────────────────────── -->
     <aside class="bk-info">
       <div class="bk-avatar" aria-hidden="true">

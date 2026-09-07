@@ -7,7 +7,7 @@ const ui = await getUiCopy();
 
 const year = new Date().getFullYear();
 
-const { items: nav, ctaLabel, ctaHref } = await getNavigation();
+const { items: nav, ctaLabel, ctaHref } = await getNavigation(Astro.url.pathname);
 const serviceParent = nav.find((i) => i.children.length > 0);
 
 /* Accounts with no URL yet render under `astro dev` so the row can be laid

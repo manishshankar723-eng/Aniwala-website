@@ -10,9 +10,15 @@
  * hints beside the email address, because those are advice about how to write
  * a good brief rather than contact information.
  *
- * The social list drops accounts with no URL in a production build and shows
- * them greyed under `astro dev`, so the row can be laid out before the
- * accounts exist without ever shipping a link to nowhere.
+ * THE SOCIAL ACCOUNTS ARE OFF BY DEFAULT — `showSocial` in the Studio turns
+ * them on. Every page already ends with the same list in the footer, so a
+ * second copy near the top of the contact page was the same six links twice
+ * on one screen, offering somebody who came here to describe a job six ways
+ * to leave instead. The inbox and the address are what this panel is for.
+ *
+ * When it IS switched on, the list drops accounts with no URL in a production
+ * build and shows them greyed under `astro dev`, so the row can be laid out
+ * before the accounts exist without ever shipping a link to nowhere.
  */
 import SectionHead from './SectionHead.astro';
 import SocialIcon from '../SocialIcon.astro';
@@ -29,6 +35,7 @@ interface Props {
     studioLabel?: string;
     mapsLabel?: string;
     socialLabel?: string;
+    showSocial?: boolean;
   };
 }
 const { block } = Astro.props;
@@ -70,7 +77,7 @@ const { email, addressLines, country, mapsUrl, publishedSocials: socials } =
       </div>
 
       {
-        socials.length > 0 && (
+        block.showSocial && socials.length > 0 && (
           <div class="reach-card" data-reveal>
             <p class="reach-label">{block.socialLabel ?? 'Elsewhere'}</p>
             <ul class="reach-social">

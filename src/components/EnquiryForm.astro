@@ -1,0 +1,580 @@
+---
+/**
+ * The enquiry form: the one place on the site where somebody can write to the
+ * studio without opening their mail client.
+ *
+ * WHY IT EXISTS. The contact page opened with an address, a note about what to
+ * send, and a booking widget — three good routes that all assume the visitor
+ * is ready to either compose an email or commit to a call at a fixed time.
+ * Neither is true of most people who reach a contact page: they have a
+ * question, they are on a phone, and a `mailto:` link either opens something
+ * they never use or nothing at all. That traffic left without a way to speak
+ * to anybody, which the address at the top of the page made easy to miss.
+ *
+ * WHERE IT LANDS. The same `enquiries` table as the booking widget, with the
+ * booking columns left null — which is exactly what schema.sql describes as a
+ * "plain contact enquiry". So there is still one inbox, one queue and one
+ * export, and `notify` mails it out the same way. It is deliberately NOT a
+ * second table: two tables would mean two places to read and one of them
+ * eventually going unread.
+ *
+ * WHAT AN EDITOR CAN CHANGE, and what they cannot. The heading, the lead, the
+ * button, the consent line and the sentence after sending are block fields —
+ * those are the studio's voice and they get edited. The field LABELS are
+ * fallbacks in here, as `ReachBlock` does with 'Email' and 'Open in Maps':
+ * eight labels, eight placeholders and a dozen validation messages would
+ * quadruple the size of this block in the Studio to let somebody rename
+ * "Email" to "E-mail".
+ *
+ * THE SERVICE LIST IS SHARED with the booking widget and the "briefs we can
+ * scope quickly" tags, all three reading `bookingSettings.enquiryTypes`. A
+ * studio that lists eight disciplines in one place and six in another looks
+ * like it does not know what it does. The select is dropped entirely when
+ * that list is empty rather than rendered as a required field with nothing in
+ * it to choose.
+ */
+import { getContactDetails, getBookingSettings } from '../lib/studio';
+import { supabaseConfigured } from '../lib/supabase';
+import Turnstile from './Turnstile.astro';
+import SectionHead from './blocks/SectionHead.astro';
+
+interface Props {
+  eyebrow?: string;
+  title?: string;
+  anchor?: string;
+  lead?: string;
+  submitLabel?: string;
+  consent?: string;
+  doneTitle?: string;
+  doneBody?: string;
+}
+
+const {
+  eyebrow,
+  title,
+  anchor = 'enquiry',
+  lead,
+  submitLabel = 'Send enquiry',
+  consent = 'We use what you send here to answer you and nothing else. No list, no forwarding.',
+  doneTitle = 'Thanks, {{name}} — that reached us.',
+  doneBody = 'Someone who could do the work reads every enquiry. You get a straight answer within two working days.',
+} = Astro.props;
+
+const { email } = await getContactDetails();
+const { enquiryTypes } = await getBookingSettings();
+
+const configured = supabaseConfigured;
+
+/*
+ * The wording the client script writes into the page after load. Handed over
+ * through `define:vars` below rather than imported, because that makes the
+ * script inline and an inline script is not bundled — see the same note in
+ * ApplyForm.astro and BookCall.astro.
+ */
+const copy = {
+  submitLabel,
+  submitBusy: 'Sending…',
+  errName: 'Please tell us your name, so we know who we are writing back to.',
+  errEmail: 'That email address does not look right — we would have nowhere to reply.',
+  errService: 'Please pick the closest match. "Something else" is a fine answer.',
+  errMessage: 'A sentence or two about the work, please — enough to give you a useful answer.',
+  errGeneric: 'That did not go through. Please email us instead.',
+  errTooFast: 'That was too quick to have been typed. Please try again.',
+  errNotConfigured: `This form is not connected yet. Please email us at ${email} and it will reach the same people.`,
+  errSendFailed: `That did not send: {{error}} — please email us at ${email} instead.`,
+  errUnreachable: `We could not reach the server. Please check your connection, or email us at ${email}.`,
+  doneTitle,
+  doneBody,
+  /* `{{email}}` becomes a real link through `fillHtml`, which escapes the
+     sentence and builds the anchor itself — so no markup is written by hand
+     into something that ends up in innerHTML. */
+  doneNote: 'Nothing arrived? Write to {{email}} and we will pick it up there.',
+};
+---
+
+<section class="section section--bordered" id={anchor}>
+  <SectionHead eyebrow={eyebrow} title={title} />
+
+  <div class="eq" id="eq" data-reveal>
+    {lead && <p class="eq-lead">{lead}</p>}
+
+    <div class="eq-main" id="eq-main">
+      <form class="eq-form" id="eq-form" novalidate>
+        <div class="eq-pair">
+          <label class="eq-field">
+            <span class="eq-label">Your name <em>*</em></span>
+            <input
+              type="text"
+              name="name"
+              id="eq-name"
+              required
+              autocomplete="name"
+              placeholder="Who we are replying to"
+            />
+          </label>
+
+          <label class="eq-field">
+            <span class="eq-label">Email <em>*</em></span>
+            <input
+              type="email"
+              name="email"
+              id="eq-email"
+              required
+              autocomplete="email"
+              placeholder="Where the answer goes"
+            />
+          </label>
+        </div>
+
+        <div class="eq-pair">
+          <label class="eq-field">
+            <span class="eq-label">Phone</span>
+            <input
+              type="tel"
+              name="phone"
+              id="eq-phone"
+              autocomplete="tel"
+              placeholder="Optional — if you would rather be called"
+            />
+          </label>
+
+          <label class="eq-field">
+            <span class="eq-label">Company or studio</span>
+            <input
+              type="text"
+              name="company"
+              id="eq-company"
+              autocomplete="organization"
+              placeholder="Optional"
+            />
+          </label>
+        </div>
+
+        {
+          /* Rendered only when there is something to choose. See the note at
+             the top of this file. */
+          enquiryTypes.length > 0 && (
+            <label class="eq-field eq-field--wide">
+              <span class="eq-label">
+                What it is about <em>*</em>
+              </span>
+              <select name="enquiry_type" id="eq-service" required>
+                <option value="">Choose the closest one</option>
+                {enquiryTypes.map((t) => (
+                  <option value={t}>{t}</option>
+                ))}
+              </select>
+            </label>
+          )
+        }
+
+        <label class="eq-field eq-field--wide">
+          <span class="eq-label">What do you need? <em>*</em></span>
+          <textarea
+            name="message"
+            id="eq-message"
+            rows="6"
+            required
+            placeholder="The work, the deadline, and anything you already have — a script, boards, a rough edit, an asset list."></textarea>
+          <span class="eq-hint">
+            The deadline is the most useful thing you can tell us. Say it even if it is
+            uncomfortable — we would rather turn it down than miss it.
+          </span>
+        </label>
+
+        <!-- Bots fill hidden fields; humans never see this one. -->
+        <input
+          type="checkbox"
+          name="botcheck"
+          class="eq-hp"
+          tabindex="-1"
+          autocomplete="off"
+          aria-hidden="true"
+        />
+
+        <p class="eq-msg" id="eq-msg" role="status" aria-live="polite"></p>
+
+        <Turnstile />
+
+        <div class="eq-actions">
+          <button type="submit" class="eq-submit" id="eq-submit">{submitLabel}</button>
+          <p class="eq-consent">{consent}</p>
+        </div>
+
+        {
+          !configured && (
+            <p class="eq-warn">
+              <strong>Not connected yet.</strong> Set <code>SUPABASE_URL</code> and{' '}
+              <code>SUPABASE_ANON_KEY</code> in <code>.env</code>, and run{' '}
+              <code>supabase/schema.sql</code> in the Supabase SQL editor so the{' '}
+              <code>enquiries</code> table exists. Until then this refuses to submit rather
+              than dropping somebody's brief into a void.
+            </p>
+          )
+        }
+      </form>
+    </div>
+  </div>
+</section>
+
+<script
+  is:inline
+  define:vars={{
+    eqCfg: {
+      configured,
+      email,
+      /* Whether the select exists at all, so the script does not require a
+         field that was never rendered. */
+      hasService: enquiryTypes.length > 0,
+      copy,
+    },
+  }}
+>
+  window.__aniwalaEnquiry = eqCfg;
+</script>
+
+<script>
+  import { fill, fillHtml } from '../lib/copy';
+  import { submitForm } from '../lib/submit';
+
+  function initEnquiry() {
+    const root = document.getElementById('eq');
+    if (!root) return;
+    const cfg = (window as any).__aniwalaEnquiry;
+    const copy = cfg.copy;
+
+    const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+
+    const form = $<HTMLFormElement>('eq-form');
+    const main = $('eq-main');
+    const msg = $('eq-msg');
+    const submit = $<HTMLButtonElement>('eq-submit');
+
+    /* Loaded-at time. Anything submitted inside three seconds of the page
+       painting was not typed by a person. A speed bump, not a security
+       control; the real one is that anon can only INSERT into this table and
+       can never read it back. See schema.sql section 5. */
+    const openedAt = Date.now();
+
+    const val = (id: string) => $<HTMLInputElement>(id)?.value.trim() ?? '';
+
+    /* The failing field is named AND focused: an error message alone leaves
+       somebody hunting through eight fields for the one that is wrong. */
+    const fail = (text: string, field?: HTMLElement | null) => {
+      msg.textContent = text;
+      msg.className = 'eq-msg is-error';
+      if (field) {
+        field.classList.add('is-invalid');
+        field.setAttribute('aria-invalid', 'true');
+        field.focus({ preventScroll: true });
+        field.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    };
+
+    const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msg.textContent = '';
+      msg.className = 'eq-msg';
+
+      const name = val('eq-name');
+      const email = val('eq-email');
+      const service = cfg.hasService ? val('eq-service') : '';
+      const message = val('eq-message');
+
+      if (!name) return fail(copy.errName, $('eq-name'));
+      if (!isEmail(email)) return fail(copy.errEmail, $('eq-email'));
+      if (cfg.hasService && !service) return fail(copy.errService, $('eq-service'));
+      if (message.length < 10) return fail(copy.errMessage, $('eq-message'));
+
+      /* Bot gates. A real person never sees either. */
+      const hp = form.querySelector<HTMLInputElement>('.eq-hp');
+      if (hp?.checked) return fail(copy.errGeneric);
+      if (Date.now() - openedAt < 3000) return fail(copy.errTooFast);
+
+      if (!cfg.configured) return fail(copy.errNotConfigured);
+
+      submit.disabled = true;
+      submit.textContent = copy.submitBusy;
+
+      try {
+        /* `submitForm` chooses the path: straight to PostgREST under the anon
+           key, or through the Turnstile-verified `submit` Edge Function once
+           TURNSTILE_SITE_KEY is set. See lib/submit.ts. */
+        await submitForm('enquiry', form, {
+          name,
+          email,
+          phone: val('eq-phone') || null,
+          company: val('eq-company') || null,
+          enquiry_type: service || null,
+          message,
+          /* The booking columns stay null. That is what marks the row as a
+             written enquiry rather than a booked call. */
+          source_path: location.pathname,
+        });
+
+        /* Every value here came out of a form field, so the stored sentence
+           and everything filled into it are escaped by `fillHtml`. */
+        main.innerHTML = `<div class="eq-done">
+            <p class="eq-done-mark" aria-hidden="true">✓</p>
+            <h3>${fillHtml(copy.doneTitle, { name: name.split(' ')[0] })}</h3>
+            <p>${fillHtml(copy.doneBody, { name: name.split(' ')[0] })}</p>
+            <p class="eq-done-note">${fillHtml(copy.doneNote, {}, {
+              email: { href: `mailto:${cfg.email}`, label: cfg.email },
+            })}</p>
+          </div>`;
+        main.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      } catch (err) {
+        fail(
+          err instanceof Error && err.message
+            ? fill(copy.errSendFailed, { error: err.message })
+            : copy.errUnreachable
+        );
+      } finally {
+        if (submit.isConnected) {
+          submit.disabled = false;
+          submit.textContent = copy.submitLabel;
+        }
+      }
+    });
+
+    /* Clear the error the moment somebody starts fixing it, rather than
+       leaving a red line under a field they have already corrected. */
+    form.addEventListener('input', (e) => {
+      const t = e.target as HTMLElement;
+      if (t.classList?.contains('is-invalid')) {
+        t.classList.remove('is-invalid');
+        t.removeAttribute('aria-invalid');
+        msg.textContent = '';
+        msg.className = 'eq-msg';
+      }
+    });
+  }
+
+  document.addEventListener('astro:page-load', initEnquiry);
+</script>
+
+<style>
+  .eq {
+    display: grid;
+    gap: clamp(1.5rem, 3vw, 2.25rem);
+  }
+
+  .eq-lead {
+    margin: 0;
+    max-width: 62ch;
+    font-size: calc(1.02rem * var(--type-body-scale, 1));
+    line-height: 1.7;
+    color: var(--color-ink-muted);
+  }
+
+  .eq-main {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 0.9rem;
+  }
+
+  .eq-form {
+    display: grid;
+    gap: 1.35rem;
+    padding: clamp(1.35rem, 3.5vw, 2.5rem);
+  }
+
+  .eq-pair {
+    display: grid;
+    gap: 1.35rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 620px) {
+    .eq-pair {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  .eq-field {
+    display: grid;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
+  .eq-label {
+    font-family: var(--font-label);
+    font-size: calc(0.78rem * var(--type-label-scale, 1));
+    font-weight: calc(600 + var(--type-label-weight, 0));
+    letter-spacing: calc(0.01em + var(--type-label-track, 0em));
+    color: var(--color-ink);
+  }
+  /* The asterisk is the accent colour and nothing else is, so "required"
+     reads at a glance without the word appearing four times. */
+  .eq-label :global(em) {
+    font-style: normal;
+    color: var(--color-accent);
+  }
+
+  .eq-form input,
+  .eq-form select,
+  .eq-form textarea {
+    width: 100%;
+    padding: 0.75rem 0.9rem;
+    font-family: inherit;
+    font-size: calc(0.95rem * var(--type-body-scale, 1));
+    color: var(--color-ink);
+    background: var(--color-ground);
+    border: 1px solid var(--color-line);
+    border-radius: 0.5rem;
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+  .eq-form textarea {
+    resize: vertical;
+    min-height: 8rem;
+    line-height: 1.6;
+  }
+  .eq-form input::placeholder,
+  .eq-form textarea::placeholder {
+    color: var(--color-ink-faint);
+  }
+  .eq-form input:focus,
+  .eq-form select:focus,
+  .eq-form textarea:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
+  }
+  .eq-form .is-invalid {
+    border-color: var(--color-danger);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-danger) 20%, transparent);
+  }
+
+  .eq-hint {
+    font-size: calc(0.8rem * var(--type-label-scale, 1));
+    line-height: 1.55;
+    color: var(--color-ink-faint);
+  }
+
+  /* --- Honeypot --------------------------------------------------------- */
+  .eq-hp {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+
+  /* --- Status and actions ---------------------------------------------- */
+  .eq-msg {
+    margin: 0;
+    font-size: calc(0.88rem * var(--type-label-scale, 1));
+    line-height: 1.55;
+    color: var(--color-ink-muted);
+  }
+  .eq-msg:empty {
+    display: none;
+  }
+  .eq-msg.is-error {
+    padding: 0.75rem 0.9rem;
+    border-radius: 0.45rem;
+    background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-danger) 40%, transparent);
+    color: var(--color-ink);
+  }
+
+  .eq-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.85rem 1.25rem;
+    margin-top: 0.25rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--color-line);
+  }
+  .eq-submit {
+    appearance: none;
+    padding: 0.85rem 1.9rem;
+    font-family: var(--font-label);
+    font-size: calc(0.9rem * var(--type-label-scale, 1));
+    font-weight: calc(700 + var(--type-label-weight, 0));
+    letter-spacing: calc(0.01em + var(--type-label-track, 0em));
+    color: var(--color-cta-ink);
+    background: var(--color-cta);
+    border: 0;
+    border-radius: 100px;
+    cursor: pointer;
+    transition:
+      background 0.18s ease,
+      transform 0.18s ease;
+  }
+  .eq-submit:hover:not(:disabled) {
+    background: var(--color-cta-hover);
+    transform: translateY(-1px);
+  }
+  .eq-submit:disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
+  .eq-consent {
+    flex: 1 1 18ch;
+    margin: 0;
+    font-size: calc(0.76rem * var(--type-label-scale, 1));
+    line-height: 1.5;
+    color: var(--color-ink-faint);
+  }
+
+  .eq-warn {
+    margin: 0;
+    padding: 0.9rem 1rem;
+    border: 1px dashed var(--color-line-strong);
+    border-radius: 0.5rem;
+    font-size: calc(0.82rem * var(--type-label-scale, 1));
+    line-height: 1.6;
+    color: var(--color-ink-muted);
+  }
+  .eq-warn code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    color: var(--color-ink);
+  }
+
+  /* --- Sent ------------------------------------------------------------- */
+  .eq-main :global(.eq-done) {
+    padding: clamp(2rem, 5vw, 3.5rem);
+    text-align: center;
+  }
+  .eq-main :global(.eq-done-mark) {
+    display: grid;
+    place-items: center;
+    width: 3rem;
+    height: 3rem;
+    margin: 0 auto 1.25rem;
+    border-radius: 100px;
+    background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+    color: var(--color-accent);
+    font-size: calc(1.4rem * var(--type-heading-scale, 1));
+  }
+  .eq-main :global(.eq-done h3) {
+    margin: 0 0 0.9rem;
+    font-family: var(--font-display);
+    font-weight: calc(750 + var(--type-display-weight, 0));
+    font-stretch: 108%;
+    letter-spacing: calc(-0.025em + var(--type-display-track, 0em));
+    font-size: calc(clamp(1.4rem, 3vw, 2rem) * var(--type-display-scale, 1));
+    color: var(--color-ink);
+  }
+  .eq-main :global(.eq-done p) {
+    margin: 0 auto;
+    max-width: 48ch;
+    font-size: calc(0.97rem * var(--type-body-scale, 1));
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+  .eq-main :global(.eq-done-note) {
+    margin-top: 1.25rem !important;
+    font-size: calc(0.85rem * var(--type-label-scale, 1)) !important;
+    color: var(--color-ink-faint) !important;
+  }
+  .eq-main :global(.eq-done a) {
+    color: var(--color-accent);
+  }
+</style>

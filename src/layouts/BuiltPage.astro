@@ -77,19 +77,32 @@ const label = `/${slug === 'home' ? '' : slug + '/'}`;
     A full-bleed hero sits OUTSIDE `<main>`: it is an arrival rather than part
     of the document's main content, and the skip link should land on what is
     below it. A standard hero is part of the page and stays inside.
+
+    TWO SLOTS, because "after the hero" and "after everything" are different
+    places and a route needs to be able to ask for either. The default slot is
+    the foot of the page. `after-hero` is the first thing under the arrival,
+    which is where a section that IS the page's purpose belongs — the contact
+    page's form, rather than three sections below the fold.
+
+    The first block is the hero on every built page (the Studio's page
+    template starts with one), so splitting the array there is splitting it
+    after the hero.
   */}
   {
     transparentHeader ? (
       <>
         <Blocks blocks={[page.data.blocks[0]] as never} label={label} />
         <main id="main">
-          <Blocks blocks={page.data.blocks.slice(1) as never} label={label} />
+          <slot name="after-hero" />
+          <Blocks blocks={page.data.blocks.slice(1) as never} label={label} offset={1} />
           <slot />
         </main>
       </>
     ) : (
       <main id="main">
-        <Blocks blocks={page.data.blocks as never} label={label} />
+        <Blocks blocks={page.data.blocks.slice(0, 1) as never} label={label} />
+        <slot name="after-hero" />
+        <Blocks blocks={page.data.blocks.slice(1) as never} label={label} offset={1} />
         <slot />
       </main>
     )

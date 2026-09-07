@@ -10,6 +10,7 @@ import { previewMode } from '../lib/sanity/client';
 import { getUiCopy, getBrand, getContactDetails } from '../lib/studio';
 import SiteSchema from '../components/SiteSchema.astro';
 import SiteConfig from '../components/SiteConfig.astro';
+import { TURNSTILE_SITE_KEY } from '../config/site';
 import '../styles/global.css';
 
 interface Props {
@@ -358,6 +359,30 @@ const ogImage = ogImageProp ?? new URL('/og-default.jpg', Astro.site).href;
       this every form reads an empty Supabase URL and refuses to submit. See
       lib/clientConfig.ts — this is not optional plumbing.
     */}
+    {/*
+      Warm the connection to Cloudflare BEFORE the widget script asks for it.
+
+      The token is what the forms wait on, and the clock starts at DNS. api.js
+      is loaded `async` from the form components, so without this the browser
+      does a fresh DNS lookup, TCP connect and TLS handshake to
+      challenges.cloudflare.com only once it reaches that tag — and the
+      challenge cannot begin until all of that finishes.
+
+      Doing it here, in the head, overlaps that setup with parsing the rest of
+      the page. It is the difference between the token being ready before
+      somebody can type a comment and it being ready shortly after, which is
+      exactly the window that made a submission fail.
+
+      Emitted only when Turnstile is configured: a preconnect to an origin the
+      page never contacts is a wasted socket.
+    */}
+    {TURNSTILE_SITE_KEY && (
+      <>
+        <link rel="preconnect" href="https://challenges.cloudflare.com" crossorigin />
+        <link rel="dns-prefetch" href="https://challenges.cloudflare.com" />
+      </>
+    )}
+
     <SiteConfig />
 
     {brandCss && <style is:inline set:html={brandCss} />}

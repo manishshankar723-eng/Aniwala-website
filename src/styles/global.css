@@ -602,6 +602,15 @@ html.lenis body {
 .section--bordered {
   border-top: 1px solid var(--color-line);
 }
+/* The hero already draws a line under itself, so the first section after one
+   must not draw a second — two adjacent 1px rules read as one 2px rule, which
+   is the sort of thing that looks like a rendering fault rather than a
+   decision. Declared here rather than as a prop on each block, so it holds
+   however a section ends up first: placed there in the Studio, or rendered
+   into the `after-hero` slot by the route. */
+.page-hero + .section--bordered {
+  border-top: 0;
+}
 /* Any section an in-page link can jump to has to clear the fixed header and
    the announcement strip, or the heading lands behind them. Declared here
    rather than per page so a new anchor target never has to remember it.

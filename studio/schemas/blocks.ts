@@ -837,8 +837,73 @@ export const reachBlock = defineType({
     defineField({ name: 'studioLabel', title: 'Address card label', type: 'string' }),
     defineField({ name: 'mapsLabel', title: 'Maps link label', type: 'string' }),
     defineField({ name: 'socialLabel', title: 'Social card label', type: 'string' }),
+    defineField({
+      name: 'showSocial',
+      title: 'Show the social accounts',
+      type: 'boolean',
+      description:
+        'Off by default. The footer already lists every account on every page, so switching this on puts the same links twice on one screen — worth it only on a page where following the studio is the point.',
+      initialValue: false,
+    }),
   ],
   preview: preview('Contact details'),
+});
+
+export const enquiryFormBlock = defineType({
+  name: 'enquiryFormBlock',
+  title: 'Enquiry form',
+  type: 'object',
+  description:
+    'A form somebody can write to the studio from without opening their mail client. Lands in the same enquiries table as a booked call, with the slot columns empty.',
+  fields: [
+    ...headingFields,
+    defineField({
+      name: 'lead',
+      title: 'Lead',
+      type: 'text',
+      rows: 3,
+      description: 'One or two sentences above the form. What to send, and what happens next.',
+    }),
+    defineField({
+      name: 'submitLabel',
+      title: 'Button label',
+      type: 'string',
+      description: 'Leave blank for "Send enquiry".',
+    }),
+    defineField({
+      name: 'consent',
+      title: 'Note beside the button',
+      type: 'text',
+      rows: 2,
+      description:
+        'What happens to what they send. Says nothing your privacy policy does not — one contradicting the other is worse than neither.',
+    }),
+    defineField({
+      name: 'doneTitle',
+      title: 'After sending — heading',
+      type: 'string',
+      description: '{{name}} becomes their first name. Leave blank for the default.',
+    }),
+    defineField({
+      name: 'doneBody',
+      title: 'After sending — body',
+      type: 'text',
+      rows: 3,
+      description:
+        'The reply time promised here is the one the studio has to keep, so change it only when that changes. {{name}} works here too.',
+    }),
+    /*
+     * The field labels, the placeholders and the validation messages are NOT
+     * here. They are fallbacks in EnquiryForm.astro, which explains why: two
+     * dozen fields in the Studio so somebody can rename "Email" is a worse
+     * trade than one edit in code on the rare occasion it is wanted.
+     *
+     * The service list is not here either — it is `enquiryTypes` on the
+     * booking settings, shared with the booking widget and the "briefs we can
+     * scope quickly" tags so all three cannot disagree.
+     */
+  ],
+  preview: preview('Enquiry form'),
 });
 
 export const bookCallBlock = defineType({
@@ -883,6 +948,7 @@ export const blockTypes = [
   milestoneBlock,
   faqBlock,
   reachBlock,
+  enquiryFormBlock,
   bookCallBlock,
 ];
 

@@ -392,7 +392,71 @@ const EMPTY_NAV: Navigation = {
   searchPages: [],
 };
 
-export async function getNavigation(): Promise<Navigation> {
+/** The id `BookCall.astro` gives its section. Written down once. */
+const BOOKING_ANCHOR = 'book';
+
+/** '/contact/' -> 'contact', '/' -> 'home': the slug BuiltPage looks up. */
+const slugForPath = (path: string) => path.replace(/^\/+|\/+$/g, '') || 'home';
+
+/**
+ * Whether a page draws the booking widget.
+ *
+ * Asked of the page's own blocks rather than kept as a list of paths here,
+ * because the answer changes in the Studio. The widget renders through
+ * `bookCallBlock` and nowhere else, so this is the whole truth of it.
+ */
+async function hasBookingWidget(slug: string): Promise<boolean> {
+  const page = (await getCollection('builtPages')).find((p) => p.id === slug);
+  return Boolean(page?.data.blocks.some((b) => b._type === 'bookCallBlock'));
+}
+
+/**
+ * Where the gold button actually goes.
+ *
+ * It says "Book Appointment" and it renders in the header and the footer of
+ * every page, so what it means is "the booking widget" — and there are two
+ * ways a bare `/contact/` got that wrong:
+ *
+ *   ON THE PAGE THE WIDGET IS ON, it navigated the visitor to the page they
+ *   were already reading. ClientRouter swaps the document and resets the
+ *   scroll, so the answer to "book a call" was the page apparently reloading
+ *   and staying at the hero. Adding the fragment makes the router leave the
+ *   scroll alone (see `samePage` in its own source) and lets `lib/motion.ts`
+ *   scroll to the widget.
+ *
+ *   ON ANOTHER PAGE THAT ALSO HAS THE WIDGET — the homepage does — it left
+ *   for the contact page to show the same form that was already further down
+ *   the page. So when the page being rendered has a widget of its own, the
+ *   button is an in-page jump: `#book`, no path.
+ *
+ * DERIVED FROM THE PAGES, not hardcoded to `/contact/`, and not left to
+ * whoever types the href in the Studio. Move the widget to another page and
+ * the button follows it. Point the button at a page with no widget on it —
+ * the portfolio, say — and none of this applies: the editor meant that page,
+ * not booking, and the href is used as written. So is one that already
+ * carries its own fragment.
+ */
+async function bookingCtaHref(href: string, currentPath?: string): Promise<string> {
+  if (!href.startsWith('/') || href.includes('#') || href.includes('?')) return href;
+
+  /* Not a booking destination, so nothing below is about this button. */
+  if (!(await hasBookingWidget(slugForPath(href)))) return href;
+
+  /* The nearest widget is the one on this page. */
+  if (currentPath && (await hasBookingWidget(slugForPath(currentPath))))
+    return `#${BOOKING_ANCHOR}`;
+
+  return `${href}#${BOOKING_ANCHOR}`;
+}
+
+/**
+ * `currentPath` is what lets the CTA prefer the widget on the page it is
+ * rendering into — pass `Astro.url.pathname` from anything that draws the
+ * button. Left off, the button is a cross-page link, which is the right
+ * answer for a caller that only wants the menu (the search index) or has no
+ * page of its own.
+ */
+export async function getNavigation(currentPath?: string): Promise<Navigation> {
   const entry = await getEntry('navigation', 'navigation');
   if (!entry || (entry.data.draft && !previewMode))
     return missingSingleton('navigation', 'navigation', EMPTY_NAV);
@@ -403,7 +467,7 @@ export async function getNavigation(): Promise<Navigation> {
     items,
     headerItems: items.filter((i) => !i.hiddenInHeader),
     ctaLabel: entry.data.ctaLabel,
-    ctaHref: entry.data.ctaHref,
+    ctaHref: await bookingCtaHref(entry.data.ctaHref, currentPath),
     searchPages: entry.data.searchPages as SearchPage[],
   };
 }

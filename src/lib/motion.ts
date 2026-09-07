@@ -97,6 +97,47 @@ function revealAllImmediately() {
   });
 }
 
+/** Breathing room under the thing an anchor jump has to bring into view. */
+const ANCHOR_GUTTER = 16;
+
+/**
+ * How much FURTHER than a plain anchor jump to scroll, so the thing somebody
+ * clicked the link for is actually on the screen.
+ *
+ * A section marks what matters with `data-anchor-fit`. The booking widget
+ * does, and the reason is what this function exists for: an anchor jump puts
+ * the SECTION's top under the header, and on `#book` that top is 120px of
+ * section padding followed by a centred display headline. The widget itself —
+ * the calendar, the slots, the form, the entire point of the link — started
+ * below the fold, so the answer to "Book Appointment" was a screen of empty
+ * space and a title, and the visitor still had to scroll to reach what they
+ * had just asked for.
+ *
+ * THE LEAST SCROLL THAT WORKS. Not a centred target: centring moves the page
+ * even when nothing needed moving, and on a section taller than the window it
+ * cuts the heading off for no gain. This scrolls by the shortfall and no more,
+ * so a widget that already fits is left exactly where a normal jump puts it.
+ *
+ * Clamped at the point where the widget's own top reaches the header. Beyond
+ * that the section it belongs to has scrolled away and there is nothing left
+ * to win — on a window too short to hold the whole widget, the top of it is
+ * the half worth keeping.
+ */
+function fitShift(target: HTMLElement, margin: number): number {
+  const fit = target.querySelector<HTMLElement>('[data-anchor-fit]');
+  if (!fit) return 0;
+
+  const rect = fit.getBoundingClientRect();
+  /* Where the widget sits inside the section, which is what a jump to the
+     section's top cannot see. */
+  const inset = rect.top - target.getBoundingClientRect().top;
+
+  const bottomAfterJump = margin + inset + rect.height + ANCHOR_GUTTER;
+  const shortfall = bottomAfterJump - window.innerHeight;
+
+  return shortfall > 0 ? Math.min(shortfall, inset) : 0;
+}
+
 /**
  * Route in-page anchor links through Lenis.
  *
@@ -105,27 +146,75 @@ function revealAllImmediately() {
  * disagrees with the real one. Triggers below the jump then never fire and
  * their elements stay at opacity 0 forever. Going through lenis.scrollTo
  * keeps both in sync — and gives the jump a smooth ride for free.
+ *
+ * BOTH SPELLINGS OF AN IN-PAGE LINK COUNT, which is why this no longer
+ * matches `a[href^="#"]` alone. The gold "Book Appointment" button points at
+ * `/contact/#book`, so on the contact page itself it is an in-page jump
+ * written as a full path — and nothing treated it as one:
+ *
+ *   - ClientRouter only skips the page swap when the target has a fragment
+ *     (see `samePage` in astro/dist/transitions/router.js), so the old
+ *     hash-less `/contact/` re-rendered the page and reset the scroll. That
+ *     is the "it reloads instead of scrolling" the button appeared to do.
+ *   - With the fragment added, the router hands the jump to the browser
+ *     instead — which is the native jump that desyncs Lenis, above.
+ *
+ * Comparing the resolved path against the current one catches `#book` and
+ * `/contact/#book` with one rule, and leaves genuine page-to-page links to
+ * the router untouched.
  */
 function initAnchors() {
-  document.querySelectorAll<HTMLAnchorElement>('a[href^="#"]').forEach((link) => {
-    link.addEventListener('click', (e) => {
-      const hash = link.getAttribute('href');
-      if (!hash || hash === '#') return;
+  /* `/contact` and `/contact/` are the same page, and which one is in the
+     address bar depends on how the visitor arrived. */
+  const samePath = (a: string, b: string) => a.replace(/\/+$/, '') === b.replace(/\/+$/, '');
 
-      const target = document.querySelector<HTMLElement>(hash);
+  document.querySelectorAll('a[href*="#"]').forEach((link) => {
+    /* An SVG <a> also carries an href attribute, and its `.href` is an
+       SVGAnimatedString rather than a URL string. */
+    if (!(link instanceof HTMLAnchorElement)) return;
+
+    link.addEventListener('click', (e) => {
+      const url = new URL(link.href, location.href);
+
+      /* Another origin, another page, or no fragment: not an in-page jump.
+         The router or the browser handles it, exactly as before. */
+      if (url.origin !== location.origin) return;
+      if (!samePath(url.pathname, location.pathname)) return;
+      if (url.search !== location.search) return;
+      if (!url.hash || url.hash === '#') return;
+
+      /* By id rather than as a selector: a fragment is an id, and
+         `querySelector('#2024-review')` throws on one that starts with a
+         digit. Decoded, because a non-ASCII id arrives percent-encoded. */
+      const target = document.getElementById(decodeURIComponent(url.hash.slice(1)));
       if (!target) return;
 
       e.preventDefault();
 
+      /*
+       * LENIS APPLIES scroll-margin-top ITSELF, as of 1.3 — it reads the
+       * computed property off the target and subtracts it (see `scrollTo` in
+       * lenis.mjs). This used to pass `offset: -margin` to reproduce a native
+       * jump, which is what older versions needed and what the comment here
+       * used to say; against this version it subtracted the margin a SECOND
+       * time and every anchor landed a full header-height too low. On #book
+       * that was most of a screen of empty space above the heading, with the
+       * widget pushed off the bottom.
+       *
+       * So the margin is read only for the arithmetic in `fitShift`, and the
+       * offset carries nothing but the shift.
+       */
+      const margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
+      const shift = fitShift(target, margin);
+
       if (lenis) {
-        // Lenis scrolls to the element's raw offset and ignores
-        // scroll-margin-top, so a heading would land underneath the fixed
-        // header. Reading the property back and passing it as a negative
-        // offset reproduces what a native anchor jump already does — and
-        // keeps the amount declared in CSS next to the header height it
-        // depends on, rather than hardcoded here.
-        const margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
-        lenis.scrollTo(target, { offset: -margin });
+        lenis.scrollTo(target, { offset: shift });
+      } else if (shift) {
+        // scrollIntoView cannot express "and then a bit further", so the
+        // destination is computed outright. Same arithmetic the browser does
+        // for scroll-margin-top, plus the shift.
+        const top = window.scrollY + target.getBoundingClientRect().top - margin + shift;
+        window.scrollTo({ top });
       } else {
         // Native scrollIntoView honours scroll-margin-top by itself.
         target.scrollIntoView({ block: 'start' });

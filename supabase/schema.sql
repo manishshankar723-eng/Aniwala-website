@@ -45,6 +45,7 @@ create table if not exists public.enquiries (
 
   name           text not null check (char_length(name) between 1 and 120),
   email          text not null check (char_length(email) between 3 and 200),
+  phone          text check (char_length(phone) <= 40),
   company        text check (char_length(company) <= 160),
 
   -- Which service the enquiry is about. Free text rather than an enum so
@@ -65,6 +66,11 @@ create table if not exists public.enquiries (
   -- Set by hand in the dashboard as you work through them.
   handled        boolean not null default false
 );
+
+-- Safe to re-run against a database created before phone existed. The contact
+-- form asks for one; the booking widget does not, and leaves it null.
+alter table public.enquiries
+  add column if not exists phone text check (char_length(phone) <= 40);
 
 comment on table public.enquiries is
   'Website enquiries and booking requests. Anon may INSERT only — never add a SELECT policy.';
@@ -241,7 +247,7 @@ create policy "anon can submit applications"
 -- ---------------------------------------------------------------------
 revoke all on public.enquiries from anon;
 grant insert (
-  name, email, company, enquiry_type, message,
+  name, email, phone, company, enquiry_type, message,
   duration_mins, slot_label, slot_utc, visitor_tz, source_path
 ) on public.enquiries to anon;
 -- No SELECT grant at all: leads are write-only from the website.

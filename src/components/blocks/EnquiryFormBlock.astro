@@ -1,0 +1,40 @@
+---
+/**
+ * The enquiry form as a page section.
+ *
+ * A thin wrapper, like `BookCallBlock`: the form itself is a component at
+ * `components/` level so it can be dropped onto a template page — a service
+ * page, say — without going through the block layer. What an editor writes
+ * about it is here.
+ *
+ * Every field is optional and the form supplies its own wording for anything
+ * left blank, so adding the block to a page produces a working form before
+ * anybody types a heading for it.
+ */
+import EnquiryForm from '../EnquiryForm.astro';
+
+interface Props {
+  block: {
+    eyebrow?: string;
+    title?: string;
+    anchor?: string;
+    lead?: string;
+    submitLabel?: string;
+    consent?: string;
+    doneTitle?: string;
+    doneBody?: string;
+  };
+}
+const { block } = Astro.props;
+---
+
+<EnquiryForm
+  eyebrow={block.eyebrow}
+  title={block.title}
+  anchor={block.anchor}
+  lead={block.lead}
+  submitLabel={block.submitLabel}
+  consent={block.consent}
+  doneTitle={block.doneTitle}
+  doneBody={block.doneBody}
+/>
