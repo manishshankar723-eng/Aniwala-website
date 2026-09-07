@@ -13,6 +13,7 @@
  * bypasses RLS entirely.
  */
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config/site';
+import { publicConfig, isConfigured } from './clientConfig';
 
 /**
  * Whether the forms can actually submit.
@@ -22,15 +23,34 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config/site';
  * this used to also have to recognise. Every caller renders a dev-only note
  * instead of a form when this is false.
  */
+/**
+ * FOR FRONTMATTER ONLY, and the distinction matters.
+ *
+ * This is a build-time constant, correct in Astro frontmatter where
+ * `process.env` exists. It is WRONG in the browser, where un-prefixed
+ * variables are not exposed to bundled code and both values come out empty —
+ * see `lib/clientConfig.ts`. Components use it to decide whether to render a
+ * form at all, which is a build-time question, so this is the right tool
+ * there.
+ *
+ * Anything running in the browser must use `isConfigured()` instead, which
+ * reads the values the page actually carries.
+ */
 export const supabaseConfigured = Boolean(SUPABASE_URL) && Boolean(SUPABASE_ANON_KEY);
 
-const restUrl = (table: string) => `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/${table}`;
+/* Resolved per call, from the page. Never hoisted into a module constant:
+   bundled modules are deferred, so a constant captured at import time can run
+   before the inline config script has set the global. */
+const restUrl = (table: string) => `${publicConfig().supabaseUrl}/rest/v1/${table}`;
 
-const headers = () => ({
-  apikey: SUPABASE_ANON_KEY,
-  Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-  'Content-Type': 'application/json',
-});
+const headers = () => {
+  const key = publicConfig().supabaseAnonKey;
+  return {
+    apikey: key,
+    Authorization: `Bearer ${key}`,
+    'Content-Type': 'application/json',
+  };
+};
 
 export class SupabaseError extends Error {}
 
@@ -43,7 +63,7 @@ export class SupabaseError extends Error {}
  * itself succeeded.
  */
 export async function insertRow(table: string, row: Record<string, unknown>): Promise<void> {
-  if (!supabaseConfigured) throw new SupabaseError('Supabase is not configured.');
+  if (!isConfigured()) throw new SupabaseError('Supabase is not configured.');
 
   const res = await fetch(restUrl(table), {
     method: 'POST',
@@ -70,7 +90,7 @@ export async function insertRow(table: string, row: Record<string, unknown>): Pr
  * `select=id,body&post_slug=eq.my-post&order=created_at.asc`.
  */
 export async function selectRows<T>(table: string, query: string): Promise<T[]> {
-  if (!supabaseConfigured) throw new SupabaseError('Supabase is not configured.');
+  if (!isConfigured()) throw new SupabaseError('Supabase is not configured.');
 
   const res = await fetch(`${restUrl(table)}?${query}`, { headers: headers() });
   if (!res.ok) throw new SupabaseError(`${res.status}`);

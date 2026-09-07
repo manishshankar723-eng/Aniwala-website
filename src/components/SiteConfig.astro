@@ -1,0 +1,32 @@
+---
+/**
+ * Puts the public configuration where browser code can actually read it.
+ *
+ * This is one inline script and it is load bearing. See `lib/clientConfig.ts`
+ * for the full reason, but in short: bundled client scripts cannot see
+ * un-prefixed environment variables, so anything importing `config/site.ts`
+ * gets empty strings in the browser and every form refuses to submit with a
+ * message that looks like a missing .env file.
+ *
+ * `is:inline` is what makes it work: an inline script is emitted as written
+ * rather than bundled, so `define:vars` can interpolate values that only exist
+ * during the build.
+ *
+ * Rendered from `Base.astro`, so it is on every page and there is no list of
+ * "pages with forms" to keep in step with reality. It is ~200 bytes and all
+ * three values are public by design — the anon key is protected by RLS, and
+ * the Turnstile site key has to be in the page for the widget to render at
+ * all. NOTHING SECRET GOES IN HERE.
+ */
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TURNSTILE_SITE_KEY } from '../config/site';
+
+const config = {
+  supabaseUrl: SUPABASE_URL,
+  supabaseAnonKey: SUPABASE_ANON_KEY,
+  turnstileSiteKey: TURNSTILE_SITE_KEY,
+};
+---
+
+<script is:inline define:vars={{ config }}>
+  window.__aniwalaConfig = config;
+</script>

@@ -9,6 +9,7 @@ import PreviewBar from '../components/PreviewBar.astro';
 import { previewMode } from '../lib/sanity/client';
 import { getUiCopy, getBrand, getContactDetails } from '../lib/studio';
 import SiteSchema from '../components/SiteSchema.astro';
+import SiteConfig from '../components/SiteConfig.astro';
 import '../styles/global.css';
 
 interface Props {
@@ -351,6 +352,14 @@ const ogImage = ogImageProp ?? new URL('/og-default.jpg', Astro.site).href;
       lightening of the fill, nobody has an opinion about it, and asking would
       be a fifth colour well for something the browser can work out.
     */}
+    {/*
+      The public config, as a window global, BEFORE any bundled script runs.
+      Client bundles cannot read un-prefixed environment variables, so without
+      this every form reads an empty Supabase URL and refuses to submit. See
+      lib/clientConfig.ts — this is not optional plumbing.
+    */}
+    <SiteConfig />
+
     {brandCss && <style is:inline set:html={brandCss} />}
 
     <title>{title}</title>

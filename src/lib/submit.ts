@@ -20,7 +20,7 @@
  * So: unset TURNSTILE_SITE_KEY is byte-for-byte the old behaviour. Setting it
  * is the switch, and it can be flipped without touching this file.
  */
-import { TURNSTILE_SITE_KEY, FUNCTIONS_BASE_URL } from '../config/site';
+import { publicConfig } from './clientConfig';
 import { insertRow, SupabaseError } from './supabase';
 
 /** Which form is being sent. The Edge Function maps these to tables. */
@@ -33,8 +33,19 @@ const TABLE: Record<FormKind, string> = {
   comment: 'comments',
 };
 
-/** Whether the verified path is available in this build. */
-export const turnstileEnabled = Boolean(TURNSTILE_SITE_KEY) && Boolean(FUNCTIONS_BASE_URL);
+/**
+ * Whether the verified path is available.
+ *
+ * A FUNCTION, not a constant, and resolved from the page rather than from a
+ * build-time import — see `lib/clientConfig.ts`. As a module constant reading
+ * `config/site.ts` this was always `false` in the browser, which sent every
+ * submission down the fallback path and then failed that too, because the
+ * fallback needs the same values.
+ */
+export const turnstileEnabled = (): boolean => {
+  const c = publicConfig();
+  return Boolean(c.turnstileSiteKey) && Boolean(c.functionsBaseUrl);
+};
 
 /**
  * Send one submission.
@@ -52,7 +63,7 @@ export async function submitForm(
   form: HTMLFormElement,
   data: Record<string, unknown>
 ): Promise<void> {
-  if (!turnstileEnabled) {
+  if (!turnstileEnabled()) {
     await insertRow(TABLE[kind], data);
     return;
   }
@@ -64,7 +75,7 @@ export async function submitForm(
 
   let res: Response;
   try {
-    res = await fetch(`${FUNCTIONS_BASE_URL}/submit`, {
+    res = await fetch(`${publicConfig().functionsBaseUrl}/submit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ form: kind, token, data }),

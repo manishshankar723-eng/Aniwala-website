@@ -162,6 +162,29 @@ jobs:
     needs: verify
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+
+    # ------------------------------------------------------------------
+    # WHERE THIS DEPLOYS, defined once because three steps need it and a
+    # copy that drifts is the failure mode this whole job already has form
+    # for. The upload, the .htaccess step and the header check must all
+    # agree; if they ever disagree, the site half-deploys and still looks
+    # green.
+    #
+    # STAGING, not the live site, and deliberately. aniwala.com currently
+    # serves a WordPress install out of the parent folder. Uploading this
+    # build there drops an Astro .htaccess on top of WordPress's own and
+    # takes out its permalinks — so the cutover is a decision to make on
+    # purpose, not something to arrive at by editing one line.
+    #
+    # To go live later: change REMOTE_DIR to
+    #   /domains/aniwala.com/public_html/
+    # and SITE_TO_CHECK to https://aniwala.com/ — after backing up
+    # public_html and the WordPress database.
+    # ------------------------------------------------------------------
+    env:
+      REMOTE_DIR: /domains/aniwala.com/public_html/staging/
+      SITE_TO_CHECK: https://staging.aniwala.com/
+
     steps:
       - uses: actions/checkout@v4
 
@@ -171,7 +194,7 @@ jobs:
           name: dist
           path: dist/
 
-      - name: Upload to public_html
+      - name: Upload the site
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_HOST }}
@@ -226,7 +249,71 @@ jobs:
           # WordPress install from the parent folder, and uploading this build
           # there would drop an Astro .htaccess on top of WordPress's own and
           # break its permalinks. Staging first, cut over when it is proven.
-          server-dir: /domains/aniwala.com/public_html/staging/
+          server-dir: ${{ env.REMOTE_DIR }}
+
+      # ------------------------------------------------------------------
+      # THE DEPLOY ACTION DOES NOT UPLOAD DOTFILES, and .htaccess is a dotfile.
+      #
+      # This is not theoretical and it is not loud when it happens. The first
+      # deploy that ever succeeded put all 65 pages on the server and silently
+      # left .htaccess behind — so the site served perfectly while every
+      # security header, the entire Content-Security-Policy, the HTTPS
+      # redirect, the caching rules and the 404 handler were simply absent.
+      # Nothing failed. The only way to notice is to go and look at the
+      # response headers, which is not something anybody does after a green
+      # tick.
+      #
+      # The action writes its own `.ftp-deploy-sync-state.json` through a
+      # different code path, which is why one dotfile appears on the server
+      # and this one does not — and why the gap is easy to misdiagnose.
+      #
+      # So it goes up explicitly, with --fail so a failure is an actual
+      # failure rather than a quiet one. This is exactly the kind of step that
+      # gets deleted as redundant by someone who sees a dotfile on the server
+      # and assumes dotfiles work. They do not.
+      # ------------------------------------------------------------------
+      - name: Upload .htaccess separately
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASS: ${{ secrets.FTP_PASS }}
+        run: |
+          if [ ! -f dist/.htaccess ]; then
+            echo "::error::dist/.htaccess is missing from the build."
+            exit 1
+          fi
+          echo "Uploading .htaccess ($(wc -c < dist/.htaccess) bytes) to ${REMOTE_DIR}"
+          curl --fail --silent --show-error \
+               --ssl-reqd --insecure \
+               --user "$FTP_USER:$FTP_PASS" \
+               -T dist/.htaccess \
+               "ftp://$FTP_HOST${REMOTE_DIR}.htaccess"
+          echo "Done."
+
+      # A deploy that serves pages without .htaccess looks completely healthy,
+      # so the run asserts the headers are really there rather than trusting
+      # that the upload above did what it said.
+      - name: Verify the security headers are actually live
+        run: |
+          URL="${SITE_TO_CHECK}"
+          echo "Checking $URL"
+          HEADERS=$(curl -sSI --max-time 30 "$URL" | tr -d '\r')
+          fail=0
+          for h in "strict-transport-security" "x-frame-options" "x-content-type-options" "content-security-policy"; do
+            if echo "$HEADERS" | grep -qi "^$h:"; then
+              echo "  ok      $h"
+            else
+              echo "::error::Missing header: $h — .htaccess did not take effect."
+              fail=1
+            fi
+          done
+          if echo "$HEADERS" | grep -qi "^content-security-policy:.*default-src"; then
+            echo "  ok      CSP is ours (has default-src), not the host's default"
+          else
+            echo "::error::CSP present but not ours — the host default is showing through."
+            fail=1
+          fi
+          exit $fail
           # Never delete the second site or Hostinger's own files.
           exclude: |
             **/.git*
