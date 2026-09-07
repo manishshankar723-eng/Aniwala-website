@@ -8,7 +8,7 @@ import Footer from '../../components/Footer.astro';
 import { employmentTypeSchema } from '../../config/careers';
 import { getFlatRoles } from '../../lib/roles';
 import { getFaqs, getContactDetails, getCareersContent, getUiCopy } from '../../lib/studio';
-import { fill, plural } from '../../lib/copy';
+import { fill, plural, ldJson } from '../../lib/copy';
 import { shareCard } from '../../lib/sanity/client';
 
 /**
@@ -315,7 +315,7 @@ const jobSchema = roles.map((r) => ({
 
   {
     jobSchema.map((j) => (
-      <script type="application/ld+json" set:html={JSON.stringify(j)} is:inline />
+      <script type="application/ld+json" set:html={ldJson(j)} is:inline />
     ))
   }
 </Base>

@@ -3,6 +3,26 @@
 # Lives in public/ so Astro copies it into dist/ on every build.
 # ---------------------------------------------------------------
 
+# No directory listings. Any folder that ends up without an index.html
+# otherwise serves a browsable index of its contents to anyone who guesses
+# the path — which is a free map of the site for whoever is looking.
+Options -Indexes
+
+# Nothing beginning with a dot is ever meant to be fetched over HTTP.
+# The deploy uploads only ./dist, so this should never have anything to
+# catch — which is exactly why it belongs here. It costs nothing and it is
+# the difference between one bad upload and a published .env or .git
+# directory. Belt and braces, deliberately.
+<FilesMatch "^\.">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
 RewriteEngine On
 
 # Force HTTPS.
@@ -73,7 +93,17 @@ ErrorDocument 404 /404.html
   # Fonts are self-hosted, so there is no font CDN in here. If you ever
   # re-add a third-party origin — an embed, a font host, an analytics
   # script — it has to be named here or the browser will silently drop it.
-  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://*.supabase.co; media-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests"
+  #
+  # cdn.sanity.io IS such an origin, and it was missing. Every image the CMS
+  # serves comes from there — `imageUrl()` in lib/sanity/client.ts builds
+  # those URLs — so `img-src 'self' data: blob:` would have blocked all of
+  # them, silently, with nothing in the page to say why. It had not bitten
+  # yet only because the last build happened to contain no CMS images. It is
+  # named here rather than fixed later under pressure, because the fix under
+  # pressure is `img-src *`.
+  #
+  # media-src gets it too: the hero background video is a CMS-supplied URL.
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.sanity.io; font-src 'self'; connect-src 'self' https://*.supabase.co; media-src 'self' https://cdn.sanity.io; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests"
 </IfModule>
 
 # --- Fonts need CORS to be preloaded -----------------------------

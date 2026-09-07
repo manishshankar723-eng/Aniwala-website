@@ -1,6 +1,7 @@
 ---
 import type { Faq } from '../lib/studio';
 import { getUiCopy } from '../lib/studio';
+import { ldJson } from '../lib/copy';
 
 interface Props {
   items: Faq[];
@@ -60,7 +61,7 @@ const faqSchema = {
       </div>
 
       {schema && (
-        <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} is:inline />
+        <script type="application/ld+json" set:html={ldJson(faqSchema)} is:inline />
       )}
     </section>
   )

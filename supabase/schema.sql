@@ -263,7 +263,207 @@ grant insert (
 
 
 -- ---------------------------------------------------------------------
--- 5. Sanity check
+-- 5. RATE LIMITING
+--
+-- WHAT THIS IS FOR, because it is not spam in the ordinary sense.
+--
+-- The anon key is public and RLS lets it INSERT. Both of those are correct
+-- and neither is going to change. What follows from them is that anybody can
+-- read the key out of the JavaScript bundle and post rows directly:
+--
+--   curl -X POST 'https://<project>.supabase.co/rest/v1/enquiries' \
+--     -H "apikey: <the key from the bundle>" \
+--     -H 'Content-Type: application/json' \
+--     -d '{"name":"x","email":"x@x.com"}'
+--
+-- RLS allows that, as designed. The honeypot and the three-second timer on
+-- the forms are client-side and never see the request at all.
+--
+-- The damage is not the rows. It is that every INSERT fires the `notify`
+-- webhook, which sends an email through Resend. A loop like the one above
+-- empties a free Resend tier in minutes — and once it is empty, REAL
+-- enquiries stop arriving in your inbox with nothing to say they have.
+-- Losing a client because a script exhausted a mail quota is a worse outcome
+-- than any amount of junk in a table.
+--
+-- Two ceilings, because they stop different things:
+--
+--   PER ADDRESS  stops one machine hammering the endpoint.
+--   GLOBAL       stops a distributed run from thousands of addresses, which
+--                the per-address limit cannot see. This is the one that
+--                actually protects the mail quota. Set it well above real
+--                traffic: a studio site does not take 40 genuine enquiries
+--                in an hour, so if that ceiling is ever reached, something
+--                is wrong and silence is the correct outcome.
+--
+-- NOTE ON COUNTING. A rejected insert raises, which rolls back the whole
+-- statement — including the log row for that attempt. So what is counted is
+-- SUCCESSFUL submissions, which is what the limit is about. A blocked caller
+-- can keep making requests; it just cannot make any more email.
+-- ---------------------------------------------------------------------
+
+create table if not exists public.submission_log (
+  id    bigserial primary key,
+  addr  text        not null,
+  kind  text        not null,
+  at    timestamptz not null default now()
+);
+
+create index if not exists submission_log_lookup_idx
+  on public.submission_log (kind, addr, at desc);
+create index if not exists submission_log_at_idx
+  on public.submission_log (at desc);
+
+comment on table public.submission_log is
+  'Rate-limit bookkeeping. Written only by the enforce_rate_limit trigger; anon has no access whatsoever.';
+
+-- RLS on with NO policies at all: that is a deny for every role that is not
+-- bypassing it. The trigger below reaches the table as its owner instead.
+alter table public.submission_log enable row level security;
+revoke all on public.submission_log from anon, authenticated;
+revoke all on sequence public.submission_log_id_seq from anon, authenticated;
+
+/*
+ * The trigger.
+ *
+ * SECURITY DEFINER is load bearing: it runs as the function's owner, which is
+ * how it reads and writes `submission_log` when the caller is `anon` and anon
+ * has been stripped of every grant on that table. `search_path` is pinned in
+ * the same breath — a SECURITY DEFINER function without a fixed search_path
+ * can be redirected to an attacker's objects, which would turn this from a
+ * defence into a way in.
+ *
+ * Arguments: per-address limit, window in minutes, global limit.
+ */
+create or replace function public.enforce_rate_limit()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  hdrs          json;
+  client_addr   text;
+  per_addr_max  int := coalesce(nullif(tg_argv[0], ''), '5')::int;
+  window_mins   int := coalesce(nullif(tg_argv[1], ''), '60')::int;
+  global_max    int := coalesce(nullif(tg_argv[2], ''), '40')::int;
+  since         timestamptz;
+  n             int;
+begin
+  since := now() - make_interval(mins => window_mins);
+
+  -- PostgREST publishes the request headers here. A direct SQL insert (the
+  -- dashboard, a migration, the service key) has no such setting, and the
+  -- `true` makes that a NULL rather than an error.
+  begin
+    hdrs := current_setting('request.headers', true)::json;
+  exception when others then
+    hdrs := null;
+  end;
+
+  client_addr := nullif(btrim(coalesce(
+    hdrs ->> 'cf-connecting-ip',
+    split_part(hdrs ->> 'x-forwarded-for', ',', 1),
+    hdrs ->> 'x-real-ip',
+    ''
+  )), '');
+
+  -- No identifiable caller means this is not a web request: the dashboard,
+  -- psql, or the service role doing something deliberate. Never limit those,
+  -- or you will one day be unable to fix your own data.
+  if client_addr is null then
+    return new;
+  end if;
+
+  -- Ceiling one: this address.
+  select count(*) into n
+    from public.submission_log l
+   where l.kind = tg_table_name
+     and l.addr = client_addr
+     and l.at > since;
+
+  if n >= per_addr_max then
+    raise exception
+      'Too many submissions from this address. Please wait a little and try again.'
+      using errcode = 'PT429';
+  end if;
+
+  -- Ceiling two: everybody. This is the one protecting the mail quota.
+  select count(*) into n
+    from public.submission_log l
+   where l.kind = tg_table_name
+     and l.at > since;
+
+  if n >= global_max then
+    raise exception
+      'We are receiving an unusual number of submissions right now. Please try again shortly.'
+      using errcode = 'PT429';
+  end if;
+
+  insert into public.submission_log (addr, kind) values (client_addr, tg_table_name);
+  return new;
+end;
+$$;
+
+/*
+ * Limits per table. These are ceilings on abuse, not targets — every one of
+ * them is far above what real use looks like.
+ *
+ *   enquiries     3 per address per hour, 40 an hour in total.
+ *   comments      5 per address per hour, 60 an hour in total.
+ *   applications  5 per address per DAY, 80 a day in total. Somebody may
+ *                 genuinely apply for two or three roles in one sitting, so
+ *                 the window is long and the per-address number is generous.
+ */
+drop trigger if exists enquiries_rate_limit on public.enquiries;
+create trigger enquiries_rate_limit
+  before insert on public.enquiries
+  for each row execute function public.enforce_rate_limit('3', '60', '40');
+
+drop trigger if exists comments_rate_limit on public.comments;
+create trigger comments_rate_limit
+  before insert on public.comments
+  for each row execute function public.enforce_rate_limit('5', '60', '60');
+
+drop trigger if exists applications_rate_limit on public.applications;
+create trigger applications_rate_limit
+  before insert on public.applications
+  for each row execute function public.enforce_rate_limit('5', '1440', '80');
+
+/*
+ * Housekeeping. The log only ever needs the current window, and nothing reads
+ * a row older than a day. Left alone the table is still tiny — a row is a few
+ * dozen bytes — but it grows forever, so trim it.
+ *
+ * Run this once if the pg_cron extension is available (Database -> Extensions
+ * in the dashboard). If it is not, this whole block is skipped and you can
+ * delete old rows by hand occasionally; nothing breaks either way.
+ */
+do $$
+begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    perform cron.schedule(
+      'purge-submission-log',
+      '17 4 * * *',
+      $cron$delete from public.submission_log where at < now() - interval '7 days'$cron$
+    );
+    raise notice 'Scheduled the daily submission_log purge.';
+  else
+    raise notice 'pg_cron is not installed — submission_log will not be purged automatically.';
+  end if;
+exception when others then
+  -- Housekeeping is a convenience and must never take the schema run down with
+  -- it. An older pg_cron with a different signature, or a permissions quirk,
+  -- lands here: the rate limiter above is already installed and working, and
+  -- the only consequence is a table that grows slowly and can be emptied by
+  -- hand with the DELETE above.
+  raise notice 'Could not schedule the submission_log purge (%). Rate limiting is unaffected.', sqlerrm;
+end
+$$;
+
+
+-- ---------------------------------------------------------------------
+-- 6. Sanity check
 --
 -- After running this, confirm all three tables show "RLS enabled" in
 -- Table Editor. If any says otherwise, stop and fix it before going
@@ -275,4 +475,14 @@ select
   rowsecurity as rls_enabled
 from pg_tables
 where schemaname = 'public'
-  and tablename in ('enquiries', 'comments', 'applications');
+  and tablename in ('enquiries', 'comments', 'applications', 'submission_log');
+
+-- And that the rate limiter is actually attached. Three rows expected; none
+-- means section 5 did not run and the forms are unthrottled again.
+select
+  event_object_table as table_name,
+  trigger_name
+from information_schema.triggers
+where trigger_schema = 'public'
+  and trigger_name like '%_rate_limit'
+order by event_object_table;

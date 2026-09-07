@@ -39,6 +39,7 @@ interface Props {
 }
 
 import { getUiCopy } from '../lib/studio';
+import { ldJson } from '../lib/copy';
 
 const ui = await getUiCopy();
 
@@ -106,7 +107,7 @@ const crumbSchema =
   <div class="page-hero-wash" aria-hidden="true"></div>
 
   {crumbSchema && (
-    <script type="application/ld+json" set:html={JSON.stringify(crumbSchema)} is:inline />
+    <script type="application/ld+json" set:html={ldJson(crumbSchema)} is:inline />
   )}
 
   <div class="page-hero-inner">

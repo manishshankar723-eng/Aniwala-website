@@ -50,6 +50,72 @@ const escapeRule = (path) => path.replace(/[.\\+*?[\]^$(){}|]/g, '\\$&');
 /** `/a/b/` and `/a/b` are the same page to a visitor and to Apache. */
 const normalise = (path) => path.replace(/\/+$/, '') || '/';
 
+/* ------------------------------------------------------------------ */
+/* What a redirect is allowed to contain                               */
+/*                                                                     */
+/* THIS IS A SECURITY BOUNDARY, not a tidiness check, and it has to    */
+/* live here rather than in the Studio schema.                         */
+/*                                                                     */
+/* Sanity's `validation:` rules run in the Studio UI only. The Content */
+/* Lake API does not enforce them — a document written by any API      */
+/* client or write token skips every one. So the schema's rule on `to` */
+/* stops an editor making a typo and stops nothing else. (It is also   */
+/* unanchored: /^https?:\/\// tests a prefix, so everything after the  */
+/* origin was unchecked even in the Studio.)                           */
+/*                                                                     */
+/* What that bought an attacker: `row.to` is written verbatim into     */
+/* .htaccess below. A newline in it appends arbitrary Apache           */
+/* directives to the live server config — and the Sanity publish       */
+/* webhook builds and uploads with no human in the loop, so a CMS edit */
+/* reaches production on its own. On shared hosting with AllowOverride */
+/* All that ranges from a site-wide open redirect to a 500 that takes  */
+/* the whole site down.                                                */
+/*                                                                     */
+/* Hence: allowlist, checked at build time, and the build fails rather */
+/* than emitting a file it is not certain of. Note both patterns are   */
+/* anchored at BOTH ends, and neither admits whitespace, quotes or a   */
+/* backslash — the characters that break a value out of its RewriteRule*/
+/* argument.                                                           */
+/* ------------------------------------------------------------------ */
+
+/** A path on this site: leading slash, no whitespace, no quoting characters. */
+const SAFE_PATH = /^\/[A-Za-z0-9._~\-/%]*$/;
+
+/** A full URL elsewhere. https only — an http target downgrades the visitor. */
+const SAFE_URL = /^https:\/\/[A-Za-z0-9.-]+(:\d+)?(\/[A-Za-z0-9._~\-/%?=&#]*)?$/;
+
+/**
+ * Refuse anything that is not plainly one of the two shapes above.
+ *
+ * `JSON.stringify` in the message so a control character in the offending
+ * value is visible in the build log rather than reformatting it.
+ */
+function assertSafe(field, value, docId) {
+  if (typeof value !== 'string' || value === '') {
+    throw new Error(
+      `Redirect ${docId}: "${field}" is empty or not a string.\n\n` +
+        `  Every redirect needs both a from and a to. Fix it in the Studio.`
+    );
+  }
+
+  const ok = field === 'from' ? SAFE_PATH.test(value) : SAFE_PATH.test(value) || SAFE_URL.test(value);
+
+  if (!ok) {
+    throw new Error(
+      `Redirect ${docId}: "${field}" is not a safe value.\n\n` +
+        `  Got: ${JSON.stringify(value)}\n\n` +
+        `  A "from" must be a path on this site, like "/case-studies/old-name/".\n` +
+        `  A "to" must be that, or a full https:// URL.\n\n` +
+        `  This value is written straight into .htaccess, so anything carrying a\n` +
+        `  newline, a space, a quote or a backslash is refused here rather than\n` +
+        `  shipped — an injected line in that file is arbitrary Apache config on\n` +
+        `  the live server. If a legitimate URL is being rejected, widen\n` +
+        `  SAFE_PATH / SAFE_URL in src/integrations/redirects.mjs deliberately;\n` +
+        `  do not bypass this check.`
+    );
+  }
+}
+
 export default function redirects() {
   return {
     name: 'aniwala:redirects',
@@ -71,10 +137,19 @@ export default function redirects() {
         });
 
         const rows = await client.fetch(
-          `*[_type == "redirect" && !(_id in path("drafts.**"))]{ from, to, permanent } | order(from asc)`
+          `*[_type == "redirect" && !(_id in path("drafts.**"))]{ _id, from, to, permanent } | order(from asc)`
         );
 
         /* ---------- the checks ---------- */
+
+        /* SHAPE FIRST, before anything reads these values or builds a set out
+           of them. The checks below are about whether a redirect makes sense;
+           this one is about whether it is safe to write down at all, so it has
+           to come first and it has to cover every row. */
+        for (const row of rows) {
+          assertSafe('from', row.from, row._id ?? '(unknown)');
+          assertSafe('to', row.to, row._id ?? '(unknown)');
+        }
 
         /* `pages` is what the build actually produced, so this cannot go stale
            the way a hand-kept exclusion list would. */

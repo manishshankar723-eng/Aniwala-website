@@ -165,6 +165,17 @@ jobs:
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_HOST }}
+          # ENCRYPTED, and this line is the whole reason it is.
+          #
+          # This action's `protocol` input defaults to `ftp` — plaintext. Without
+          # this, FTP_USER and FTP_PASS crossed the public internet in the clear on
+          # every single deploy, along with every byte of the site. Anyone on-path
+          # gets write access to public_html, and from there the whole site.
+          #
+          # Hostinger serves FTPS on the same host and port, so this is the only
+          # change needed. If a deploy ever fails TLS verification here, fix the
+          # certificate — do NOT "fix" it by dropping back to `ftp`.
+          protocol: ftps
           username: ${{ secrets.FTP_USER }}
           password: ${{ secrets.FTP_PASS }}
           local-dir: ./dist/

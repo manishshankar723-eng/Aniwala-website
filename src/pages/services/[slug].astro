@@ -4,7 +4,7 @@ import PageHero from '../../components/PageHero.astro';
 import { toArtwork } from '../../lib/artwork';
 import { getFaqs, getUiCopy } from '../../lib/studio';
 import { shareCard } from '../../lib/sanity/client';
-import { fill } from '../../lib/copy';
+import { fill, ldJson } from '../../lib/copy';
 import Faq from '../../components/Faq.astro';
 import ProcessFlow from '../../components/ProcessFlow.astro';
 import CtaBand from '../../components/CtaBand.astro';
@@ -208,7 +208,7 @@ const faqs = await getFaqs(`service:${service.slug}`);
       body={ui.serviceCtaBody}
     />
 
-    <script type="application/ld+json" set:html={JSON.stringify(serviceSchema)} is:inline />
+    <script type="application/ld+json" set:html={ldJson(serviceSchema)} is:inline />
   </main>
 
   <Footer />

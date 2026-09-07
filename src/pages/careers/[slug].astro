@@ -7,7 +7,7 @@ import { employmentTypeSchema } from '../../config/careers';
 import { getFlatRoles, type Role } from '../../lib/roles';
 import { getContactDetails, getCareersContent, getUiCopy } from '../../lib/studio';
 import { shareCard } from '../../lib/sanity/client';
-import { fill, plural } from '../../lib/copy';
+import { fill, plural, ldJson } from '../../lib/copy';
 
 /**
  * One page per opening, built from `config/careers.ts`.
@@ -275,7 +275,7 @@ const jobSchema = {
 
   <Footer />
 
-  <script type="application/ld+json" set:html={JSON.stringify(jobSchema)} is:inline />
+  <script type="application/ld+json" set:html={ldJson(jobSchema)} is:inline />
 </Base>
 
 <style>

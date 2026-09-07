@@ -18,7 +18,8 @@
  * secret header that only the webhook knows. See README for the setup.
  */
 import {
-  sign,
+  signAction,
+  safeEqual,
   sendMail,
   esc,
   recipientFor,
@@ -43,7 +44,13 @@ Deno.serve(async (req) => {
   /* ---------- authenticate the webhook ---------- */
   const expected = Deno.env.get('NOTIFY_SECRET');
   if (!expected) return json(500, { error: 'NOTIFY_SECRET is not set.' });
-  if (req.headers.get('x-notify-secret') !== expected) {
+  // `safeEqual`, not `!==`. A plain string comparison returns as soon as it
+  // finds a differing character, so how long it takes reveals how much of a
+  // guessed secret was right — which turns an infeasible search for the whole
+  // value into a feasible one, character by character. The constant-time
+  // compare was already in _shared/util.ts for the moderation token; this
+  // check is no less worth it.
+  if (!safeEqual(req.headers.get('x-notify-secret') ?? '', expected)) {
     // Deliberately vague: an unauthenticated caller learns nothing about
     // whether the endpoint exists or what it expects.
     return json(401, { error: 'Unauthorized' });
@@ -166,14 +173,21 @@ Deno.serve(async (req) => {
       }
 
       const id = String(record.id);
-      // The signature covers the action as well as the id, so an approve link
-      // cannot be edited into a reject link (or the reverse).
-      const approve = `${fnBase}/moderate?id=${id}&action=approve&token=${await sign(`${id}:approve`, secret)}`;
-      const reject = `${fnBase}/moderate?id=${id}&action=reject&token=${await sign(`${id}:reject`, secret)}`;
+      // The signature covers the action AND an expiry as well as the id, so an
+      // approve link cannot be edited into a reject link (or the reverse), and
+      // neither one works forever. See MODERATION_TTL_SECONDS in _shared.
+      const a = await signAction(id, 'approve', secret);
+      const r = await signAction(id, 'reject', secret);
+      const approve = `${fnBase}/moderate?id=${id}&action=approve&exp=${a.exp}&token=${a.token}`;
+      const reject = `${fnBase}/moderate?id=${id}&action=reject&exp=${r.exp}&token=${r.token}`;
 
       const postUrl = `${siteUrl}/blog/${record.post_slug}/`;
+      /* `.btn` and `.btn-gap` are what the media query in `layout()` turns
+         into full-width stacked buttons. Inline styles still carry the whole
+         desktop appearance, so a client that strips <style> loses only the
+         stacking. */
       const button = (href: string, label: string, bg: string, fg: string) =>
-        `<a href="${href}" style="display:inline-block;padding:12px 22px;border-radius:6px;
+        `<a class="btn" href="${href}" style="display:inline-block;padding:12px 22px;border-radius:6px;
             background:${bg};color:${fg};font-size:14px;font-weight:600;text-decoration:none">${label}</a>`;
 
       mail = {
@@ -196,7 +210,7 @@ Deno.serve(async (req) => {
            </p>
            <p style="margin:0">
              ${button(approve, 'Approve &amp; publish', '#14161d', '#e4c24c')}
-             <span style="display:inline-block;width:10px"></span>
+             <span class="btn-gap" style="display:inline-block;width:10px"></span>
              ${button(reject, 'Reject &amp; delete', '#f5f5f3', '#16171b')}
            </p>
 

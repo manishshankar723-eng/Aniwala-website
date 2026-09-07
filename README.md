@@ -483,6 +483,31 @@ additionally read rows you have approved). Read the header comment in
 **Never put the `service_role` key in this repo.** It bypasses RLS entirely and
 this codebase compiles into a public website.
 
+**The forms are rate limited in the database, and that is the only place it
+would work.** Section 5 of `supabase/schema.sql` puts a `before insert` trigger
+on all three tables. It has to be there rather than in the page, because the
+honeypot and the three-second timer on the forms are client-side and a script
+posting straight to the REST endpoint with the public anon key never runs any
+of it:
+
+```bash
+curl -X POST 'https://<project>.supabase.co/rest/v1/enquiries' \
+  -H "apikey: <the key anyone can read out of the JS bundle>" \
+  -H 'Content-Type: application/json' -d '{"name":"x","email":"x@x.com"}'
+```
+
+RLS permits that, correctly — it is an insert, which is what anon is allowed to
+do. The problem is not the row. It is that every insert fires the `notify`
+webhook and sends an email, so a loop empties a free Resend tier in minutes,
+and once it is empty **real enquiries stop reaching your inbox with nothing to
+tell you.** The trigger enforces two ceilings, per address and global; the
+global one is what protects the mail quota against a run from many addresses.
+Current limits are in the comments of section 5 — all far above real traffic.
+
+If you ever need to bulk-import rows, do it from the SQL editor or with the
+service key: requests with no forwarded client address are deliberately not
+limited, so your own maintenance never locks you out.
+
 ### Moderating comments
 
 **Nothing a visitor writes appears on the site until you approve it.**
@@ -516,11 +541,29 @@ new row  ->  Database Webhook  ->  notify function  ->  Resend  ->  your inbox
                                                                       |
                         comment emails carry Approve / Reject buttons  |
                                                                       v
-                                        moderate function  ->  published / deleted
+                                        moderate function  ->  confirmation page
+                                                                      |
+                                                    you click the button
+                                                                      v
+                                                         published / deleted
 ```
 
 Enquiries are routed by service and are pure notification — hit Reply and you
 are writing to the person who asked. Comments arrive with two buttons.
+
+**Clicking a button opens a confirmation page; it does not act on its own.**
+That extra click is deliberate and is not politeness. Mail security scanners —
+Outlook SafeLinks, Defender's sandbox, corporate URL rewriters, link
+previewers — fetch every URL in a message before you have read it. While
+Approve and Reject acted on the GET request those scanners make, a robot could
+publish a comment or permanently delete one, and you would never be told. The
+confirmation page is a form: a GET only ever asks, and only the POST behind
+the button changes anything. Scanners do not submit forms.
+
+**Moderation links expire after 30 days.** A link sitting in an archived
+thread or a forwarded message is otherwise a permanent key to publishing on
+the site. After that window the link says so and you moderate from the
+Supabase dashboard, which is unaffected.
 
 **Setup**
 

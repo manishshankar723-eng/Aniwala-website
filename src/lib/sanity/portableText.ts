@@ -128,6 +128,22 @@ function components(headingIds: string[]): PortableTextComponents {
       link: ({ children, value }) => {
         const href = String((value as { href?: string })?.href ?? '');
         if (!href) return String(children);
+        /*
+         * SCHEME CHECK, and escaping is not a substitute for it.
+         *
+         * `esc()` below makes the href safe as an attribute VALUE — it cannot
+         * break out of the quotes. It says nothing about what the browser does
+         * when the link is clicked, and `javascript:alert(1)` is a perfectly
+         * well-formed attribute value that runs code on click. The site's CSP
+         * carries `'unsafe-inline'` for Astro's pre-paint theme script, so it
+         * does not block a `javascript:` navigation either.
+         *
+         * So the scheme is allowlisted. Anything that is not plainly http,
+         * https, mailto, tel, a site-relative path or a bare fragment renders
+         * as text with no link at all — visible, harmless, and obvious enough
+         * that whoever wrote it will report it.
+         */
+        if (!/^(https?:\/\/|mailto:|tel:|\/|#)/i.test(href)) return String(children);
         const external = /^https?:\/\//i.test(href) && !href.includes('aniwala.com');
         const attrs = external ? ' target="_blank" rel="noopener noreferrer"' : '';
         return `<a href="${esc(href)}"${attrs}>${children}</a>`;

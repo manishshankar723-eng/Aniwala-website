@@ -13,6 +13,7 @@ import {
 } from '../../lib/caseStudies';
 import { getUiCopy } from '../../lib/studio';
 import { shareCard } from '../../lib/sanity/client';
+import { ldJson } from '../../lib/copy';
 
 export async function getStaticPaths() {
   const studies = await getCaseStudies();
@@ -198,7 +199,7 @@ const caseSchema = {
 
     <CtaBand />
 
-    <script type="application/ld+json" set:html={JSON.stringify(caseSchema)} is:inline />
+    <script type="application/ld+json" set:html={ldJson(caseSchema)} is:inline />
   </main>
 
   <Footer />

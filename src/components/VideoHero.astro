@@ -1,5 +1,6 @@
 ---
 import { getUiCopy } from '../lib/studio';
+import { inlineHtml } from '../lib/copy';
 
 const ui = await getUiCopy();
 
@@ -94,7 +95,19 @@ const REDUCED_MOTION_SCRIPT = `(() => {
 
   <div class="hero-content">
     {eyebrow && <p class="hero-eyebrow" data-reveal>{eyebrow}</p>}
-    <h1 class="hero-headline" data-reveal data-reveal-delay="0.08" set:html={headline} />
+    {/*
+      `inlineHtml`, never a bare `set:html`. The headline is a free-text CMS
+      field, so passing it through raw made the Headline box a script console
+      for anyone with a Studio login. `inlineHtml` escapes the whole string and
+      then re-permits only attribute-free `<br>` / `<em>` / `<strong>`-shaped
+      tags, which is all a headline ever wanted. See src/lib/copy.ts.
+    */}
+    <h1
+      class="hero-headline"
+      data-reveal
+      data-reveal-delay="0.08"
+      set:html={inlineHtml(headline)}
+    />
     {
       sub && (
         <p class="hero-sub" data-reveal data-reveal-delay="0.16">

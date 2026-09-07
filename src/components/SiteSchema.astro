@@ -33,6 +33,7 @@
  * nobody reads their own JSON-LD.
  */
 import { getContactDetails, getUiCopy, getBrand } from '../lib/studio';
+import { ldJson } from '../lib/copy';
 
 const { legalName, email, addressLines, country, profileSocials } = await getContactDetails();
 const ui = await getUiCopy();
@@ -99,4 +100,4 @@ const website = {
 const graph = { '@context': 'https://schema.org', '@graph': [organisation, website] };
 ---
 
-<script type="application/ld+json" set:html={JSON.stringify(graph)} is:inline />
+<script type="application/ld+json" set:html={ldJson(graph)} is:inline />
