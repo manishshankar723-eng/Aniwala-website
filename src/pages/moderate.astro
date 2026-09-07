@@ -1,0 +1,213 @@
+---
+/**
+ * The Approve / Reject confirmation page for blog comments.
+ *
+ * WHY THIS LIVES ON THE WEBSITE AND NOT IN THE EDGE FUNCTION
+ *
+ * It used to be rendered by the `moderate` Edge Function, which was the
+ * obvious place for it — the function already verifies the token, so it may as
+ * well draw the page. That does not work on Supabase, and not because of
+ * anything in our code:
+ *
+ *   Supabase rewrites `Content-Type: text/html` to `text/plain` on GET
+ *   responses from Edge Functions, unless the project is on Pro with a custom
+ *   domain. It is an anti-phishing measure — nobody should be able to serve
+ *   convincing HTML from a *.supabase.co URL.
+ *
+ * The symptom was a moderator opening an Approve link and being shown a wall
+ * of HTML source, with the button as a line of code. The function was working
+ * perfectly; the platform simply refuses to let it render.
+ *
+ * So the page moved here, where HTML is served as HTML, and the function kept
+ * the only job it cannot delegate: verifying the signature and writing to the
+ * database.
+ *
+ * ------------------------------------------------------------------
+ * THE SECURITY PROPERTIES ARE UNCHANGED, which is the point of the split.
+ *
+ *   - This page is STATIC. It has no credentials and touches no data. A mail
+ *     scanner that follows the link renders some markup and nothing happens —
+ *     which is the whole reason the confirmation step exists.
+ *   - Nothing is approved or deleted until somebody presses the button, which
+ *     issues a POST to the Edge Function.
+ *   - The function verifies the HMAC and the expiry on that POST, exactly as
+ *     before. This page cannot authorise anything; it only carries the token
+ *     it was given.
+ *
+ * The token therefore sits in a URL on our own domain rather than a
+ * supabase.co one. That is not a downgrade: it was always in a URL, it is
+ * still single-purpose, still signed, and still expires.
+ */
+import SiteConfig from '../components/SiteConfig.astro';
+import { getUiCopy } from '../lib/studio';
+
+const ui = await getUiCopy();
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    {/* A moderation screen has no business in a search index. */}
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Moderate a comment — {ui.siteName}</title>
+    <SiteConfig />
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #0b0c10;
+        color: #f4f4f2;
+        font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        padding: 1.5rem;
+      }
+      .card {
+        max-width: 32rem;
+        text-align: center;
+      }
+      h1 {
+        margin: 0 0 0.75rem;
+        font-size: 1.4rem;
+        line-height: 1.3;
+      }
+      p {
+        margin: 0 0 1.75rem;
+        color: #9aa0ae;
+        line-height: 1.6;
+        font-size: 0.95rem;
+      }
+      .mark {
+        font-size: 2.5rem;
+        line-height: 1;
+        margin-bottom: 1rem;
+      }
+      button {
+        display: inline-block;
+        padding: 12px 22px;
+        border: 0;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+      }
+      button[disabled] {
+        opacity: 0.55;
+        cursor: progress;
+      }
+      .approve {
+        background: #14161d;
+        color: #e4c24c;
+      }
+      .reject {
+        background: #f5f5f3;
+        color: #16171b;
+      }
+      .foot {
+        margin: 1.75rem 0 0;
+        color: #6d7285;
+        font-size: 0.8rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card" id="card">
+      <h1 id="title">Checking that link…</h1>
+      <p id="msg"></p>
+      <div id="actions"></div>
+      <p class="foot" id="foot"></p>
+    </div>
+
+    <script>
+      /*
+       * All of this runs in the browser because the page is prerendered: the
+       * site is `output: 'static'`, so there is no server to read a query
+       * string. That is fine — nothing here is trusted. The token is passed
+       * through to the Edge Function, which is what actually validates it.
+       */
+      interface Cfg {
+        supabaseUrl?: string;
+      }
+
+      const params = new URLSearchParams(location.search);
+      const id = params.get('id') ?? '';
+      const action = params.get('action') ?? '';
+      const exp = params.get('exp') ?? '';
+      const token = params.get('token') ?? '';
+
+      const titleEl = document.getElementById('title')!;
+      const msgEl = document.getElementById('msg')!;
+      const actionsEl = document.getElementById('actions')!;
+      const footEl = document.getElementById('foot')!;
+
+      const show = (title: string, message: string, mark?: 'ok' | 'warn') => {
+        titleEl.textContent = title;
+        msgEl.textContent = message;
+        actionsEl.replaceChildren();
+        footEl.textContent = '';
+        if (mark) {
+          const d = document.createElement('div');
+          d.className = 'mark';
+          d.textContent = mark === 'ok' ? '✓' : '⚠';
+          titleEl.parentElement!.insertBefore(d, titleEl);
+        }
+      };
+
+      const approving = action === 'approve';
+
+      if (!id || !token || !exp || (action !== 'approve' && action !== 'reject')) {
+        show('Link not valid', 'That moderation link is incomplete.', 'warn');
+      } else {
+        titleEl.textContent = approving ? 'Publish this comment?' : 'Delete this comment?';
+        msgEl.textContent = approving
+          ? 'It will appear on the post immediately.'
+          : 'It will be removed permanently. This cannot be undone.';
+        footEl.textContent = 'Nothing has changed yet. Close this tab to leave the comment as it is.';
+
+        const btn = document.createElement('button');
+        btn.className = approving ? 'approve' : 'reject';
+        btn.textContent = approving ? 'Yes, publish it' : 'Yes, delete it';
+        actionsEl.append(btn);
+
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          btn.textContent = 'Working…';
+
+          const cfg = ((window as unknown as { __aniwalaConfig?: Cfg }).__aniwalaConfig ?? {}) as Cfg;
+          const base = (cfg.supabaseUrl ?? '').replace(/\/$/, '');
+          if (!base) {
+            show('Not configured', 'This page cannot reach the moderation service.', 'warn');
+            return;
+          }
+
+          try {
+            const res = await fetch(`${base}/functions/v1/moderate`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id, action, exp: Number(exp), token }),
+            });
+            const body = await res.json().catch(() => ({}) as Record<string, string>);
+            if (res.ok) {
+              show(body.title ?? 'Done', body.message ?? '', 'ok');
+            } else {
+              show(body.title ?? 'That did not work', body.message ?? `Error ${res.status}.`, 'warn');
+            }
+          } catch {
+            show(
+              'Could not reach the server',
+              'Check your connection and open the link again.',
+              'warn'
+            );
+          }
+        });
+      }
+    </script>
+  </body>
+</html>

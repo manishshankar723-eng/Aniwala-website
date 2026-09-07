@@ -168,9 +168,8 @@ Deno.serve(async (req) => {
       /* ---------------------------------------------------------------- */
     } else if (payload.table === 'comments') {
       const secret = Deno.env.get('MODERATION_SECRET');
-      const fnBase = Deno.env.get('FUNCTIONS_BASE_URL');
-      if (!secret || !fnBase) {
-        return json(500, { error: 'MODERATION_SECRET or FUNCTIONS_BASE_URL is not set.' });
+      if (!secret) {
+        return json(500, { error: 'MODERATION_SECRET is not set.' });
       }
 
       const id = String(record.id);
@@ -179,8 +178,25 @@ Deno.serve(async (req) => {
       // neither one works forever. See MODERATION_TTL_SECONDS in _shared.
       const a = await signAction(id, 'approve', secret);
       const r = await signAction(id, 'reject', secret);
-      const approve = `${fnBase}/moderate?id=${id}&action=approve&exp=${a.exp}&token=${a.token}`;
-      const reject = `${fnBase}/moderate?id=${id}&action=reject&exp=${r.exp}&token=${r.token}`;
+      /*
+       * These point at the WEBSITE, not at the Edge Function, and that is not
+       * a cosmetic choice.
+       *
+       * Supabase rewrites `text/html` to `text/plain` on GET responses from
+       * Edge Functions (anti-phishing on *.supabase.co), so a confirmation
+       * page served from there reaches the moderator as raw HTML source with
+       * the button rendered as a line of code. The page therefore lives at
+       * SITE_URL/moderate/ and POSTs to the function when the button is
+       * pressed.
+       *
+       * SITE_URL has to be the host actually serving the site — staging while
+       * that is where it lives, production after cutover — or these links go
+       * somewhere with no page on it.
+       */
+      const modUrl = (act: string, e: number, t: string) =>
+        `${siteUrl}/moderate/?id=${id}&action=${act}&exp=${e}&token=${t}`;
+      const approve = modUrl('approve', a.exp, a.token);
+      const reject = modUrl('reject', r.exp, r.token);
 
       const postUrl = `${siteUrl}/blog/${record.post_slug}/`;
       /* `.btn` and `.btn-gap` are what the media query in `layout()` turns

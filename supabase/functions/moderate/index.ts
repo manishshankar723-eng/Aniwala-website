@@ -1,151 +1,182 @@
 /**
- * moderate — the Approve / Reject buttons in a notification email.
+ * moderate — performs the Approve / Reject action on a blog comment.
  *
- * Opened in a browser from the email, so it answers with a small HTML page
- * rather than JSON. Uses the service role key, which bypasses RLS — that is
- * the whole point, and it is why the signed token is checked first and why
+ * Uses the service role key, which bypasses RLS. That is the whole point, and
+ * it is why the signed token is verified before anything is touched and why
  * this key never leaves the Edge Function environment.
  *
  * Deploy:  supabase functions deploy moderate --no-verify-jwt
  *
- * `--no-verify-jwt` is required because the caller is a mail client with no
- * Supabase session. Authorisation comes from the HMAC in the link.
+ * `--no-verify-jwt` is required because the caller is a moderator's browser
+ * with no Supabase session. Authorisation is the HMAC in the request body.
  *
  * ------------------------------------------------------------------
- * WHY A GET NEVER CHANGES ANYTHING HERE
+ * WHY THIS RETURNS JSON AND NOT A PAGE
  *
- * This used to approve or delete a comment on the GET request the email link
- * produced. That is one hop from a moderation queue that moderates itself.
+ * It used to render the confirmation page itself, which was the natural design
+ * — the function already verifies the token, so it may as well draw the
+ * screen. Supabase does not allow it, and not because of anything in our code:
+ *
+ *   `Content-Type: text/html` is rewritten to `text/plain` on GET responses
+ *   from Edge Functions unless the project is on Pro with a custom domain.
+ *
+ * It is an anti-phishing measure — nobody should be able to serve convincing
+ * HTML from a *.supabase.co URL. The symptom was a moderator opening an
+ * Approve link and being shown a wall of HTML source with the button as a
+ * line of code. Worth knowing before "fixing" this by setting the header
+ * again: HEAD responses come back as text/html, which makes it look like the
+ * header works, and only GETs are rewritten.
+ *
+ * So the page moved to the website — `src/pages/moderate.astro`, where HTML is
+ * served as HTML — and this function kept the part that cannot be delegated.
+ *
+ * ------------------------------------------------------------------
+ * A GET STILL CHANGES NOTHING, which is the property worth protecting.
  *
  * Mail security scanners follow links. Outlook SafeLinks, Defender's
  * detonation sandbox, corporate URL rewriters and ordinary link previewers all
- * fetch the URLs in a message to see where they go — before a person has read
- * anything. Every one of those fetches was an Approve or, worse, a Reject:
- * comments published or permanently deleted by a robot, with the mailbox owner
- * never told it happened.
+ * fetch the URLs in a message before a person reads it. When this function
+ * acted on GET, every one of those fetches published a comment or permanently
+ * deleted one, silently, with the mailbox owner never told.
  *
- * So the two verbs are split, the way they should have been:
+ * Now the email points at a static page. A scanner fetching that renders some
+ * markup and nothing happens. Only the button POSTs here, and only a POST
+ * acts. Scanners do not submit forms.
  *
- *   GET   verifies the token and renders a confirmation page. Changes nothing.
- *   POST  verifies the token again and performs the action.
- *
- * Scanners issue GETs. They do not submit forms. That difference is the entire
- * defence and it costs the moderator one click.
- *
- * The token is also time-limited now — see MODERATION_TTL_SECONDS — so a link
- * in a forwarded or archived message stops being a key to publishing on the
- * site.
+ * Tokens are time-limited too — see MODERATION_TTL_SECONDS — so a link in a
+ * forwarded or archived message stops being a key to publishing on the site.
  */
-import { verifyAction, esc } from '../_shared/util.ts';
-
-/** Chrome shared by every response this function makes. */
-const shell = (title: string, inner: string, status: number) =>
-  new Response(
-    `<!doctype html>
-<html><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
-<meta name="robots" content="noindex, nofollow" />
-<title>${esc(title)}</title></head>
-<body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
-             background:#0b0c10;color:#f4f4f2;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
-  <div style="max-width:32rem;padding:2.5rem;text-align:center">${inner}</div>
-</body></html>`,
-    {
-      status,
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        // A moderation result is never worth caching, and a proxy holding on
-        // to one would show a stale outcome on the next click.
-        'Cache-Control': 'no-store',
-        'X-Robots-Tag': 'noindex, nofollow',
-        'Referrer-Policy': 'no-referrer',
-      },
-    }
-  );
-
-/** A finished outcome, or a refusal. */
-const page = (title: string, message: string, ok: boolean) =>
-  shell(
-    title,
-    `<div style="font-size:2.5rem;line-height:1;margin-bottom:1rem">${ok ? '&#10003;' : '&#9888;'}</div>
-     <h1 style="margin:0 0 .75rem;font-size:1.4rem">${esc(title)}</h1>
-     <p style="margin:0;color:#9aa0ae;line-height:1.6;font-size:.95rem">${esc(message)}</p>`,
-    ok ? 200 : 400
-  );
+import { verifyAction } from '../_shared/util.ts';
 
 /**
- * The confirmation step. The form posts back to this same URL, so the token
- * travels exactly as it arrived and nothing extra has to be carried.
+ * Where a browser may call this from.
+ *
+ * The moderation page is served from the website, so this is a genuine
+ * cross-origin request and needs CORS. A wildcard would let any page drive the
+ * endpoint, so the origins are named: the live site from SITE_URL, plus
+ * EXTRA_ORIGINS for staging, plus localhost for `astro dev`.
  */
-const confirm = (action: 'approve' | 'reject', url: URL) => {
-  const approving = action === 'approve';
-  const button = approving
-    ? { bg: '#14161d', fg: '#e4c24c', label: 'Yes, publish it' }
-    : { bg: '#f5f5f3', fg: '#16171b', label: 'Yes, delete it' };
+function allowedOrigin(req: Request): string | null {
+  const origin = req.headers.get('origin');
+  if (!origin) return null;
+  const site = (Deno.env.get('SITE_URL') ?? 'https://aniwala.com').replace(/\/$/, '');
+  const extra = (Deno.env.get('EXTRA_ORIGINS') ?? '')
+    .split(',')
+    .map((o) => o.trim().replace(/\/$/, ''))
+    .filter(Boolean);
+  const ok = [site, ...extra, 'http://localhost:4321', 'http://localhost:4322'];
+  return ok.includes(origin) ? origin : null;
+}
 
-  return shell(
-    approving ? 'Publish this comment?' : 'Delete this comment?',
-    `<h1 style="margin:0 0 .75rem;font-size:1.4rem">
-       ${approving ? 'Publish this comment?' : 'Delete this comment?'}
-     </h1>
-     <p style="margin:0 0 1.75rem;color:#9aa0ae;line-height:1.6;font-size:.95rem">
-       ${
-         approving
-           ? 'It will appear on the post immediately.'
-           : 'It will be removed permanently. This cannot be undone.'
-       }
-     </p>
-     <form method="post" action="${esc(url.pathname + url.search)}">
-       <button type="submit" style="display:inline-block;padding:12px 22px;border:0;border-radius:6px;
-           background:${button.bg};color:${button.fg};font-size:14px;font-weight:600;cursor:pointer">
-         ${button.label}
-       </button>
-     </form>
-     <p style="margin:1.75rem 0 0;color:#6d7285;line-height:1.6;font-size:.8rem">
-       Nothing has changed yet. Close this tab to leave the comment as it is.
-     </p>`,
-    200
-  );
-};
+const cors = (origin: string | null) => ({
+  'Access-Control-Allow-Origin': origin ?? 'null',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'content-type',
+  'Access-Control-Max-Age': '86400',
+  Vary: 'Origin',
+});
+
+/** `title` and `message` are what the page puts on screen. */
+const json = (
+  status: number,
+  body: { title: string; message: string },
+  origin: string | null
+) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: new Headers({
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+      'X-Robots-Tag': 'noindex, nofollow',
+      ...cors(origin),
+    }),
+  });
 
 Deno.serve(async (req) => {
-  const url = new URL(req.url);
-  const id = url.searchParams.get('id') ?? '';
-  const action = url.searchParams.get('action') ?? '';
-  const token = url.searchParams.get('token') ?? '';
-  const exp = Number(url.searchParams.get('exp') ?? '');
+  const origin = allowedOrigin(req);
 
-  if (req.method !== 'GET' && req.method !== 'POST') {
-    return page('Not allowed', 'That request method is not supported here.', false);
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: cors(origin) });
   }
 
+  /*
+   * ONLY POST ACTS. A GET here is a mail scanner following a link, or somebody
+   * pasting the endpoint into a browser, and neither is a moderation
+   * decision. It gets a flat refusal rather than a redirect, so there is no
+   * chance of a scanner being walked onwards into something that does act.
+   */
+  if (req.method !== 'POST') {
+    return json(
+      405,
+      {
+        title: 'Nothing happens here',
+        message: 'Open the moderation link from the email instead.',
+      },
+      origin
+    );
+  }
+
+  if (!origin) {
+    return json(
+      403,
+      { title: 'Forbidden', message: 'That request came from an unknown origin.' },
+      null
+    );
+  }
+
+  let body: { id?: string; action?: string; exp?: number; token?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return json(400, { title: 'Bad request', message: 'That request was malformed.' }, origin);
+  }
+
+  const id = String(body.id ?? '');
+  const action = String(body.action ?? '');
+  const token = String(body.token ?? '');
+  const exp = Number(body.exp);
+
   if (!id || !token || (action !== 'approve' && action !== 'reject')) {
-    return page('Link not valid', 'That moderation link is incomplete.', false);
+    return json(
+      400,
+      { title: 'Link not valid', message: 'That moderation link is incomplete.' },
+      origin
+    );
   }
 
   const secret = Deno.env.get('MODERATION_SECRET');
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!secret || !supabaseUrl || !serviceKey) {
-    return page('Not configured', 'The moderation endpoint is missing its secrets.', false);
+    console.error('moderate is missing MODERATION_SECRET / SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY');
+    return json(
+      500,
+      { title: 'Not configured', message: 'The moderation endpoint is missing its secrets.' },
+      origin
+    );
   }
 
   /* ---------- verify the signature BEFORE touching the database ---------- */
   const verdict = await verifyAction(id, action, exp, token, secret);
   if (verdict === 'invalid') {
-    return page('Link not valid', 'That link has been altered or was not issued by us.', false);
+    return json(
+      403,
+      { title: 'Link not valid', message: 'That link has been altered or was not issued by us.' },
+      origin
+    );
   }
   if (verdict === 'expired') {
-    return page(
-      'Link expired',
-      'Moderation links stop working after 30 days. Open the comment in the Supabase dashboard instead.',
-      false
+    return json(
+      403,
+      {
+        title: 'Link expired',
+        message:
+          'Moderation links stop working after 30 days. Open the comment in the Supabase dashboard instead.',
+      },
+      origin
     );
   }
 
-  /* ---------- a GET only ever asks ---------- */
-  if (req.method === 'GET') return confirm(action, url);
-
-  /* ---------- a POST is a person clicking the button ---------- */
   const headers = {
     apikey: serviceKey,
     Authorization: `Bearer ${serviceKey}`,
@@ -167,9 +198,20 @@ Deno.serve(async (req) => {
       // Zero rows means the comment was already rejected and deleted. Saying
       // so is more useful than a generic failure.
       if (rows.length === 0) {
-        return page('Nothing to approve', 'That comment no longer exists — it was already rejected.', false);
+        return json(
+          404,
+          {
+            title: 'Nothing to approve',
+            message: 'That comment no longer exists — it was already rejected.',
+          },
+          origin
+        );
       }
-      return page('Published', 'The comment is now live on the post. Nothing else to do.', true);
+      return json(
+        200,
+        { title: 'Published', message: 'The comment is now live on the post. Nothing else to do.' },
+        origin
+      );
     }
 
     const res = await fetch(target, { method: 'DELETE', headers });
@@ -177,11 +219,26 @@ Deno.serve(async (req) => {
 
     const rows = (await res.json()) as unknown[];
     if (rows.length === 0) {
-      return page('Already gone', 'That comment had already been deleted.', true);
+      return json(
+        200,
+        { title: 'Already gone', message: 'That comment had already been deleted.' },
+        origin
+      );
     }
-    return page('Deleted', 'The comment has been removed and was never published.', true);
+    return json(
+      200,
+      { title: 'Deleted', message: 'The comment has been removed and was never published.' },
+      origin
+    );
   } catch (err) {
     console.error('moderate failed:', err);
-    return page('Something went wrong', 'The database rejected that change. Try the Supabase dashboard.', false);
+    return json(
+      500,
+      {
+        title: 'Something went wrong',
+        message: 'The database rejected that change. Try the Supabase dashboard.',
+      },
+      origin
+    );
   }
 });

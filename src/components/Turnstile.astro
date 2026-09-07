@@ -76,24 +76,84 @@ const { class: className } = Astro.props;
         } catch (e) {}
         return true;
       };
+
+      /*
+       * EXPLICIT RENDER, AND WHY AUTO-RENDER WAS BROKEN FOR ALMOST EVERYONE.
+       *
+       * api.js in its default mode scans the document for `.cf-turnstile`
+       * elements exactly once, when the script first loads. This site runs
+       * Astro's ClientRouter, so every internal link is a client-side swap
+       * rather than a page load — the DOM is replaced and api.js never runs
+       * again.
+       *
+       * The result: landing directly on a blog post worked, and reaching the
+       * same post by clicking it from the blog index produced a widget div
+       * that nothing ever rendered. No widget, no token, and the form failed
+       * after waiting for one that was never coming. Since most visitors
+       * arrive by clicking a link rather than typing a URL, the broken path
+       * was the common one — and it looked intermittent, which is the worst
+       * way for a bug like this to present.
+       *
+       * So rendering is done by hand, here, on every `astro:page-load` — the
+       * event Astro fires both on first load and after each swap. The
+       * `render=explicit` parameter on the script URL stops api.js also
+       * auto-rendering, which would otherwise produce two widgets on the
+       * first page.
+       */
+      window.aniwalaTurnstileInit = function () {
+        if (!window.turnstile || !window.turnstile.render) return;
+        var nodes = document.querySelectorAll('.cf-turnstile');
+        for (var i = 0; i < nodes.length; i++) {
+          var el = nodes[i];
+          if (el.dataset.aniwalaRendered === '1') continue;
+          try {
+            window.turnstile.render(el, {
+              sitekey: el.dataset.sitekey,
+              theme: el.dataset.theme || 'auto',
+              appearance: el.dataset.appearance || 'interaction-only',
+              'error-callback': window.aniwalaTurnstileError,
+            });
+            el.dataset.aniwalaRendered = '1';
+            /* A fresh widget must not inherit a failure recorded on the
+               previous page, or the form gives up before this one has had a
+               chance to issue anything. */
+            window.__aniwalaTurnstileErr = undefined;
+          } catch (e) {
+            try {
+              console.error('[turnstile] render failed', e);
+            } catch (e2) {}
+          }
+        }
+      };
+
+      /* Guarded: ClientRouter re-runs inline scripts from swapped documents,
+         and a listener added on every navigation would render the same widget
+         several times over. */
+      if (!window.__aniwalaTurnstileBound) {
+        window.__aniwalaTurnstileBound = true;
+        document.addEventListener('astro:page-load', function () {
+          window.aniwalaTurnstileInit();
+        });
+      }
     </script>
   )
 }
 
 {
   /*
-    Loaded once per page even when several forms are on it: the `id` makes a
-    repeat render a no-op in the browser, and Astro hoists `is:inline` scripts
-    as written rather than bundling them.
+    `render=explicit` hands rendering to `aniwalaTurnstileInit` above, and
+    `onload` is how api.js reports that it is ready on the very first load —
+    which can happen either side of `astro:page-load`, so both call the same
+    idempotent function and whichever arrives second does nothing.
 
-    AFTER the callback above, which api.js looks up by name the moment it
-    initialises the widget.
+    The `id` makes a repeat of this tag a no-op if several forms are on one
+    page.
   */
   TURNSTILE_SITE_KEY && (
     <script
       is:inline
       id="cf-turnstile-api"
-      src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+      src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=aniwalaTurnstileInit"
       async
       defer
     />
