@@ -303,7 +303,30 @@ jobs:
           # machine the secret was pasted from, which is the property worth
           # having — the alternative is a re-paste that works until the next
           # person does it from a Windows box.
-          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
+          # TWO ACCEPTED FORMATS, and base64 is the one to prefer.
+          #
+          # An OpenSSH private key is line-structured, and every step between
+          # the file and the secret store is a chance to damage those lines —
+          # `clip` on Windows rewrites LF to CRLF, editors re-wrap, terminals
+          # trim. Each of those produces the same unhelpful pair of messages:
+          #
+          #   Load key "...": error in libcrypto
+          #   Permission denied (publickey,password).
+          #
+          # which reads like the server rejected a good key, and sends you to
+          # check the panel, where everything is fine.
+          #
+          # Base64 removes the whole class of problem: one line, no internal
+          # whitespace, nothing left for a copy step to mangle. Produce it with
+          #   base64 -w 0 < deploy_key
+          # and paste that as SSH_KEY.
+          #
+          # Raw PEM still works, for a secret already stored that way.
+          if printf '%s' "$SSH_KEY" | grep -q 'BEGIN OPENSSH PRIVATE KEY'; then
+            printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
+          else
+            printf '%s' "$SSH_KEY" | tr -d '\r\n \t' | base64 -d > ~/.ssh/id_ed25519 2>/dev/null || true
+          fi
           chmod 600 ~/.ssh/id_ed25519
 
           # Prove the key parses HERE, where the message can say so, rather
@@ -311,9 +334,24 @@ jobs:
           # "Permission denied" that looks like a server-side problem.
           if ! ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub 2>/tmp/keyerr; then
             echo "::error::SSH_KEY is not a usable private key: $(cat /tmp/keyerr)"
-            echo "Re-copy the WHOLE file, including the BEGIN and END lines and the"
-            echo "final newline, into the SSH_KEY secret. It is the file WITHOUT the"
-            echo ".pub extension."
+            echo ""
+            # SHAPE, NEVER CONTENT. Which of the failure modes this is cannot be
+            # guessed from "error in libcrypto" — truncated, flattened onto one
+            # line, the .pub pasted by mistake, or CRs that survived. Each has a
+            # different fingerprint in these four numbers, and none of them
+            # reveals any key material: the BEGIN/END lines are identical in
+            # every OpenSSH key ever generated.
+            echo "What arrived in the secret:"
+            echo "  bytes            : $(printf '%s' "$SSH_KEY" | wc -c)"
+            echo "  lines            : $(printf '%s\n' "$SSH_KEY" | wc -l)"
+            echo "  carriage returns : $(printf '%s' "$SSH_KEY" | tr -cd '\r' | wc -c)"
+            echo "  starts with BEGIN: $(printf '%s' "$SSH_KEY" | head -c 40 | grep -qc 'BEGIN' || echo 0)"
+            echo ""
+            echo "A correct ed25519 key is ~419 bytes and 8 lines as PEM, or one"
+            echo "line of ~560 characters as base64."
+            echo ""
+            echo "FIX: run  base64 -w 0 < deploy_key  and paste that single line"
+            echo "as the SSH_KEY secret. Use the file WITHOUT the .pub extension."
             exit 1
           fi
 
