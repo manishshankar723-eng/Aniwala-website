@@ -3,6 +3,7 @@ import { DISCIPLINES, EMPLOYMENT_KINDS } from './config/disciplines';
 import { IMAGE_SLOT_NAMES } from './config/imageSlots';
 import { FONT_CHOICE_NAMES } from './config/fonts';
 import { SOCIAL_ICONS } from './config/contact';
+import { isSafeHref, findUnsafeHref, UNSAFE_HREF_MESSAGE } from './config/urls';
 import {
   UI_COPY_FIELDS,
   APPLY_COPY_FIELDS,
@@ -83,7 +84,42 @@ import {
  * actually read.
  */
 const line = (...names: string[]) =>
-  Object.fromEntries(names.map((name) => [name, z.string().min(1)]));
+  Object.fromEntries(
+    names.map((name) => [
+      name,
+      /*
+       * A name ending in `Href` is a link, and a link needs the scheme check
+       * — `railPromoHref` renders in the sidebar of every blog post, and the
+       * two `cta*Href` on the careers page render under every listing.
+       *
+       * DERIVED FROM THE NAME rather than listed here, for the same reason
+       * the field list itself is derived: a hand-kept list of "which of these
+       * two hundred names are links" is a list that is wrong the first time
+       * somebody adds one. The convention already holds across all three
+       * tuples in `config/copyFields.ts`; this makes it load bearing.
+       */
+      /href$/i.test(name)
+        ? z.string().min(1).refine(isSafeHref, { message: UNSAFE_HREF_MESSAGE })
+        : z.string().min(1),
+    ])
+  );
+
+/**
+ * A link an editor typed, refused unless it points somewhere a link may point.
+ *
+ * ONE definition for every href on the site, imported rather than repeated:
+ * the announcement bar, the menus and the CTA each carried their own copy of
+ * a similar rule, and around a dozen other href fields carried none at all —
+ * which is precisely the drift the `line()` helper above exists to prevent for
+ * copy fields. See `config/urls.ts` for what is on the list and why a
+ * `javascript:` href is a live cross-site scripting hole on this site rather
+ * than a lint failure.
+ *
+ * Blank passes. Whether a particular field MAY be blank is that field's own
+ * business — `.min(1)` and `.optional()` are left exactly as they were, so
+ * this only ever adds a check and never changes what is required.
+ */
+const safeHref = z.string().refine(isSafeHref, { message: UNSAFE_HREF_MESSAGE });
 
 /** A six-digit hex colour, or blank to mean "leave the stylesheet alone". */
 const hexColour = z
@@ -343,8 +379,15 @@ const team = defineCollection({
     bio: z.string(),
     /** Optional. The card falls back to initials, never to a stock avatar. */
     photo: sanityImage.omit({ alt: true }).optional(),
-    /** ArtStation, LinkedIn, a reel. No link means no button is rendered. */
-    href: z.url().optional(),
+    /**
+     * ArtStation, LinkedIn, a reel. No link means no button is rendered.
+     *
+     * NOT `z.url()`, which was here and which checks the wrong thing: it
+     * validates that a string parses as a URL, and `javascript:alert(1)`
+     * parses as a URL perfectly well. So does `data:text/html,...`. Both were
+     * accepted, and both run when the member's card is clicked.
+     */
+    href: safeHref.optional(),
     /** Lower first. Gaps are intentional so someone can be slotted in later. */
     order: z.number().int().default(50),
     draft: z.boolean().default(false),
@@ -370,12 +413,7 @@ const announcement = defineCollection({
     text: z.string().default(''),
     cta: z.string().default(''),
     /** A site path ("/services/") or an absolute URL. */
-    href: z
-      .string()
-      .refine((v) => v === '' || v.startsWith('/') || /^https?:\/\//.test(v), {
-        message: 'Use a path starting with / or a full http(s) URL.',
-      })
-      .default(''),
+    href: safeHref.default(''),
     /**
      * Versions the dismissal. Bump it and the bar returns for people who
      * dismissed the previous one, instead of staying hidden forever.
@@ -546,7 +584,7 @@ const contactDetails = defineCollection({
           icon: z.enum(SOCIAL_ICONS),
           label: z.string(),
           /** Blank means "no account yet" — the icon is dropped, not linked. */
-          href: z.string().default(''),
+          href: safeHref.default(''),
         })
       )
       .default([]),
@@ -610,7 +648,29 @@ const builtPages = defineCollection({
           })
           .passthrough()
       )
-      .min(1, 'A page with no sections would render as an empty document.'),
+      .min(1, 'A page with no sections would render as an empty document.')
+      /*
+       * ONE rule that survives `.passthrough()`.
+       *
+       * What a section is allowed to contain cannot be pinned down field by
+       * field without freezing the page builder, and that is the right trade
+       * — but it left every link on a CMS-built page unchecked: `ctaHref`,
+       * `linkHref` and `emptyCtaHref` all reach an `href` attribute, and none
+       * of them passed through a schema on the way.
+       *
+       * So this checks the one property that holds for every block that
+       * exists and every block anybody adds later: no link on this page points
+       * at a script. Walked rather than named, for the same reason.
+       */
+      .superRefine((blocks, ctx) => {
+        const bad = findUnsafeHref(blocks);
+        if (bad) {
+          ctx.addIssue({
+            code: 'custom',
+            message: `Unsafe link at blocks.${bad}. ${UNSAFE_HREF_MESSAGE}`,
+          });
+        }
+      }),
     draft: z.boolean().default(false),
   }),
 });
@@ -626,11 +686,7 @@ const builtPages = defineCollection({
  */
 const navChild = z.object({
   label: z.string().min(1),
-  href: z
-    .string()
-    .refine((v) => v === '' || v.startsWith('/') || /^(https?:\/\/|mailto:)/.test(v), {
-      message: 'Use a path starting with / , a full http(s) URL, or a mailto: address.',
-    }),
+  href: safeHref,
   blurb: z.string().optional(),
 });
 
@@ -641,21 +697,16 @@ const navigation = defineCollection({
       .array(
         z.object({
           label: z.string().min(1),
-          href: z
-            .string()
-            .refine((v) => v.startsWith('/') || /^(https?:\/\/|mailto:)/.test(v), {
-              message: 'Use a path starting with / , a full http(s) URL, or a mailto: address.',
-            })
-            .optional(),
+          /* Absent means "this item only opens a dropdown". Blank does not:
+             an empty href renders a link to the current page. */
+          href: safeHref.min(1).optional(),
           hiddenInHeader: z.boolean().default(false),
           children: z.array(navChild).default([]),
         })
       )
       .min(1, 'A site with no menu has no way to reach any page but the one you are on.'),
     ctaLabel: z.string().min(1),
-    ctaHref: z.string().refine((v) => v.startsWith('/') || /^(https?:\/\/|mailto:)/.test(v), {
-      message: 'Use a path starting with / , a full http(s) URL, or a mailto: address.',
-    }),
+    ctaHref: safeHref.min(1),
     /* The pages search cannot find on its own — those whose text lives in a
        template rather than in a document. Everything else is folded into the
        index from the document itself, so it cannot fall out of step. */
@@ -788,7 +839,7 @@ const careers = defineCollection({
           label: z.string().min(1),
           body: z.string().min(1),
           linkLabel: z.string().optional(),
-          linkHref: z.string().optional(),
+          linkHref: safeHref.optional(),
         })
       )
       .min(1),
@@ -916,7 +967,7 @@ const uiCopy = defineCollection({
        `check-links.mjs`'s job at the end of the build, which is the right
        place for it — the same division the menus already use. */
     legalLinks: z
-      .array(z.object({ label: z.string().min(1), href: z.string().min(1) }))
+      .array(z.object({ label: z.string().min(1), href: safeHref.min(1) }))
       .min(1),
 
     /* Whether comments are shown at all. Defaults to ON, so a document
@@ -931,18 +982,18 @@ const uiCopy = defineCollection({
       .array(
         z.object({
           label: z.string().min(1),
-          href: z.string().min(1),
+          href: safeHref.min(1),
           blurb: z.string().min(1),
         })
       )
       .default([]),
     notFoundCareersLabel: z.string().default(''),
-    notFoundCareersHref: z.string().default(''),
+    notFoundCareersHref: safeHref.default(''),
     notFoundCareersOne: z.string().default(''),
     notFoundCareersMany: z.string().default(''),
     notFoundFoot: z.string().default(''),
     notFoundFootLinkLabel: z.string().default(''),
-    notFoundFootLinkHref: z.string().default(''),
+    notFoundFootLinkHref: safeHref.default(''),
     notFoundSeoTitle: z.string().default(''),
     notFoundSeoDescription: z.string().default(''),
 

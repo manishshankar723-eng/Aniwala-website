@@ -24,6 +24,7 @@
 import { toHTML, type PortableTextComponents } from '@portabletext/to-html';
 import GithubSlugger from 'github-slugger';
 import { imageUrl, imageSrcSet, type SanityImage } from './client';
+import { SAFE_HREF } from '../../config/urls';
 
 export interface Heading {
   depth: number;
@@ -143,7 +144,7 @@ function components(headingIds: string[]): PortableTextComponents {
          * as text with no link at all — visible, harmless, and obvious enough
          * that whoever wrote it will report it.
          */
-        if (!/^(https?:\/\/|mailto:|tel:|\/|#)/i.test(href)) return String(children);
+        if (!SAFE_HREF.test(href)) return String(children);
         const external = /^https?:\/\//i.test(href) && !href.includes('aniwala.com');
         const attrs = external ? ' target="_blank" rel="noopener noreferrer"' : '';
         return `<a href="${esc(href)}"${attrs}>${children}</a>`;

@@ -180,7 +180,29 @@ Deno.serve(async (req) => {
   const row: Record<string, unknown> = {};
   for (const key of FIELDS[form]) {
     const value = incoming[key];
-    if (value !== undefined && value !== null && value !== '') row[key] = value;
+    if (value === undefined || value === null || value === '') continue;
+
+    /*
+     * SHAPE, as well as name.
+     *
+     * The allowlist above decides WHICH keys survive; this decides what may
+     * arrive under one. Without it an object or an array is forwarded to
+     * PostgREST as-is, and what happens next depends on the column type
+     * rather than on anything decided here — which is the wrong place for the
+     * decision to be made. Every column in these three tables is text, an
+     * int, a timestamp or a boolean, so a scalar is the whole of what is ever
+     * legitimate.
+     *
+     * The DB's own CHECK constraints still cap the lengths; this is about
+     * type, and about not handing a caller-shaped object to the layer holding
+     * the service role key.
+     */
+    const t = typeof value;
+    if (t !== 'string' && t !== 'number' && t !== 'boolean') {
+      return json(400, { error: 'That submission was malformed.' }, origin);
+    }
+
+    row[key] = value;
   }
   if (Object.keys(row).length === 0) {
     return json(400, { error: 'Nothing to submit.' }, origin);

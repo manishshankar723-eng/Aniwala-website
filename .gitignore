@@ -22,3 +22,9 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+# Supabase CLI working state. Not secret, but it records the pooler
+# connection string, the DB username, the org id and the exact Postgres,
+# GoTrue, PostgREST and Storage versions — free version-fingerprinting for
+# anyone reading the repo, and nothing here is worth reviewing in a diff.
+supabase/.temp/

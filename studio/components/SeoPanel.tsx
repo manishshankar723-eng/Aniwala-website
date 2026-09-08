@@ -112,7 +112,7 @@ function Meter({ label, length, ideal }: { label: string; length: number; ideal:
     tone === 'critical' ? 'var(--card-badge-critical-bg-color)' : 'var(--card-badge-positive-bg-color)';
 
   return (
-    <Stack space={2}>
+    <Stack gap={2}>
       <Flex justify="space-between">
         <Text size={0} muted>
           {label}
@@ -159,15 +159,15 @@ export function SeoPanel() {
   const checks = analyse({ title, description, path: path ?? '', keyphrase, doc, hasImage });
 
   return (
-    <Stack space={4}>
+    <Stack gap={4}>
       {/* ---------- the result, as Google draws it ---------- */}
       <Card padding={4} radius={2} shadow={1} tone="transparent">
-        <Stack space={3}>
+        <Stack gap={3}>
           <Text size={0} muted weight="semibold">
             HOW THIS LOOKS IN GOOGLE
           </Text>
 
-          <Stack space={2}>
+          <Stack gap={2}>
             <Text size={0} style={{ color: '#5f6368' }}>
               {SITE.replace(/^https?:\/\//, '')}
               {path ? ` › ${path.replace(/^\/|\/$/g, '').split('/').join(' › ')}` : ''}
@@ -200,7 +200,7 @@ export function SeoPanel() {
 
       {/* ---------- lengths ---------- */}
       <Card padding={4} radius={2} shadow={1}>
-        <Stack space={4}>
+        <Stack gap={4}>
           <Meter label="Title" length={title.length} ideal={TITLE_IDEAL} />
           <Meter label="Description" length={description.length} ideal={DESC_IDEAL} />
           <Text size={0} muted>
@@ -212,7 +212,7 @@ export function SeoPanel() {
 
       {/* ---------- the checks ---------- */}
       <Card padding={4} radius={2} shadow={1}>
-        <Stack space={3}>
+        <Stack gap={3}>
           <Text size={0} muted weight="semibold">
             CHECKS
           </Text>

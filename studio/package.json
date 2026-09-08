@@ -14,18 +14,38 @@
     "check": "node scripts/check-schema.mjs",
     "seed:copy": "node --env-file=../.env scripts/seed-copy.mjs"
   },
+  "engines": {
+    "node": ">=22.12"
+  },
+  "comment:overrides": [
+    "Transitive advisories inside @sanity/cli that Sanity has not shipped a fix for yet.",
+    "Both are CLI/build-time only: they are not in the deployed Studio bundle and not in",
+    "the website. npm audit's own suggested fix is `sanity@5.14.1` — a DOWNGRADE out of v6,",
+    "which would undo this upgrade to patch two moderate issues that nothing can reach.",
+    "These pins are the narrow alternative. Both stay within the dependency's own major,",
+    "so nothing's API changes. Remove them once @sanity/cli ships newer transitives.",
+    "js-yaml (high, via @vercel/frameworks) is deliberately NOT pinned: the fix is 3.x -> 4.x,",
+    "which removes safeLoad, and @vercel/frameworks is exercised by `sanity deploy` — a path",
+    "that cannot be tested here without actually deploying. Reachable only by parsing our own",
+    "repo's config during a build we control, so the trade is not worth a broken deploy."
+  ],
+  "overrides": {
+    "smol-toml": "^1.6.1",
+    "uuid": "^11.1.1"
+  },
   "dependencies": {
-    "@sanity/vision": "^3.68.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "sanity": "^3.68.0",
+    "@sanity/vision": "^6.12.0",
+    "react": "^19.2.2",
+    "react-dom": "^19.2.2",
+    "sanity": "^6.12.0",
     "styled-components": "^6.1.15"
   },
   "devDependencies": {
-    "@types/react": "^18.3.12",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
     "typescript": "^5.9.2",
-    "@sanity/block-tools": "^3.68.0",
-    "@sanity/schema": "^3.68.0",
+    "@sanity/block-tools": "^3.70.0",
+    "@sanity/schema": "^6.12.0",
     "gray-matter": "^4.0.3",
     "jsdom": "^25.0.1",
     "marked": "^14.1.3"

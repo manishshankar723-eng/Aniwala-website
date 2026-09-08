@@ -138,7 +138,20 @@ ErrorDocument 404 /404.html
   #
   # frame-ancestors stays 'none': that governs who may frame US, which is
   # still nobody. It is unrelated to what we are allowed to frame.
-  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.sanity.io; font-src 'self'; connect-src 'self' https://*.supabase.co; media-src 'self' https://cdn.sanity.io; frame-src https://challenges.cloudflare.com; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests"
+  #
+  # connect-src NAMES THE PROJECT, and used to say `https://*.supabase.co`.
+  # That wildcard trusted every Supabase project on the internet, which gives
+  # away most of what this directive is for: the point of listing Supabase is
+  # that an injected script cannot post a form anywhere else, and a wildcard
+  # makes "anywhere else" include any project an attacker can create in about
+  # a minute. The project ref is not secret — it is already in SUPABASE_URL,
+  # which ships in the bundle.
+  #
+  # IF THE SUPABASE PROJECT EVER CHANGES, change it here too. The failure is
+  # silent and total: every form gets a CSP violation in the console and
+  # nothing else, so it reads as "the forms are broken" rather than "the
+  # policy is stale".
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.sanity.io; font-src 'self'; connect-src 'self' https://ocxbnnfchqzgkbqlagnq.supabase.co; media-src 'self' https://cdn.sanity.io; frame-src https://challenges.cloudflare.com; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests"
 </IfModule>
 
 # --- Fonts need CORS to be preloaded -----------------------------

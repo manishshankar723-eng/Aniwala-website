@@ -38,6 +38,18 @@ concurrency:
   group: ${{ github.event_name == 'pull_request' && format('deploy-pr-{0}', github.head_ref) || 'deploy-production' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Nothing here writes to the repository. It builds, and it uploads over FTP to
+# a server GitHub knows nothing about — so GITHUB_TOKEN needs to read the code
+# and nothing else.
+#
+# Without this block the token runs at whatever the repository default is,
+# which on older repositories is read AND write on everything: contents,
+# packages, deployments, issues. That default is what turns a compromised
+# third-party action into a compromised repository, and this job runs three
+# actions it does not own.
+permissions:
+  contents: read
+
 jobs:
   # ------------------------------------------------------------------
   # Gate. Runs on pull requests too, so a broken build is caught before
@@ -192,12 +204,19 @@ jobs:
     # purpose, not something to arrive at by editing one line.
     #
     # To go live later: change REMOTE_DIR to
-    #   /domains/aniwala.com/public_html/
+    #   domains/aniwala.com/public_html/
     # and SITE_TO_CHECK to https://aniwala.com/ — after backing up
     # public_html and the WordPress database.
+    #
+    # NO LEADING SLASH, and that changed when this moved from FTP to SSH. The
+    # FTP account was chrooted so `/domains/...` meant `/home/u473349005/
+    # domains/...`; an SSH session is not, so a leading slash there would mean
+    # the real filesystem root and the upload would fail — or, worse, succeed
+    # somewhere nobody is serving from. Relative to the login home is the same
+    # directory the FTP path meant, spelled the way SSH reads it.
     # ------------------------------------------------------------------
     env:
-      REMOTE_DIR: /domains/aniwala.com/public_html/staging/
+      REMOTE_DIR: domains/aniwala.com/public_html/staging/
       SITE_TO_CHECK: https://staging.aniwala.com/
 
     steps:
@@ -210,138 +229,155 @@ jobs:
           path: dist/
 
       # ------------------------------------------------------------------
-      # UPLOADED TWICE, ON PURPOSE — see the retry step below. A dropped FTP
-      # connection is the one failure here that means nothing about the build,
-      # and it should not need a human to press a button.
-      # ------------------------------------------------------------------
-      - name: Upload the site
-        id: upload
-        # A failure here is handled below rather than ending the job. The
-        # retry is NOT exempt, so two failures still fail the deploy.
-        continue-on-error: true
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_HOST }}
-          # ENCRYPTED, and this line is the whole reason it is.
-          #
-          # This action's `protocol` input defaults to `ftp` — plaintext. Without
-          # this, FTP_USER and FTP_PASS crossed the public internet in the clear on
-          # every single deploy, along with every byte of the site. Anyone on-path
-          # gets write access to public_html, and from there the whole site.
-          #
-          # Hostinger serves FTPS on the same host and port, so this is the only
-          # change needed. If a deploy ever fails TLS verification here, fix the
-          # certificate — do NOT "fix" it by dropping back to `ftp`.
-          protocol: ftps
-          # `loose` skips CERTIFICATE VALIDATION, not encryption, and it is
-          # required here for a concrete reason rather than convenience.
-          #
-          # Hostinger's FTP server presents a shared Sectigo certificate for
-          # `hostinger.com` plus wildcards — *.main-hosting.eu, *.hstgr.io and
-          # so on. It does NOT cover ftp.aniwala.com, so a strict handshake
-          # fails verification (curl exit 60) before login is even attempted.
-          #
-          # The trade, stated plainly: the connection is still encrypted, so a
-          # passive eavesdropper cannot read the password or the site — which
-          # is the realistic threat and the whole reason this moved off plain
-          # `ftp`. What `loose` gives up is protection against an ACTIVE
-          # man-in-the-middle who can present their own certificate.
-          #
-          # To get back to `strict`: find this account's real server hostname
-          # in hPanel (it looks like srvNNN.main-hosting.eu), point FTP_HOST at
-          # that instead, and the shared certificate validates properly. That
-          # is the better end state; this is what works today.
-          security: loose
-          username: ${{ secrets.FTP_USER }}
-          password: ${{ secrets.FTP_PASS }}
-          local-dir: ./dist/
-          # THE PATH THAT BROKE EVERY DEPLOY FROM 2026-08-24 TO 2026-09-07.
-          #
-          # This said `/public_html/`, which does not exist. The FTP account
-          # roots at /home/u473349005, where the listing is `domains`, `.logs`,
-          # `.profile` — no public_html at that level. Every upload therefore
-          # failed with FTP error 9 on a build that was otherwise perfect, 24
-          # times, with the failure buried in a step nobody reads when the
-          # green check on `verify` looks like success.
-          #
-          # Verified by listing the server over FTPS before changing it:
-          #   /public_html/                             -> error 9, no such path
-          #   /domains/aniwala.com/public_html/         -> the WordPress site
-          #   /domains/aniwala.com/public_html/staging/ -> this, empty
-          #
-          # Pointing at `staging` deliberately: aniwala.com currently serves a
-          # WordPress install from the parent folder, and uploading this build
-          # there would drop an Astro .htaccess on top of WordPress's own and
-          # break its permalinks. Staging first, cut over when it is proven.
-          server-dir: ${{ env.REMOTE_DIR }}
-          # The action defaults to 30 seconds, and run #38 spent exactly that
-          # before dying with `Timeout (control socket)` on a build that was
-          # otherwise perfect. Shared hosting throttles bursts of FTP sessions,
-          # and a Sanity publish can queue several deploys in a few minutes, so
-          # the control socket going quiet for half a minute is normal here
-          # rather than a sign anything is wrong.
-          timeout: 60000
-
-      # A pause, not an immediate second attempt. The usual cause of the first
-      # failure is Hostinger throttling connections; retrying into the same
-      # throttle just fails again a second time.
-      - name: Wait before retrying the upload
-        if: steps.upload.outcome == 'failure'
-        run: sleep 30
-
-      # Same inputs as the step above — see there for why each one is set the
-      # way it is. The FTP action writes its sync-state file only after a
-      # successful run, so a half-finished upload leaves the state untouched
-      # and this attempt simply resends what did not land.
-      - name: Upload the site (retry)
-        if: steps.upload.outcome == 'failure'
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_HOST }}
-          protocol: ftps
-          security: loose
-          username: ${{ secrets.FTP_USER }}
-          password: ${{ secrets.FTP_PASS }}
-          local-dir: ./dist/
-          server-dir: ${{ env.REMOTE_DIR }}
-          timeout: 60000
-
-      # ------------------------------------------------------------------
-      # .htaccess, uploaded explicitly — belt and braces, and here is the
-      # honest reason rather than the one that seemed obvious first.
+      # SSH, NOT FTP — and the reason is the one thing FTPS here could not do.
       #
-      # The first deploy that ever succeeded put all 65 pages on the server
-      # and left .htaccess behind, so the site served perfectly with every
-      # security header, the whole CSP, the HTTPS redirect and the caching
-      # rules absent. Nothing failed.
+      # This job used to upload over FTPS with certificate validation turned
+      # OFF (`security: loose`). Hostinger presents a shared certificate
+      # covering *.main-hosting.eu, *.hstgr.io and ~40 hostinger.* domains;
+      # nothing on it matches ftp.aniwala.com, and hPanel only ever exposes a
+      # bare IP, which a DNS-name certificate cannot match either. So the
+      # connection was encrypted but UNAUTHENTICATED: an active on-path
+      # attacker presents their own certificate, takes the password, and has
+      # write access to public_html — which is the entire site.
       #
-      # The actual cause was upstream: upload-artifact@v4 drops hidden files
-      # unless told otherwise, so the file never reached this job at all. That
-      # is fixed in the verify job with `include-hidden-files: true`, and the
-      # guard below proves it — the step fails loudly if dist/.htaccess is
-      # missing rather than deploying a site with no headers.
+      # SSH fixes that properly rather than approximately. The server is
+      # identified by its HOST KEY, pinned below. There is no certificate to
+      # fail to match and no CA to trust. Three other things improve with it:
       #
-      # Whether the FTP action itself handles dotfiles is UNPROVEN either way,
-      # which is why this explicit upload stays. It is cheap, idempotent, and
-      # the failure it guards against is completely silent.
+      #   - A DEPLOY KEY replaces the account password. It is revocable on its
+      #     own, from hPanel -> Advanced -> SSH Access -> SSH keys, without
+      #     rotating the password every other tool uses.
+      #   - No third-party action holds the credential any more. The FTP action
+      #     was handed FTP_USER and FTP_PASS on every single run; `ssh` and
+      #     `rsync` are already on the runner and are not somebody's git tag.
+      #   - rsync is incremental. The retry-and-wait-two-minutes dance that
+      #     used to live here existed because Hostinger throttles bursts of FTP
+      #     sessions; one SSH connection moving only what changed does not
+      #     provoke it, so both the retry and its sleep are gone.
+      #
+      # SECRETS THIS NEEDS — Settings -> Secrets and variables -> Actions:
+      #   SSH_HOST   89.117.157.182
+      #   SSH_USER   u473349005
+      #   SSH_PORT   65002
+      #   SSH_KEY    the PRIVATE half of the deploy key, the whole file
+      #              including the BEGIN and END lines
+      #
+      # FTP_HOST, FTP_USER and FTP_PASS are no longer read by anything here.
+      # Delete them once a deploy has succeeded, and rotate the FTP password:
+      # it crossed the internet in the clear on every deploy made before
+      # `protocol: ftps` was set.
       # ------------------------------------------------------------------
-      - name: Upload .htaccess separately
+      - name: Set up the deploy key and pin the server
         env:
-          FTP_HOST: ${{ secrets.FTP_HOST }}
-          FTP_USER: ${{ secrets.FTP_USER }}
-          FTP_PASS: ${{ secrets.FTP_PASS }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
         run: |
-          if [ ! -f dist/.htaccess ]; then
-            echo "::error::dist/.htaccess is missing from the build."
+          set -euo pipefail
+
+          if [ -z "${SSH_KEY:-}" ] || [ -z "${SSH_HOST:-}" ] || [ -z "${SSH_PORT:-}" ]; then
+            echo "::error::SSH_KEY, SSH_HOST or SSH_PORT is empty in this job."
+            echo "Add all four SSH_* secrets under Settings -> Secrets and variables -> Actions."
             exit 1
           fi
-          echo "Uploading .htaccess ($(wc -c < dist/.htaccess) bytes) to ${REMOTE_DIR}"
-          curl --fail --silent --show-error \
-               --ssl-reqd --insecure \
-               --user "$FTP_USER:$FTP_PASS" \
-               -T dist/.htaccess \
-               "ftp://$FTP_HOST${REMOTE_DIR}.htaccess"
-          echo "Done."
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          # THE PIN, and it is the whole point of moving off FTPS.
+          #
+          # Hardcoded rather than fetched with `ssh-keyscan` at run time.
+          # Scanning the host you are about to trust and then trusting whatever
+          # it answered is not verification — it is `StrictHostKeyChecking no`
+          # with extra steps, and it would hand an on-path attacker the same
+          # opening `security: loose` did.
+          #
+          # Read off the server on 2026-09-08. Checked in on purpose: if the
+          # server's identity ever changes this fails the deploy loudly, and
+          # the fix arrives as a reviewable diff. DO NOT "fix" a mismatch by
+          # re-scanning — find out why the identity changed first.
+          printf '[%s]:%s ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICGvRICAr4tsrZAGDXkZBtPewof3+DgfOPCfqxkExJqh\n' \
+            "$SSH_HOST" "$SSH_PORT" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          echo "Deploy key installed and host key pinned."
+
+      # Fails in seconds with a readable message rather than half way through
+      # an upload. Checks the three things that can each break a deploy on
+      # their own: the build carries .htaccess, the key is accepted and rsync
+      # exists on the server, and the target directory is really there — a
+      # typo'd path would otherwise be created silently and serve nothing.
+      - name: Preflight — reach the server
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          set -euo pipefail
+
+          if [ ! -f dist/.htaccess ]; then
+            echo "::error::dist/.htaccess is missing from the build."
+            echo "Without it the site serves every page with no CSP, no HSTS and no"
+            echo "HTTPS redirect, and nothing else in this job would notice."
+            exit 1
+          fi
+          echo "  ok      dist/.htaccess is present ($(wc -c < dist/.htaccess) bytes)"
+
+          # The WordPress guard is not paranoia — this file's own comments
+          # anticipate someone changing REMOTE_DIR to the parent folder at
+          # cutover, and the upload runs `rsync --delete`. Pointed one
+          # directory too high, that deletes wp-admin, wp-includes and every
+          # upload in wp-content, because none of them are in dist/. A live
+          # WordPress install and a --delete sync must never share a path, so
+          # the deploy refuses rather than discovering it afterwards.
+          ssh -p "$SSH_PORT" -o BatchMode=yes -o ConnectTimeout=20 \
+              "$SSH_USER@$SSH_HOST" \
+              "command -v rsync >/dev/null || { echo '::error::rsync is not on the server.'; exit 1; }; \
+               test -d '$REMOTE_DIR' || { echo '::error::$REMOTE_DIR does not exist on the server.'; exit 1; }; \
+               if [ -e '$REMOTE_DIR/wp-config.php' ] || [ -d '$REMOTE_DIR/wp-content' ]; then \
+                 echo '::error::$REMOTE_DIR looks like a WordPress install.'; \
+                 echo 'The upload runs rsync --delete and would destroy it. Check REMOTE_DIR.'; \
+                 exit 1; \
+               fi; \
+               echo '  ok      rsync present'; \
+               echo '  ok      $REMOTE_DIR exists and is not a WordPress root'"
+
+      - name: Upload the site
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          set -euo pipefail
+
+          # -rlptz, NOT -a. `-a` implies -o -g -D, which ask to preserve owner,
+          # group and device files; shared hosting grants none of the three and
+          # the transfer fails on permissions it was never going to get.
+          #
+          # A trailing slash on `dist/` means "the CONTENTS of dist", which is
+          # what puts .htaccess at the document root rather than inside a
+          # `dist/` subfolder. rsync carries dotfiles without being asked, so
+          # the separate .htaccess upload the FTP path needed is gone — and
+          # with it the `curl --insecure` that used to send the password.
+          #
+          # NEVER DELETE THE SECOND SITE OR HOSTINGER'S OWN FILES. An excluded
+          # path is skipped for transfer AND protected from --delete, which is
+          # exactly the behaviour wanted. (`--delete-excluded` would undo that;
+          # do not add it.)
+          #
+          # `.well-known/` is the one that matters most: it is where the ACME
+          # client writes the challenge files that renew the TLS certificate.
+          # Delete it and renewal fails — against the two-year
+          # Strict-Transport-Security in .htaccess, that is an outage no
+          # visitor can click past, arriving up to ninety days later.
+          rsync -rlptz --delete --human-readable --stats \
+                --exclude='.git*' \
+                --exclude='node_modules/' \
+                --exclude='labs/' \
+                --exclude='.well-known/' \
+                -e "ssh -p $SSH_PORT -o BatchMode=yes -o ConnectTimeout=30" \
+                dist/ "$SSH_USER@$SSH_HOST:$REMOTE_DIR"
 
       # A deploy that serves pages without .htaccess looks completely healthy,
       # so the run asserts the headers are really there rather than trusting
@@ -367,10 +403,3 @@ jobs:
             fail=1
           fi
           exit $fail
-          # Never delete the second site or Hostinger's own files.
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/node_modules/**
-            labs/**
-            .well-known/**
