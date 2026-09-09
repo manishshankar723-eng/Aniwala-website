@@ -16,7 +16,7 @@
  * redirects to it, so the address worth remembering is aniwala.com/admin.
  */
 import { defineConfig } from 'sanity';
-import { structureTool } from 'sanity/structure';
+import { structureTool, type StructureBuilder } from 'sanity/structure';
 import { presentationTool } from 'sanity/presentation';
 import { visionTool } from '@sanity/vision';
 import { schemaTypes } from './schemas';
@@ -56,6 +56,36 @@ const dataset = process.env.SANITY_STUDIO_DATASET ?? 'production';
  */
 const previewUrl = process.env.SANITY_STUDIO_PREVIEW_URL;
 
+/**
+ * One filtered list of mirrored form submissions.
+ *
+ * `documentList` rather than `documentTypeList`, because these are four views
+ * of ONE type and `documentTypeList` owns its own filter — passing it another
+ * one replaces the type check rather than narrowing it, which is how you end
+ * up with a list titled "Applications" showing blog posts.
+ *
+ * `apiVersion` is pinned for the same reason every other Sanity call in this
+ * project pins one: the GROQ these filters compile to is versioned, and an
+ * unpinned version is a behaviour change arriving on somebody else's schedule.
+ */
+const submissionList = (S: StructureBuilder, title: string, id: string, kind?: string) => {
+  const list = S.documentList()
+    .title(title)
+    .id(`${id}-list`)
+    .apiVersion('2026-01-01')
+    /* Newest first. A queue in alphabetical order is not a queue. */
+    .defaultOrdering([{ field: 'receivedAt', direction: 'desc' }]);
+
+  return S.listItem()
+    .title(title)
+    .id(id)
+    .child(
+      kind
+        ? list.filter('_type == "submission" && kind == $kind').params({ kind })
+        : list.filter('_type == "submission"')
+    );
+};
+
 export default defineConfig({
   name: 'aniwala',
   title: 'Aniwala Studios',
@@ -82,6 +112,35 @@ export default defineConfig({
              * published weekly, to things about the studio, to settings
              * somebody opens twice a year.
              */
+            /*
+             * The intake, above everything else, because it is the one list
+             * with a clock on it. A blog post can wait a day; a call request
+             * that sat unread for one is a client who has booked someone else.
+             *
+             * These documents are mirrors of Supabase rows, written by the
+             * `notify` Edge Function and read-only here — see
+             * schemas/submission.ts. Nothing in this section publishes,
+             * approves or confirms anything; the buttons that do that are in
+             * the notification emails.
+             */
+            S.listItem()
+              .title('Form submissions')
+              .id('submissions')
+              .child(
+                S.list()
+                  .title('Form submissions')
+                  .items([
+                    submissionList(S, 'All', 'submissions-all'),
+                    S.divider(),
+                    submissionList(S, 'Call requests', 'submissions-bookings', 'booking'),
+                    submissionList(S, 'Briefs', 'submissions-briefs', 'brief'),
+                    submissionList(S, 'Applications', 'submissions-applications', 'application'),
+                    submissionList(S, 'Comments', 'submissions-comments', 'comment'),
+                  ])
+              ),
+
+            S.divider(),
+
             S.listItem()
               .title('Blog posts')
               .schemaType('post')
@@ -461,5 +520,18 @@ export default defineConfig({
 
   schema: {
     types: schemaTypes,
+  },
+
+  document: {
+    /*
+     * Take "Form submission" out of the global create menu.
+     *
+     * Every other type in this Studio is something a person makes. This one is
+     * a mirror of a database row, written by the `notify` Edge Function — so
+     * the only document anybody could create here by hand is a fake lead, or a
+     * real-looking application nobody sent. It would also have no Supabase row
+     * behind it, which is the thing that actually gets acted on.
+     */
+    newDocumentOptions: (prev) => prev.filter((item) => item.templateId !== 'submission'),
   },
 });

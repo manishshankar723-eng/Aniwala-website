@@ -8,6 +8,33 @@ astro dev --background
 
 Manage the background server with `astro dev stop`, `astro dev status`, and `astro dev logs`.
 
+## Before pushing
+
+```
+npm run verify      # astro check + build + link check. Exactly what CI runs.
+```
+
+The `deploy` job is gated on `verify`, so a red build never reaches the
+server. Do not work around a failing check — they are load bearing:
+
+- **`src/config/urls.ts`** is the allowlist of what an `href` may point at,
+  enforced in `src/content.config.ts`. A `javascript:` href is live XSS here,
+  because the CSP must carry `script-src 'unsafe-inline'` for Astro's
+  pre-paint theme script. Add a scheme deliberately; never widen the scan in
+  `scripts/check-links.mjs` to make a build pass.
+- **Studio validation is not a security boundary.** `validation:` rules in
+  `studio/schemas/` run in the Studio UI only — the Content Lake API ignores
+  them, so any write token skips them. Anything that must be true of CMS
+  content belongs in `src/content.config.ts`, which runs on every build.
+- **`supabase/schema.sql`** — RLS and the column grants are the only thing
+  protecting form data. Read that file's header before changing a policy.
+
+## The Studio
+
+`studio/` is a separate npm package (Sanity v6, React 19, Node ≥ 22.12). The
+site ships no React. `studio/package.json` has an `overrides` block with a
+comment explaining why one pin must **not** be moved to the next major.
+
 ## Documentation
 
 Full documentation: https://docs.astro.build

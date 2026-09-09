@@ -391,10 +391,18 @@ export const BOOKING_COPY_FIELDS = [
   'enquiryLabel',
   'messageLabel',
   'messagePlaceholder',
+  /* The guest list, which is closed until somebody opens it. */
+  'guestsToggleLabel',
+  'guestsLabel',
+  'guestsPlaceholder',
+  'guestsAddLabel',
+  'guestsHint',
   'submitLabel',
   'submitBusy',
   'errName',
   'errEmail',
+  'errGuestEmail',
+  'errGuestLimit',
   'errNotConfigured',
   'errSendFailed',
   'errUnreachable',
@@ -409,6 +417,7 @@ export const BOOKING_COPY_FIELDS = [
   'a11yTimeFormat',
   'a11ySlots',
   'a11yBack',
+  'a11yGuestRemove',
 ] as const;
 
 export type BookingCopyField = (typeof BOOKING_COPY_FIELDS)[number];

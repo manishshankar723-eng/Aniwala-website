@@ -1,0 +1,514 @@
+---
+/**
+ * The Confirm / Decline screen for a booking.
+ *
+ * WHY THIS LIVES ON THE WEBSITE AND NOT IN THE EDGE FUNCTION
+ *
+ * The same two reasons `moderate.astro` gives, and they are worth repeating
+ * because both are invisible until they bite:
+ *
+ *   1. Supabase rewrites `Content-Type: text/html` to `text/plain` on GET
+ *      responses from Edge Functions unless the project is on Pro with a
+ *      custom domain. A page rendered there reaches the host as a wall of
+ *      HTML source with the button as a line of code.
+ *   2. Mail scanners — Outlook SafeLinks, Defender's sandbox, corporate URL
+ *      rewriters, link previewers — fetch every URL in a message before a
+ *      person reads it. If the link itself confirmed the booking, a scanner
+ *      would send calendar invitations to clients over the studio's name,
+ *      silently, and nobody would be told.
+ *
+ * So the email links here, this page is STATIC and holds no credentials, and
+ * only the button POSTs to the `schedule` function. A scanner that follows the
+ * link renders some markup and nothing happens.
+ *
+ * WHAT THE EXTRA STEP BUYS, beyond safety: it is where the host sees who
+ * booked, sets the joining link, and adds anyone else who should be in the
+ * room — the three things that were previously done by hand in a mail client
+ * after the fact, if they were done at all.
+ *
+ * The page cannot read the booking itself: `enquiries` has no SELECT policy
+ * for anon and must never have one. The details come back from the function,
+ * which checks the HMAC first — so the same token that authorises the action
+ * authorises the reading, and nothing is exposed to a URL without it.
+ */
+import SiteConfig from '../components/SiteConfig.astro';
+import { getUiCopy } from '../lib/studio';
+
+const ui = await getUiCopy();
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    {/* A booking screen has no business in a search index. */}
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Confirm a call — {ui.siteName}</title>
+    <SiteConfig />
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #0b0c10;
+        color: #f4f4f2;
+        font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        padding: 1.5rem;
+      }
+      .card {
+        width: 100%;
+        max-width: 34rem;
+      }
+      h1 {
+        margin: 0 0 0.75rem;
+        font-size: 1.4rem;
+        line-height: 1.3;
+      }
+      p {
+        margin: 0 0 1.25rem;
+        color: #9aa0ae;
+        line-height: 1.6;
+        font-size: 0.95rem;
+      }
+      .mark {
+        font-size: 2.5rem;
+        line-height: 1;
+        margin-bottom: 1rem;
+      }
+      /* The result screen is centred; the working screen is a form, and a
+         centred form with inputs in it reads as a mistake. */
+      .card.is-done {
+        max-width: 32rem;
+        text-align: center;
+      }
+
+      dl {
+        margin: 0 0 1.5rem;
+        padding: 1rem 1.15rem;
+        background: #14161d;
+        border: 1px solid #23262f;
+        border-radius: 8px;
+        display: grid;
+        grid-template-columns: 8.5rem 1fr;
+        gap: 0.55rem 1rem;
+        font-size: 0.9rem;
+      }
+      @media (max-width: 30rem) {
+        dl {
+          grid-template-columns: 1fr;
+          gap: 0.15rem;
+        }
+        dt:not(:first-child) {
+          margin-top: 0.6rem;
+        }
+      }
+      dt {
+        margin: 0;
+        color: #83879a;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding-top: 0.15rem;
+      }
+      dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      .note {
+        margin: 0.75rem 0 0;
+        grid-column: 1 / -1;
+        padding-top: 0.75rem;
+        border-top: 1px solid #23262f;
+        color: #c9ccd6;
+        white-space: pre-wrap;
+        font-size: 0.88rem;
+        line-height: 1.6;
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        margin-bottom: 1.15rem;
+      }
+      label {
+        font-size: 0.82rem;
+        font-weight: 600;
+      }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.7rem 0.85rem;
+        background: #14161d;
+        border: 1px solid #23262f;
+        border-radius: 6px;
+        color: #f4f4f2;
+        font-family: inherit;
+        font-size: 0.92rem;
+      }
+      input:focus {
+        border-color: #e4c24c;
+        outline: none;
+      }
+      .hint {
+        margin: 0;
+        font-size: 0.78rem;
+        color: #6d7285;
+      }
+      .err {
+        margin: 0 0 1rem;
+        color: #ff9a9a;
+        font-size: 0.85rem;
+      }
+      .warn-banner {
+        margin: 0 0 1.25rem;
+        padding: 0.8rem 0.95rem;
+        border: 1px dashed #5c4a1e;
+        border-radius: 6px;
+        color: #e4c24c;
+        font-size: 0.85rem;
+        line-height: 1.55;
+      }
+
+      button {
+        display: inline-block;
+        padding: 12px 22px;
+        border: 0;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+      }
+      button[disabled] {
+        opacity: 0.55;
+        cursor: progress;
+      }
+      .go {
+        background: #e4c24c;
+        color: #14161d;
+      }
+      .stop {
+        background: #f5f5f3;
+        color: #16171b;
+      }
+      .foot {
+        margin: 1.5rem 0 0;
+        color: #6d7285;
+        font-size: 0.8rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card" id="card">
+      <h1 id="title">Checking that link…</h1>
+      <p id="msg"></p>
+      <div id="detail"></div>
+      <div id="actions"></div>
+      <p class="foot" id="foot"></p>
+    </div>
+
+    <script>
+      /*
+       * All of this runs in the browser because the page is prerendered: the
+       * site is `output: 'static'`, so there is no server to read a query
+       * string. Nothing here is trusted — the token is passed through to the
+       * Edge Function, which is what validates it and what holds the only
+       * credentials involved.
+       */
+      interface Cfg {
+        supabaseUrl?: string;
+      }
+
+      interface Booking {
+        name: string;
+        email: string;
+        enquiryType: string | null;
+        message: string | null;
+        durationMins: number;
+        slotLabel: string | null;
+        whenVisitor: string | null;
+        whenStudio: string | null;
+        past: boolean;
+        guests: string[];
+        maxGuests: number;
+        status: string;
+        meetingUrl: string;
+        studioName: string;
+      }
+
+      const params = new URLSearchParams(location.search);
+      const id = params.get('id') ?? '';
+      const action = params.get('action') ?? '';
+      const exp = params.get('exp') ?? '';
+      const token = params.get('token') ?? '';
+
+      const card = document.getElementById('card')!;
+      const titleEl = document.getElementById('title')!;
+      const msgEl = document.getElementById('msg')!;
+      const detailEl = document.getElementById('detail')!;
+      const actionsEl = document.getElementById('actions')!;
+      const footEl = document.getElementById('foot')!;
+
+      /** The end of the road: one heading, one line, nothing to press. */
+      const show = (title: string, message: string, mark?: 'ok' | 'warn') => {
+        card.classList.add('is-done');
+        titleEl.textContent = title;
+        msgEl.textContent = message;
+        detailEl.replaceChildren();
+        actionsEl.replaceChildren();
+        footEl.textContent = '';
+        card.querySelector('.mark')?.remove();
+        card.querySelector('.err')?.remove();
+        if (mark) {
+          const d = document.createElement('div');
+          d.className = 'mark';
+          d.textContent = mark === 'ok' ? '✓' : '⚠';
+          titleEl.parentElement!.insertBefore(d, titleEl);
+        }
+      };
+
+      const post = async (op: 'view' | 'commit', extra: Record<string, unknown> = {}) => {
+        const cfg = ((window as unknown as { __aniwalaConfig?: Cfg }).__aniwalaConfig ?? {}) as Cfg;
+        const base = (cfg.supabaseUrl ?? '').replace(/\/$/, '');
+        if (!base) throw new Error('not-configured');
+
+        const res = await fetch(`${base}/functions/v1/schedule`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, action, exp: Number(exp), token, op, ...extra }),
+        });
+        const body = (await res.json().catch(() => ({}))) as {
+          title?: string;
+          message?: string;
+          booking?: Booking;
+        };
+        return { ok: res.ok, status: res.status, body };
+      };
+
+      /*
+       * Built with DOM calls rather than a template string, and that is not
+       * fussiness: every value below was typed by a stranger into a public
+       * form. `textContent` cannot execute what somebody put in the name
+       * field, and this page is opened by the one person who could be
+       * seriously harmed by markup arriving from it.
+       */
+      const summary = (b: Booking) => {
+        const dl = document.createElement('dl');
+        const add = (label: string, value: string | null | undefined) => {
+          if (!value) return;
+          const dt = document.createElement('dt');
+          dt.textContent = label;
+          const dd = document.createElement('dd');
+          dd.textContent = value;
+          dl.append(dt, dd);
+        };
+
+        add('Who', b.name);
+        add('Email', b.email);
+        add('Their time', b.whenVisitor);
+        /* Only when the two differ — see the function, which sends this null
+           if the visitor is already in the studio's timezone. */
+        add('Your time', b.whenStudio === b.whenVisitor ? null : b.whenStudio);
+        add('Duration', `${b.durationMins} min`);
+        add('About', b.enquiryType);
+        add('Guests', b.guests.length ? b.guests.join(', ') : null);
+
+        if (b.message) {
+          const note = document.createElement('div');
+          note.className = 'note';
+          note.textContent = b.message;
+          dl.append(note);
+        }
+        return dl;
+      };
+
+      const banner = (text: string) => {
+        const p = document.createElement('p');
+        p.className = 'warn-banner';
+        p.textContent = text;
+        return p;
+      };
+
+      const field = (labelText: string, hintText: string, value = '', placeholder = '') => {
+        const wrap = document.createElement('div');
+        wrap.className = 'field';
+        const label = document.createElement('label');
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = value;
+        input.placeholder = placeholder;
+        const inputId = `f-${Math.random().toString(36).slice(2, 8)}`;
+        input.id = inputId;
+        label.htmlFor = inputId;
+        label.textContent = labelText;
+        const hint = document.createElement('p');
+        hint.className = 'hint';
+        hint.textContent = hintText;
+        wrap.append(label, input, hint);
+        return { wrap, input };
+      };
+
+      const fail = (body: { title?: string; message?: string }, status: number) =>
+        show(body.title ?? 'That did not work', body.message ?? `Error ${status}.`, 'warn');
+
+      /* ---------------------------------------------------------------- */
+
+      async function start() {
+        if (!id || !token || !exp || (action !== 'confirm' && action !== 'decline')) {
+          show('Link not valid', 'That booking link is incomplete.', 'warn');
+          return;
+        }
+
+        let booking: Booking;
+        try {
+          const { ok, status, body } = await post('view');
+          if (!ok || !body.booking) {
+            fail(body, status);
+            return;
+          }
+          booking = body.booking;
+        } catch (err) {
+          show(
+            err instanceof Error && err.message === 'not-configured'
+              ? 'Not configured'
+              : 'Could not reach the server',
+            err instanceof Error && err.message === 'not-configured'
+              ? 'This page cannot reach the booking service.'
+              : 'Check your connection and open the link again.',
+            'warn'
+          );
+          return;
+        }
+
+        const confirming = action === 'confirm';
+        titleEl.textContent = confirming ? 'Confirm this call?' : 'Turn this call down?';
+        msgEl.textContent = confirming
+          ? `They will get a calendar invitation for this time${
+              booking.guests.length ? ', and so will their guests' : ''
+            }. Nothing has been sent yet.`
+          : 'They will be told it does not work and pointed back at the calendar to choose another time.';
+
+        detailEl.replaceChildren(summary(booking));
+
+        if (booking.status === 'confirmed' && confirming) {
+          detailEl.prepend(
+            banner(
+              'This one is already confirmed. Sending again updates the invitation everybody is holding — use it to fix the link or add a guest.'
+            )
+          );
+        }
+        if (booking.past) {
+          detailEl.prepend(
+            banner(
+              'That time has already passed. Confirming would put a meeting in their calendar that has been and gone, so this will be refused — email them a new time instead.'
+            )
+          );
+        }
+
+        const btn = document.createElement('button');
+        btn.className = confirming ? 'go' : 'stop';
+        btn.textContent = confirming ? 'Confirm & send invite' : 'Yes, tell them';
+
+        let meetingInput: HTMLInputElement | null = null;
+        let guestInput: HTMLInputElement | null = null;
+
+        if (confirming) {
+          const meeting = field(
+            'Joining link',
+            'A room of this booking’s own, ready to use — it goes in the invitation and on the calendar entry. Replace it with your own Zoom or Meet link if you would rather, or clear it to send the invitation with just the time.',
+            booking.meetingUrl,
+            'https://meet.google.com/…'
+          );
+          meetingInput = meeting.input;
+          meetingInput.type = 'url';
+
+          const guests = field(
+            'Add guests',
+            `Comma separated. They are invited alongside ${booking.name.split(' ')[0] || 'them'}${
+              booking.guests.length ? ', on top of the guests already listed above' : ''
+            }. Up to ${booking.maxGuests} in total.`,
+            '',
+            'someone@studio.com, someone-else@client.com'
+          );
+          guestInput = guests.input;
+
+          detailEl.append(meeting.wrap, guests.wrap);
+        }
+
+        actionsEl.replaceChildren(btn);
+        footEl.textContent = 'Nothing is sent until you press the button. Close this tab to leave it alone.';
+
+        /*
+         * Checked HERE as well as in the function, because the function's
+         * refusal is a dead end: it replaces this screen with a message, and
+         * the link has to be opened again to try once more. A typo in a
+         * meeting link should cost a correction, not a trip back to the
+         * inbox. The function still refuses the same things — this is the
+         * courtesy, not the guard.
+         */
+        const err = document.createElement('p');
+        err.className = 'err';
+        err.hidden = true;
+        actionsEl.before(err);
+
+        const complain = (text: string) => {
+          err.textContent = text;
+          err.hidden = false;
+          btn.disabled = false;
+          btn.textContent = confirming ? 'Confirm & send invite' : 'Yes, tell them';
+        };
+
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          btn.textContent = 'Working…';
+          err.hidden = true;
+
+          const link = meetingInput?.value.trim() ?? '';
+          if (link && !/^https?:\/\//i.test(link)) {
+            complain('The joining link needs to start with https:// — or clear it to send the invitation without one.');
+            return;
+          }
+          /* Anything unparseable would be dropped by the function without a
+             word, and a guest who was quietly not invited is the one failure
+             nobody notices until the call starts. */
+          const typed = (guestInput?.value ?? '')
+            .split(/[,;\s]+/)
+            .map((g) => g.trim())
+            .filter(Boolean);
+          const bad = typed.find((g) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(g));
+          if (bad) {
+            complain(`"${bad}" does not look like an email address.`);
+            return;
+          }
+
+          try {
+            const { ok, status, body } = await post('commit', {
+              ...(meetingInput ? { meetingUrl: meetingInput.value.trim() } : {}),
+              ...(guestInput ? { guests: guestInput.value.trim() } : {}),
+            });
+            if (ok) {
+              show(body.title ?? 'Done', body.message ?? '', 'ok');
+            } else {
+              fail(body, status);
+            }
+          } catch {
+            show(
+              'Could not reach the server',
+              'Nothing was sent. Check your connection and open the link again.',
+              'warn'
+            );
+          }
+        });
+      }
+
+      start();
+    </script>
+  </body>
+</html>

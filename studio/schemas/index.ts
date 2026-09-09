@@ -72,6 +72,7 @@ import loaderSettings from './loaderSettings';
 import bookingSettings from './bookingSettings';
 import careersContent from './careersContent';
 import page from './page';
+import submission from './submission';
 import { blockTypes } from './blocks';
 
 export const schemaTypes = [
@@ -106,6 +107,12 @@ export const schemaTypes = [
   bookingSettings,
   careersContent,
   page,
+
+  /* Written by the website, never by an editor. The `notify` Edge Function
+     mirrors every form submission here from Supabase, which stays the source
+     of truth — see the header of submission.ts for what that copy is and is
+     not allowed to be. */
+  submission,
 
   /* Field types, not documents */
   blockContent,

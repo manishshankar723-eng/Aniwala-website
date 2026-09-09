@@ -4,6 +4,19 @@
 -- Run this once, whole, in the Supabase dashboard: SQL Editor -> New query
 -- -> paste -> Run. It is safe to re-run; every statement is guarded.
 --
+-- RUN IT WITH NOTHING ELSE OPEN ON THESE TABLES. The file reshapes four
+-- tables, and the locks it needs wait behind anything that is reading them —
+-- another SQL Editor tab, a Table Editor view, the schema visualiser. Two
+-- sessions taking the same tables in opposite orders is a deadlock, and
+-- Postgres resolves it by killing one:
+--
+--   ERROR: 40P01: deadlock detected
+--
+-- That is not a fault in this file and nothing is half-applied when it
+-- happens: the editor sends the whole script as one batch, so Postgres runs
+-- it in a single implicit transaction and rolls all of it back. Close the
+-- other tabs and run it again.
+--
 -- ---------------------------------------------------------------------
 -- READ THIS BEFORE CHANGING ANYTHING
 --
@@ -59,9 +72,43 @@ create table if not exists public.enquiries (
   slot_utc       timestamptz,
   visitor_tz     text check (char_length(visitor_tz) <= 80),
 
+  -- Who else is coming, comma separated.
+  --
+  -- ONE TEXT COLUMN AND NOT text[], deliberately. The `submit` Edge Function
+  -- refuses any field that is not a scalar, so that a caller-shaped object can
+  -- never reach the layer holding the service role key. An array column would
+  -- mean carving an exception into that rule for the one field a stranger gets
+  -- to fill with addresses. A string keeps the rule whole and costs one split
+  -- — see `parseGuests` in functions/_shared/util.ts, which is the only thing
+  -- that reads it.
+  guest_emails   text check (char_length(guest_emails) <= 500),
+
   -- Which page it came from, so you can tell a service-page enquiry from a
   -- homepage one without asking.
   source_path    text check (char_length(source_path) <= 300),
+
+  -- ------------------------------------------------------------------
+  -- Where the booking has got to.
+  --
+  -- Only the `schedule` Edge Function writes these, as service_role, after
+  -- verifying the HMAC on the link in the notification email. Anon is granted
+  -- none of them, and the insert policy below pins the starting state, so a
+  -- crafted submission cannot arrive pre-confirmed with a meeting link of
+  -- somebody else's choosing in it.
+  -- ------------------------------------------------------------------
+  status         text not null default 'new'
+                   check (status in ('new', 'confirmed', 'declined')),
+  confirmed_at   timestamptz,
+  meeting_url    text check (char_length(meeting_url) <= 500),
+
+  -- The .ics SEQUENCE, bumped on every re-send.
+  --
+  -- Load bearing, and invisible until it is missing: a calendar that has
+  -- already accepted an invitation IGNORES an update whose SEQUENCE has not
+  -- moved. Without this column, correcting a meeting link or resending to an
+  -- added guest would appear to work everywhere except the calendars it was
+  -- meant to correct.
+  invite_seq     int not null default 0,
 
   -- Set by hand in the dashboard as you work through them.
   handled        boolean not null default false
@@ -72,10 +119,48 @@ create table if not exists public.enquiries (
 alter table public.enquiries
   add column if not exists phone text check (char_length(phone) <= 40);
 
+-- Same, for a database created before the booking flow could confirm itself.
+-- Existing rows land on 'new', which is exactly right: nothing that predates
+-- the Confirm button was ever confirmed through it.
+--
+-- ONE STATEMENT, FIVE COLUMNS, and that is not a matter of neatness. Every
+-- `alter table` takes an ACCESS EXCLUSIVE lock — the strongest there is, and
+-- one that waits behind any open read. Five of them in a row is five chances
+-- to collide with whatever else is touching this table, and the first run of
+-- this file after the booking work went in died exactly that way:
+--
+--   ERROR: 40P01: deadlock detected
+--
+-- A dashboard tab left open on the Table Editor is enough to cause it. One
+-- statement takes the lock once and lets go once.
+alter table public.enquiries
+  add column if not exists guest_emails text check (char_length(guest_emails) <= 500),
+  add column if not exists status       text not null default 'new',
+  add column if not exists confirmed_at timestamptz,
+  add column if not exists meeting_url  text check (char_length(meeting_url) <= 500),
+  add column if not exists invite_seq   int not null default 0;
+
+-- The CHECK is added separately: `add column if not exists` skips its
+-- constraint entirely on a table that already has the column, so a database
+-- upgraded in two steps would otherwise be left with an unconstrained status.
+do $$
+begin
+  alter table public.enquiries
+    add constraint enquiries_status_check
+    check (status in ('new', 'confirmed', 'declined'));
+exception when duplicate_object then
+  null;
+end
+$$;
+
 comment on table public.enquiries is
   'Website enquiries and booking requests. Anon may INSERT only — never add a SELECT policy.';
 
 alter table public.enquiries enable row level security;
+
+-- The queue you actually work through: unconfirmed bookings, newest first.
+create index if not exists enquiries_status_created_idx
+  on public.enquiries (status, created_at desc);
 
 -- Anyone may submit an enquiry.
 drop policy if exists "anon can submit enquiries" on public.enquiries;
@@ -86,6 +171,12 @@ create policy "anon can submit enquiries"
   with check (
     -- A submission cannot pre-mark itself handled.
     handled = false
+    -- Nor pre-confirm itself. The column grants below already withhold
+    -- `status`, so this is the second lock on the same door — and it is the
+    -- one that keeps holding if somebody ever widens the grants without
+    -- reading this far.
+    and status = 'new'
+    and confirmed_at is null
   );
 
 -- NO select / update / delete policy for anon. This omission is deliberate
@@ -248,9 +339,15 @@ create policy "anon can submit applications"
 revoke all on public.enquiries from anon;
 grant insert (
   name, email, phone, company, enquiry_type, message,
-  duration_mins, slot_label, slot_utc, visitor_tz, source_path
+  duration_mins, slot_label, slot_utc, visitor_tz, guest_emails, source_path
 ) on public.enquiries to anon;
 -- No SELECT grant at all: leads are write-only from the website.
+--
+-- `status`, `confirmed_at`, `meeting_url` and `invite_seq` are absent from the
+-- INSERT list on purpose, for exactly the reason `approved` is absent from the
+-- comments one. They are the state the Confirm button writes; a submission
+-- that could set them for itself could book a confirmed meeting in your
+-- calendar, with its own joining link, without you ever seeing the request.
 
 revoke all on public.comments from anon;
 grant insert (post_slug, author_name, author_email, body) on public.comments to anon;
@@ -485,9 +582,22 @@ $$;
  * Ceilings on abuse, not targets — every number is several times what real
  * use looks like. The daily column is the one sized against the mail plan:
  *
- *   enquiries      30/day  \
- *   comments       30/day   >  80 a day worst case, all three combined,
- *   applications   20/day  /   comfortably inside a free Resend tier.
+ *   enquiries      20/day  x2  \
+ *   comments       30/day       >  90 a day worst case, all three combined,
+ *   applications   20/day      /   inside a free Resend tier (~100/day).
+ *
+ * ENQUIRIES COUNT TWICE, and that is why their ceiling came down from 30.
+ * A booking now produces two emails, not one: the notification to the studio
+ * and the acknowledgement to the person who booked, so they know a real
+ * request landed rather than staring at a page that says so. At the old 30 a
+ * day, enquiries alone could reach 60 emails and the three tables together
+ * 110 — over the free daily allowance, at which point REAL enquiries stop
+ * being delivered with nothing to say they have. Twenty is still several
+ * times any day this site has ever had.
+ *
+ * The invite that goes out when you press Confirm is not in this arithmetic.
+ * It is sent by a person clicking a button in their own inbox, not by anything
+ * a stranger can trigger, and there is one of them per booking you agreed to.
  *
  * Applications keep a 24-hour window rather than an hour: somebody may
  * genuinely apply for two or three roles in one sitting, so the per-address
@@ -497,7 +607,7 @@ $$;
 drop trigger if exists enquiries_rate_limit on public.enquiries;
 create trigger enquiries_rate_limit
   before insert on public.enquiries
-  for each row execute function public.enforce_rate_limit('3', '60', '40', '30');
+  for each row execute function public.enforce_rate_limit('3', '60', '40', '20');
 
 drop trigger if exists comments_rate_limit on public.comments;
 create trigger comments_rate_limit

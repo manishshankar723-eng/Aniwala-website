@@ -1,7 +1,7 @@
 # Aniwala
 
 Animation studio site. Astro (static) + GSAP/Lenis, deployed to
-Hostinger shared hosting over FTP by GitHub Actions.
+Hostinger shared hosting over SSH by GitHub Actions.
 
 ## Running the site locally
 
@@ -37,8 +37,14 @@ Two ways in, one way out.
 <https://aniwala.com/admin> (which redirects to `aniwala.sanity.studio`).
 
 Either one triggers the same GitHub Actions workflow: it type-checks, builds,
-checks every internal link, and only then FTPs `dist/` into `public_html`.
-Live in roughly 90 seconds. Watch it in the repo's **Actions** tab.
+checks every internal link, and only then `rsync`s `dist/` over SSH into
+`public_html`. Live in roughly 90 seconds. Watch it in the repo's **Actions**
+tab.
+
+The `deploy` job is gated on `needs: verify`, so a build that fails any of
+those checks never reaches the server — the previous version keeps serving.
+That is the safety net behind everything in *What the build refuses to ship*
+below.
 
 The content path works because a webhook on the Sanity project POSTs a
 `repository_dispatch` event to GitHub when a document is published. Without
@@ -51,9 +57,32 @@ Never point the workflow at a Node runtime; there isn't one on this plan.
 
 ## One-time setup
 
-1. **hPanel → Files → FTP Accounts** — note hostname, username, password.
+1. **hPanel → Advanced → SSH Access** — make sure SSH status is **Active**,
+   and note the IP, port and username. Generate a deploy keypair
+   (`ssh-keygen -t ed25519 -f deploy_key -N ""`) and paste the **public**
+   half (`deploy_key.pub`) into the **SSH keys** section on that page.
 2. **GitHub → Settings → Secrets and variables → Actions** — add
-   `FTP_HOST`, `FTP_USER`, `FTP_PASS`.
+   `SSH_HOST`, `SSH_USER`, `SSH_PORT`, and `SSH_KEY`.
+
+   `SSH_KEY` is the **private** half. Store it base64-encoded — one line, no
+   internal whitespace:
+
+   ```bash
+   base64 -w 0 < deploy_key
+   ```
+
+   The workflow accepts raw PEM too, but base64 is immune to the copy-paste
+   mangling that raw PEM is not: copying a key on Windows rewrites LF to
+   CRLF, and OpenSSH then rejects the file with `error in libcrypto`
+   followed by `Permission denied (publickey)` — which reads like the server
+   refused a good key and sends you to check the panel, where everything is
+   fine. Delete the local `deploy_key` files once both halves are in place.
+
+   Deploys are authenticated by the server's **host key**, pinned in
+   `.github/workflows/deploy.yml`. If the server is ever rebuilt, that pin
+   fails the deploy on purpose — find out why the identity changed before
+   updating it, and never replace it with a fresh `ssh-keyscan`.
+
 3. **hPanel → Websites → aniwala.com → Security → SSL** — install the free
    certificate and enable Force HTTPS.
 4. **Sanity** — see *Setting up the CMS* below. The build needs
@@ -69,34 +98,46 @@ Never point the workflow at a Node runtime; there isn't one on this plan.
 ```
 src/
 ├── components/          Header, Footer, PageHero, PostCard, Faq, CtaBand...
-├── config/
-│   ├── nav.ts           Header, footer and search links. One source.
-│   ├── site.ts          Homepage content
-│   ├── services.ts      One record per service = one service page
-│   ├── careers.ts       One record per opening = one careers page
-│   └── categories.ts    Journal categories, shared by schema and UI
-├── content/
-│   ├── blog/            Blog posts, one Markdown file each
-│   └── case-studies/    Case studies, one Markdown file each
-├── content.config.ts    Frontmatter schemas for both collections
+│   └── blocks/          One component per page-builder section type
+├── config/              Things that are code, not content
+│   ├── site.ts          Supabase + Turnstile keys, studio timezone
+│   ├── urls.ts          What an href may point at. A security boundary.
+│   ├── nav.ts           The SHAPE of a nav entry — the menus live in Sanity
+│   ├── copyFields.ts    The ~200 interface-copy field names. One list.
+│   ├── fonts.ts         The typefaces an editor may pick, and the type roles
+│   ├── contact.ts       Social icon names
+│   ├── disciplines.ts   Portfolio disciplines and employment kinds
+│   ├── careers.ts       Career page types
+│   └── imageSlots.ts / pageSlots.ts   Named artwork + page-builder slots
+├── content.config.ts    Zod schemas every CMS document must pass. The gate.
+├── integrations/
+│   └── redirects.mjs    Writes the CMS's redirects into dist/.htaccess
 ├── layouts/Base.astro   Shell: SEO meta, fonts, view transitions, motion boot
 ├── lib/
+│   ├── sanity/          client.ts, loader.ts, portableText.ts
+│   ├── studio.ts        Every CMS accessor the templates call
 │   ├── motion.ts        Lenis + GSAP/ScrollTrigger, lazily imported
-│   ├── posts.ts         Post fetching, draft rule, dates, reading time
-│   ├── caseStudies.ts   Case study fetching, ordering, service cross-links
+│   ├── copy.ts          Token substitution, ldJson, inlineHtml escaping
+│   ├── supabase.ts      Minimal PostgREST client (no SDK)
+│   ├── submit.ts        One path for all three forms; picks Turnstile or not
 │   └── searchDocs.ts    Builds the search index, served as /search.json
 ├── pages/               Every file here becomes a route
 └── styles/global.css    Reset, @font-face, and ALL design tokens
 scripts/
-├── check-links.mjs      Fails CI on a broken internal link or missing asset
+├── check-links.mjs      Fails CI on a broken link, missing asset or scripted href
+├── build-preview.mjs    A build that shows unpublished drafts
 ├── generate-icons.mjs   Favicon/apple-touch/PWA PNGs from the mark
 └── generate-og-image.mjs  The social card. Run by hand, output committed
 public/
-├── .htaccess            HTTPS, canonical host, caching, security headers
+├── .htaccess            HTTPS, canonical host, caching, security headers, CSP
 ├── fonts/               Self-hosted woff2 — no third-party font request
 ├── og-default.jpg       Social card (generated)
-├── site.webmanifest     PWA manifest
 └── robots.txt
+supabase/
+├── schema.sql           Tables, RLS policies, column grants, rate limiter
+├── mirror-events.sql    One-time: webhooks fire on UPDATE and DELETE too
+└── functions/           submit, notify, moderate, schedule (Deno, run on Supabase)
+studio/                  The Sanity Studio. A separate npm package.
 ```
 
 ## Checks
@@ -112,6 +153,88 @@ npm run check:links # needs an existing dist/
 static build will happily emit a link to a page nobody wrote: the announcement
 bar pointed at a non-existent `/ai-animation/` on all 64 pages, and `og:image`
 pointed at a missing file on all 64, and both survived a clean build.
+
+It also fails on any `href` with a `javascript:`, `data:` or `vbscript:`
+scheme. That is a separate scan on purpose — such a URL is not a path, so the
+resolver has nothing to look up and it would otherwise sail through as "not
+our problem". See *Security* below for why it very much is.
+
+## Security
+
+### Where the boundaries actually are
+
+Three rules that are easy to get backwards:
+
+**Studio validation is not a boundary.** The `validation:` rules in
+`studio/schemas/` run in the Studio UI only. The Content Lake API does not
+enforce them, so anything holding a write token skips every one. They stop
+typos, not attackers.
+
+**`src/content.config.ts` is the boundary.** Those Zod schemas run on every
+build, against every document, whatever wrote it — and a failure fails the
+build before the deploy job can run. Anything that must be true of CMS
+content belongs there, not only in the Studio schema.
+
+**`supabase/schema.sql` is the boundary for form data.** The anon key is
+public by design; Row Level Security and the column grants are the only thing
+protecting enquiries, applications and comments. Read the header of that file
+before changing any policy in it.
+
+### What the build refuses to ship
+
+CI fails, and the deploy never runs, if:
+
+- a **required singleton** is missing — `siteCopy`, `contactDetails`,
+  `navigation`, `careersContent`, `bookingSettings`, `uiCopy`, `privacyPage`
+- the **menu is empty**, a built page has **no sections**, or the privacy
+  policy has **no body**
+- any **`href` is not on the allowlist** in `src/config/urls.ts`
+- an internal **link or asset does not resolve**
+- a **redirect** would hide a real page, duplicate another, or chain
+- **`dist/.htaccess` is missing** from the build
+
+### Why `href` is checked at all
+
+Astro escapes attribute values, so a CMS string cannot break out of its
+quotes. That is not enough: `javascript:...` is a perfectly well-formed
+attribute value that runs on click, and the site's CSP carries
+`script-src 'unsafe-inline'` — required for Astro's pre-paint theme script —
+which is exactly what permits it.
+
+So `src/config/urls.ts` holds one allowlist (`https? mailto: tel: / #`),
+enforced in `content.config.ts` for every href-bearing field, including the
+`.passthrough()` page-builder blocks, which are walked for any key ending in
+`href`. `scripts/check-links.mjs` is the backstop for anything reaching the
+HTML another way. Add to the allowlist deliberately; never widen the backstop
+to make a build pass.
+
+`z.url()` is **not** a substitute — it accepts `javascript:alert(1)` and
+`data:text/html,...` as valid URLs.
+
+### Headers
+
+`public/.htaccess` carries HSTS, `X-Frame-Options`, `X-Content-Type-Options`,
+`Referrer-Policy`, `Permissions-Policy` and the CSP. The deploy asserts they
+are actually live afterwards rather than trusting the upload — a site serving
+every page perfectly with no headers at all looks completely healthy, and has
+happened here before.
+
+`connect-src` names the Supabase project explicitly. **If the Supabase project
+ever changes, change it there too** — the failure is silent and total: every
+form gets a CSP violation in the console and nothing else.
+
+### Secrets
+
+Public by design, and fine in the bundle: `SANITY_PROJECT_ID`,
+`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `TURNSTILE_SITE_KEY`.
+
+Never in this repo or the bundle: the Supabase **service role** key,
+`TURNSTILE_SECRET_KEY`, `MODERATION_SECRET`, `NOTIFY_SECRET`, any Sanity
+**write** token. Those live on the Edge Functions (`supabase secrets set`) or
+in GitHub Actions secrets.
+
+`SANITY_READ_TOKEN` should be a **Viewer** token. It only ever needs to read
+drafts for previews, and a Viewer token cannot alter the site if it leaks.
 
 ## Styling
 
@@ -324,7 +447,7 @@ Three places, on purpose.
 | Posts, case studies, job openings, services, portfolio, the menus | Sanity. Edited at aniwala.com/admin. |
 | Every word the templates say — headings, labels, empty states, the privacy policy, both forms | Sanity, under **Interface copy** and **Privacy policy**. |
 | Anything that decides a URL or drives code behaviour | This repo. Plain files, in git. |
-| Enquiries, bookings, applications, comments | One Supabase project. |
+| Enquiries, bookings, applications, comments | One Supabase project. Optionally mirrored into Sanity as read-only **Form submissions** — see *Reading everything in the Studio*. Supabase stays the source of truth. |
 | Every picture | Sanity, on the document it belongs to — a service's hero, a discipline's tile, a post's cover. Gathered in one place under **Images**. |
 
 The split worth understanding is the last of the three repo/CMS lines. If a
@@ -412,6 +535,16 @@ so it is safe to re-run and safe to run against production.
    npm run dev          # http://localhost:3333
    ```
 
+   The Studio is **Sanity v6** and needs **Node ≥ 22.12** and React 19 — both
+   are pinned in `studio/package.json`. It is a separate npm package from the
+   site on purpose: it pulls in React and the whole Sanity toolkit, and the
+   site ships no React at all.
+
+   `studio/package.json` also carries an `overrides` block pinning three
+   transitive dependencies inside `@sanity/cli`. Read the comment above it
+   before touching them — one of the pins looks like it wants upgrading to
+   the next major and must not be.
+
 5. Migrate the old Markdown content in (once):
 
    ```
@@ -421,6 +554,13 @@ so it is safe to re-run and safe to run against production.
 
    Check a long post's formatting in the Studio, then delete
    `src/content/` and revoke the write token.
+
+   **Already done on this project** — `src/content/` is gone and the content
+   lives in Sanity. The step is kept because it documents where the dataset
+   came from. **Revoking the token is the half that gets forgotten**: check
+   sanity.io/manage → API → Tokens and delete anything labelled for the
+   migration. A leftover write token is a standing credential that bypasses
+   every Studio validation rule — see *Adding an editor safely*.
 
 6. Deploy the Studio so the non-technical editor can reach it:
 
@@ -444,13 +584,43 @@ so it is safe to re-run and safe to run against production.
 
 ### Adding an editor safely
 
-Invite them as **Editor**, not Administrator. An Editor can write and publish
-content and cannot change the schema, the dataset or the project's members.
+Invite them as **Contributor**, not Editor and certainly not Administrator.
 
-Two things they can still do that no schema prevents, so say them out loud
-once: changing a published post's **URL** breaks every existing link to it,
-and closing a filled role means **unpublishing** it, not editing the summary
-to say "position filled".
+The roles differ in exactly the way that matters here:
+
+| Role | Can do |
+| --- | --- |
+| `contributor` | Read and write **draft** content. No publishing, no project settings. |
+| `editor` | Read and write everything, **including publishing**, plus limited project settings. |
+| `developer` | Everything Editor can, plus project settings, datasets and tokens. |
+| `administrator` | Everything. |
+
+Contributor is the one to reach for, and the reason is the deploy pipeline
+rather than distrust. Publishing fires a webhook that builds and uploads the
+site with **no human in the loop** — so an Editor's mistake is live in about
+ninety seconds. With Contributor, their work stacks up as drafts and somebody
+with publish rights presses the button.
+
+The build catches *structural* damage: delete a required document or empty
+the menu and CI goes red before anything ships (see *What the build refuses
+to ship*). It cannot catch **valid but wrong** — a nav trimmed to one item, a
+headline with a typo, a service description rewritten badly. All of those are
+schema-valid and would deploy. Contributor is the only thing that closes that
+gap.
+
+Two things no role or schema prevents, so say them out loud once: changing a
+published post's **URL** breaks every existing link to it, and closing a
+filled role means **unpublishing** it, not editing the summary to say
+"position filled".
+
+**Token hygiene, which is the same problem wearing different clothes.** A
+Sanity API token carries the roles of the account that created it, and the
+Content Lake API does not enforce Studio validation — so a write token can
+put anything into any field, bypassing every `validation:` rule in
+`studio/schemas/`. Check **sanity.io/manage → API → Tokens** periodically and
+delete anything whose job is finished. The one-off migration in *Setting up
+the CMS* is the obvious example: it needs a write token for an afternoon and
+never again.
 
 ### Setting up Supabase
 
@@ -578,18 +748,23 @@ the Supabase dashboard.
 
 ```
 new row  ->  Database Webhook  ->  notify function  ->  Resend  ->  your inbox
-                                                                      |
-                        comment emails carry Approve / Reject buttons  |
+                                          |                           |
+                                          └─→ Sanity (optional)       |
+                                              read-only copy in       |
+                                              the Studio              |
+                     comments carry Approve / Reject                  |
+                     call requests carry Confirm / Cannot make it     |
                                                                       v
-                                        moderate function  ->  confirmation page
+                              moderate / schedule function  ->  confirmation page
                                                                       |
                                                     you click the button
                                                                       v
-                                                         published / deleted
+                                     published / deleted, or invitations sent
 ```
 
-Enquiries are routed by service and are pure notification — hit Reply and you
-are writing to the person who asked. Comments arrive with two buttons.
+Enquiries are routed by service — hit Reply and you are writing to the person
+who asked. Comments arrive with two buttons. **A call request arrives with two
+of its own**, and that is the part worth reading below.
 
 **Clicking a button opens a confirmation page; it does not act on its own.**
 That extra click is deliberate and is not politeness. Mail security scanners —
@@ -621,24 +796,40 @@ Supabase dashboard, which is unaffected.
    there instead of the general inbox. A CV filed in among the client
    briefs is a CV that gets missed.
 
-4. Deploy both functions:
+   Optional, for the booking half: `STUDIO_NAME`, `STUDIO_TZ` if the studio is
+   not in `Asia/Kolkata`, and `MEETING_ROOM_BASE` to host the generated
+   meeting rooms somewhere other than the public Jitsi instance.
+   `MEETING_URL` replaces those generated rooms with one fixed room — see
+   *Confirming a call* for why that is usually the worse of the two.
+   `BOOKING_SECRET` is optional too: unset, the Confirm links are signed with
+   `MODERATION_SECRET`.
+
+4. Deploy the functions:
 
    ```bash
    supabase functions deploy notify   --no-verify-jwt
    supabase functions deploy moderate --no-verify-jwt
+   supabase functions deploy schedule --no-verify-jwt
    ```
 
    `--no-verify-jwt` is needed because the callers are a database trigger and
    a mail client, neither of which has a Supabase session. They are not open
-   endpoints: `notify` checks the `NOTIFY_SECRET` header, and `moderate`
-   checks an HMAC over the row id **and** the action, so an approve link
-   cannot be edited into a reject link or reused on another comment.
+   endpoints: `notify` checks the `NOTIFY_SECRET` header, and `moderate` and
+   `schedule` check an HMAC over the row id **and** the action, so an approve
+   link cannot be edited into a reject link, or a confirm link replayed on
+   somebody else's booking.
 
 5. Dashboard → **Database → Webhooks → Create**, three times — once for
    `comments`, once for `enquiries`, once for `applications`. All three: event
    `INSERT`, type **HTTP Request**, method
    `POST`, URL `https://<project-ref>.supabase.co/functions/v1/notify`, and
    add the HTTP header `x-notify-secret` with the value from step 3.
+
+   For the Studio mirror below, those webhooks also need to fire on UPDATE and
+   DELETE — but do that by running `supabase/mirror-events.sql`, not by
+   ticking the boxes. The reason is in that file's header, and it is the
+   difference between a mirror that stays honest and one that re-emails your
+   clients about calls they already booked.
 
 Create the webhooks in the dashboard rather than as SQL in this repo: the
 trigger definition embeds credentials, and those must not be committed.
@@ -649,6 +840,172 @@ automatically.
 
 If you skip all of this, nothing breaks — comments still queue up and you
 approve them in the Table Editor as described above.
+
+### Reading everything in the Studio
+
+Optional, and it exists so that "who wrote in this week" is one list in a place
+you already have open, rather than a second dashboard and a second login.
+
+With `SANITY_WRITE_TOKEN` set as a Supabase secret, `notify` copies every
+submission into Sanity as a **Form submission** document — call requests,
+briefs, job applications and blog comments, in one section at the top of the
+Studio sidebar with a filtered list per kind.
+
+```bash
+supabase secrets set \
+  SANITY_PROJECT_ID=20wlzfea \
+  SANITY_DATASET=production \
+  SANITY_WRITE_TOKEN=sk...        # sanity.io/manage -> API -> Tokens (Editor)
+supabase functions deploy notify --no-verify-jwt
+```
+
+Then run **`supabase/mirror-events.sql`** once in the SQL editor, so the copy
+follows the row: a call you confirm stops reading as "new", an approved comment
+shows as published, a rejected one disappears instead of sitting there looking
+like it still needs moderating. It ends with a backfill for the rows you
+already have, commented out until you have checked the output above it.
+
+**Do not just tick Update and Delete on the webhooks.** It looks like the same
+thing and it is not. These webhooks call a hand-written `notify_new_row()` that
+hardcodes `'type', 'INSERT'` and reads `NEW` — so an UPDATE would arrive at the
+Edge Function looking like a brand new submission (a second notification email
+to you, a second acknowledgement to the client, for a call they already had
+confirmed), and a DELETE would raise on the unassigned `NEW` and take the
+deletion down with it. `mirror-events.sql` makes the function event-aware and
+changes the trigger in the same transaction, because the two halves cannot be
+applied separately. It lifts the URL and the secret out of the existing
+function rather than asking for them, so it carries no credential and needs
+none typed.
+
+Three things to be clear about before switching it on:
+
+**Supabase remains the source of truth.** The row policies, the column grants
+and the rate limiter are there, and it is what the site and the booking flow
+read and write. The Sanity documents are a mirror, written by the webhook.
+
+**It is a reading room, not a control panel.** Every field is read-only, and
+the type is kept out of the "create new document" menu. Ticking `approved` on
+a mirrored comment would publish nothing — the blog reads comments from
+Supabase — and the next mirror would overwrite it anyway. Approve from the
+email buttons, or in the Supabase dashboard.
+
+**One copy of personal data becomes two.** Applications carry names, phone
+numbers and CV links; enquiries carry client leads. Sanity has no per-document
+permissions on the standard plans, so anybody invited to the project can read
+all of it — worth remembering on the day you invite an editor just to write a
+blog post. A deletion request now has to be honoured in both places, and the
+privacy policy should say where the data lives.
+
+Leave `SANITY_WRITE_TOKEN` unset and none of this happens; everything else
+works exactly as before.
+
+### Confirming a call, and what the other person gets
+
+A booking used to stop at your inbox. The row landed in `enquiries`, you read
+a slot off an email, and everything after that was manual — writing back,
+making a calendar entry, remembering to send the link. On a busy week it did
+not happen, and the person who booked was left with a page that said "we will
+confirm by email" and no email.
+
+What happens now, end to end:
+
+```
+visitor picks a slot, adds guests   ->  enquiries row  ->  notify
+        |                                                    |
+        |<--- "we have your request" (them + their guests) ---|
+                                                             |
+                     "Confirm / Cannot make it" (you) <------|
+                              |
+                    you press Confirm on /schedule/
+                              |
+                              v
+        one email, one .ics  ->  them + their guests + you
+                                 (accept, and it is on the calendar)
+```
+
+**Turning it on takes three things**, none of which are new tools:
+
+```bash
+# 1. the columns: guest_emails, status, confirmed_at, meeting_url, invite_seq
+#    Re-run the whole of supabase/schema.sql in the SQL editor — every
+#    statement in it is guarded, so re-running is the intended way to upgrade.
+
+# 2. the function behind the buttons
+supabase functions deploy schedule --no-verify-jwt
+supabase functions deploy notify   --no-verify-jwt   # the buttons live here
+
+# 3. the new wording, into the CMS (from studio/)
+SANITY_WRITE_TOKEN=sk... npm run seed:copy -- --dry-run
+SANITY_WRITE_TOKEN=sk... npm run seed:copy
+```
+
+Step 3 is not optional: the guest field's labels are CMS copy like every other
+string on the site, and the build **fails** while the Book-a-call document is
+missing them rather than shipping a form with blank labels. `seed:copy` only
+fills what is empty, so nothing you have edited is touched.
+
+**Guests.** The booking form has an *Add guests* line. Anyone added is invited
+alongside the person who booked — the same email, the same calendar
+invitation. The form takes five; the function takes ten in total, so you can
+add a colleague or two yourself on the confirmation screen. `MAX_GUESTS` in
+`supabase/functions/_shared/util.ts` is the number that actually binds.
+
+**The confirmation screen** (`/schedule/`) shows you who booked, what they
+wrote, and the slot **in both timezones** — theirs and yours. It is also where
+the joining link is set, and it arrives already filled in, so confirming really
+is one press.
+
+**Every booking gets a room of its own.** The link is derived from the
+booking's id — the same booking always resolves to the same room, so
+confirming twice does not move it out from under anyone holding the
+invitation, and no two bookings ever share one. That last part is the reason
+it works this way rather than reusing a single standing room: the calendar
+offers slots fifteen minutes apart, so a shared room means an overrunning call
+puts one client inside another's. The rooms default to the public Jitsi
+instance, which needs no account; `MEETING_ROOM_BASE` moves them to a
+self-hosted Jitsi or a Whereby subdomain.
+
+You can always type a different link for one call, or clear the field to send
+an invitation carrying just the time. `MEETING_URL` replaces the generated
+rooms with one fixed room for everything — reasonable for a Zoom personal
+meeting ID, which has a waiting room; not for a bare Meet link, which does
+not.
+
+Wiring Confirm to Google Calendar so it creates a real Meet event on your own
+calendar is possible and is a bigger job: it needs a Google Cloud project and
+either OAuth with a stored refresh token, or a service account with
+domain-wide delegation if aniwala.com is on Workspace. The generated rooms
+exist so that none of that is on the critical path.
+
+**What gets sent.** One email to everybody, carrying a real calendar
+invitation (`METHOD:REQUEST`), plus Add-to-Google / Add-to-Outlook links for
+clients that hide the attachment. Accepting it puts the call on their calendar
+— you are not asking anyone to retype a time out of a paragraph.
+
+**Pressing Confirm twice is safe, and is the fix for most mistakes.** The
+invitation carries the row id as its UID and a `SEQUENCE` that goes up on every
+send, which is exactly how a calendar wants an update. Change the joining link,
+add a guest, press Confirm again: everybody's existing entry is amended rather
+than duplicated.
+
+**Cannot make it** marks the booking declined and writes to them with a link
+back to the calendar. If you had already confirmed, a cancellation goes with it
+and the event comes off the calendars it was put on.
+
+**A slot that has passed cannot be confirmed.** Opening a week-old email and
+pressing the button would otherwise put a meeting in somebody's past and tell
+them it is on; the function refuses and says so.
+
+**Two clicks, not one, and deliberately.** The email link opens a page; only
+the button on it acts. Mail scanners fetch every URL in a message before you
+read it — if the link itself confirmed, Outlook SafeLinks would be sending
+calendar invitations to your clients on your behalf. Scanners do not submit
+forms. The same reasoning is written out at length in `moderate/index.ts`.
+
+Confirm links last 90 days. Everything above is optional in the sense that the
+rest of the site does not depend on it: without the `schedule` function
+deployed, a booking still lands in the table and still emails you — it simply
+arrives without the buttons.
 
 ### Why is the comment form not showing?
 

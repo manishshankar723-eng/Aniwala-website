@@ -46,35 +46,13 @@
  * Tokens are time-limited too — see MODERATION_TTL_SECONDS — so a link in a
  * forwarded or archived message stops being a key to publishing on the site.
  */
-import { verifyAction } from '../_shared/util.ts';
-
-/**
- * Where a browser may call this from.
- *
+/*
  * The moderation page is served from the website, so this is a genuine
- * cross-origin request and needs CORS. A wildcard would let any page drive the
- * endpoint, so the origins are named: the live site from SITE_URL, plus
- * EXTRA_ORIGINS for staging, plus localhost for `astro dev`.
+ * cross-origin request and needs CORS. The allow-list is shared with `submit`
+ * and `schedule`: the live site from SITE_URL, plus EXTRA_ORIGINS for staging,
+ * plus localhost for `astro dev`.
  */
-function allowedOrigin(req: Request): string | null {
-  const origin = req.headers.get('origin');
-  if (!origin) return null;
-  const site = (Deno.env.get('SITE_URL') ?? 'https://aniwala.com').replace(/\/$/, '');
-  const extra = (Deno.env.get('EXTRA_ORIGINS') ?? '')
-    .split(',')
-    .map((o) => o.trim().replace(/\/$/, ''))
-    .filter(Boolean);
-  const ok = [site, ...extra, 'http://localhost:4321', 'http://localhost:4322'];
-  return ok.includes(origin) ? origin : null;
-}
-
-const cors = (origin: string | null) => ({
-  'Access-Control-Allow-Origin': origin ?? 'null',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'content-type',
-  'Access-Control-Max-Age': '86400',
-  Vary: 'Origin',
-});
+import { verifyAction, allowedOrigin, corsHeaders as cors } from '../_shared/util.ts';
 
 /** `title` and `message` are what the page puts on screen. */
 const json = (

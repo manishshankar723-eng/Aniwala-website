@@ -290,6 +290,54 @@ export default defineType({
       group: 'wording',
       validation: (Rule) => Rule.required(),
     }),
+    /* ---------------------------------------------------------------- */
+    /* Guests                                                            */
+    /*                                                                   */
+    /* Anyone the visitor adds is invited alongside them when the studio  */
+    /* confirms the call — the same calendar invitation, to all of them.  */
+    /* The field stays shut until the toggle is pressed, because most     */
+    /* bookings are one person about their own project.                  */
+    /* ---------------------------------------------------------------- */
+
+    defineField({
+      name: 'guestsToggleLabel',
+      title: 'Add-guests button',
+      type: 'string',
+      group: 'wording',
+      description: 'The line that opens the guest field — "+ Add guests".',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'guestsLabel',
+      title: 'Guests label',
+      type: 'string',
+      group: 'wording',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'guestsPlaceholder',
+      title: 'Guests placeholder',
+      type: 'string',
+      group: 'wording',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'guestsAddLabel',
+      title: 'Guests — add button',
+      type: 'string',
+      group: 'wording',
+      description: 'Beside the guest box. Pressing Enter does the same thing.',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'guestsHint',
+      title: 'Guests hint',
+      type: 'string',
+      group: 'wording',
+      description: 'The small line under the guest box. Say what happens to them.',
+      validation: (Rule) => Rule.required(),
+    }),
+
     defineField({
       name: 'submitLabel',
       title: 'Submit button',
@@ -350,6 +398,21 @@ export default defineType({
       title: 'Error — bad email',
       type: 'string',
       group: 'messages',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'errGuestEmail',
+      title: 'Error — bad guest address',
+      type: 'string',
+      group: 'messages',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'errGuestLimit',
+      title: 'Error — too many guests',
+      type: 'string',
+      group: 'messages',
+      description: '{{max}} is the number of guests the form allows.',
       validation: (Rule) => Rule.required(),
     }),
     defineField({
@@ -452,6 +515,15 @@ export default defineType({
       title: 'Label — back to calendar',
       type: 'string',
       group: 'messages',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'a11yGuestRemove',
+      title: 'Label — remove a guest',
+      type: 'string',
+      group: 'messages',
+      description:
+        'On the × beside each guest. {{email}} is their address — without it every one of those buttons is announced as the same word.',
       validation: (Rule) => Rule.required(),
     }),
   ],

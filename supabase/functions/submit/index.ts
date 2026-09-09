@@ -37,6 +37,10 @@
  * schema.sql deliberately: if you add a column there, add it here too, and if
  * you are ever unsure whether a field belongs, leave it out.
  */
+/* The origin allow-list and the CORS headers are shared with `moderate` and
+   `schedule`. Three copies of one list is three chances for one of them to go
+   quietly stale, and the stale one is a door left the wrong width. */
+import { allowedOrigin, corsHeaders as cors } from '../_shared/util.ts';
 
 const TURNSTILE_VERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
@@ -45,7 +49,8 @@ const TURNSTILE_VERIFY = 'https://challenges.cloudflare.com/turnstile/v0/sitever
 const FIELDS: Record<string, string[]> = {
   enquiry: [
     'name', 'email', 'phone', 'company', 'enquiry_type', 'message',
-    'duration_mins', 'slot_label', 'slot_utc', 'visitor_tz', 'source_path',
+    'duration_mins', 'slot_label', 'slot_utc', 'visitor_tz', 'guest_emails',
+    'source_path',
   ],
   application: [
     'kind', 'role_slug', 'role_title', 'discipline', 'desired_role',
@@ -60,49 +65,6 @@ const TABLE: Record<string, string> = {
   application: 'applications',
   comment: 'comments',
 };
-
-/**
- * Where a browser is allowed to call this from.
- *
- * A wildcard would let any site drive this endpoint with its own Turnstile
- * widget. The live origin comes from SITE_URL; localhost is here so the forms
- * still work under `astro dev`.
- */
-function allowedOrigin(req: Request): string | null {
-  const origin = req.headers.get('origin');
-  if (!origin) return null;
-
-  const site = (Deno.env.get('SITE_URL') ?? 'https://aniwala.com').replace(/\/$/, '');
-
-  /*
-   * EXTRA_ORIGINS exists for the staging site, and it is a list rather than a
-   * wildcard on purpose.
-   *
-   * The obvious shortcut — allowing anything under *.aniwala.com, or worse
-   * reflecting whatever Origin arrives — would let any page that can obtain a
-   * Turnstile token drive this endpoint. Naming each host keeps the door the
-   * width of the things that are actually meant to come through it.
-   *
-   *   supabase secrets set EXTRA_ORIGINS=https://new.aniwala.com
-   *
-   * Comma-separated for more than one. Unset is the normal production state.
-   */
-  const extra = (Deno.env.get('EXTRA_ORIGINS') ?? '')
-    .split(',')
-    .map((o) => o.trim().replace(/\/$/, ''))
-    .filter(Boolean);
-
-  const ok = [site, ...extra, 'http://localhost:4321', 'http://localhost:4322'];
-  return ok.includes(origin) ? origin : null;
-}
-
-const cors = (origin: string | null) => ({
-  'Access-Control-Allow-Origin': origin ?? 'null',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'content-type',
-  'Access-Control-Max-Age': '86400',
-  Vary: 'Origin',
-});
 
 const json = (status: number, body: unknown, origin: string | null) =>
   new Response(JSON.stringify(body), {

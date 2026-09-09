@@ -577,11 +577,20 @@ export const BOOKING_COPY = {
   enquiryLabel: 'What do you need?',
   messageLabel: 'What is this meeting about?',
   messagePlaceholder: 'Deadline, format, reference links…',
+
+  guestsToggleLabel: '+ Add guests',
+  guestsLabel: 'Guests',
+  guestsPlaceholder: 'name@company.com',
+  guestsAddLabel: 'Add',
+  guestsHint: 'They get the same calendar invitation you do.',
+
   submitLabel: 'Schedule Meeting',
   submitBusy: 'Sending…',
 
   errName: 'Add your name so we know who we are meeting.',
   errEmail: 'That email address does not look right.',
+  errGuestEmail: 'That guest address does not look right.',
+  errGuestLimit: 'You can add up to {{max}} guests here — tell us about the rest in the message.',
   errNotConfigured: 'Booking is not connected yet — nothing would reach the studio.',
   errSendFailed: 'Could not send that — {{error}}. Email {{email}} instead.',
   errUnreachable: 'Could not reach the server. Email {{email}} instead.',
@@ -599,6 +608,7 @@ export const BOOKING_COPY = {
   a11yTimeFormat: 'Time format',
   a11ySlots: 'Available times',
   a11yBack: 'Back to calendar',
+  a11yGuestRemove: 'Remove {{email}}',
 };
 
 /* ------------------------------------------------------------------ */

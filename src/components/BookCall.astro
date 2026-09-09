@@ -214,6 +214,49 @@ const initials = hostName
           />
         </label>
 
+        {/*
+          Guests, behind a toggle rather than always open.
+
+          The field is empty on most bookings — one person asking for a call
+          about their own project — and a form that opens with an input nobody
+          needs reads as more work than it is. The button is one line; what it
+          reveals is the whole list.
+
+          `aria-controls` and `aria-expanded` are what make that reveal
+          announced rather than silent: without them a screen reader user
+          presses a button and is told nothing happened.
+        */}
+        <div class="bk-field">
+          <button
+            type="button"
+            class="bk-guest-toggle"
+            id="bk-guest-toggle"
+            aria-expanded="false"
+            aria-controls="bk-guests"
+          >
+            {booking.guestsToggleLabel}
+          </button>
+
+          <div class="bk-guests" id="bk-guests" hidden>
+            <span class="bk-label" id="bk-guest-label">{booking.guestsLabel}</span>
+            {/* Populated by the script; a list because that is what it is. */}
+            <ul class="bk-chips" id="bk-chips"></ul>
+            <div class="bk-guest-row">
+              <input
+                type="email"
+                id="bk-guest-input"
+                placeholder={booking.guestsPlaceholder}
+                aria-labelledby="bk-guest-label"
+                autocomplete="off"
+              />
+              <button type="button" class="bk-guest-add" id="bk-guest-add">
+                {booking.guestsAddLabel}
+              </button>
+            </div>
+            <p class="bk-hint">{booking.guestsHint}</p>
+          </div>
+        </div>
+
         <label class="bk-field">
           <span class="bk-label">{booking.enquiryLabel}</span>
           <select name="Enquiry type" id="bk-enquiry">
@@ -286,6 +329,13 @@ const initials = hostName
       studioTz: studioTimezone,
       closedDays,
       windowDays: bookingWindowDays,
+      /*
+       * The guest ceiling the FIELD enforces, which is a courtesy to the
+       * person typing rather than a security boundary. The one that counts is
+       * MAX_GUESTS in functions/_shared/util.ts: this number lives in a page
+       * anybody can edit, and the host may add a few more when confirming.
+       */
+      maxGuests: 5,
       // The inline script cannot import, so the address is passed through.
       email,
       /* Everything the script writes into the page after load. Passed
@@ -298,6 +348,9 @@ const initials = hostName
         submitBusy: booking.submitBusy,
         errName: booking.errName,
         errEmail: booking.errEmail,
+        errGuestEmail: booking.errGuestEmail,
+        errGuestLimit: booking.errGuestLimit,
+        a11yGuestRemove: booking.a11yGuestRemove,
         errNotConfigured: booking.errNotConfigured,
         errSendFailed: booking.errSendFailed,
         errUnreachable: booking.errUnreachable,
@@ -553,6 +606,116 @@ const initials = hostName
       });
     });
 
+    // ---------- guests ----------
+    /*
+     * Who else is coming.
+     *
+     * Kept as an array in this scope rather than as text in a hidden input,
+     * for the reason the `duration` and `tz` fields were taken OUT of the DOM
+     * further up: a value copied into markup only to be read back is a value
+     * that can go stale without anything failing. This list is joined into
+     * `guest_emails` once, at the moment of submitting.
+     */
+    const guests: string[] = [];
+    const guestToggle = $<HTMLButtonElement>('bk-guest-toggle');
+    const guestPanel = $('bk-guests');
+    const guestInput = $<HTMLInputElement>('bk-guest-input');
+    const chips = $('bk-chips');
+    const emailOk = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+
+    function renderGuests() {
+      /* Built with DOM calls, not innerHTML: these strings were typed into
+         the page and go straight back onto it. */
+      chips.replaceChildren(
+        ...guests.map((g) => {
+          const li = document.createElement('li');
+          li.className = 'bk-chip';
+
+          const label = document.createElement('span');
+          label.textContent = g;
+
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.className = 'bk-chip-x';
+          remove.setAttribute('aria-label', fill(copy.a11yGuestRemove, { email: g }));
+          remove.textContent = '×';
+          remove.addEventListener('click', () => {
+            guests.splice(guests.indexOf(g), 1);
+            renderGuests();
+            guestInput.focus();
+          });
+
+          li.append(label, remove);
+          return li;
+        })
+      );
+    }
+
+    /**
+     * Take what is in the guest box.
+     *
+     * Returns the message to show, or null when there is nothing to complain
+     * about — including the cases that are deliberately silent. Somebody
+     * adding themselves, or the same colleague twice, has not made a mistake
+     * worth a red line; the entry is simply absorbed. A duplicate would
+     * otherwise become a second invitation to the same person, which some
+     * clients read as a conflicting update to the first.
+     */
+    function addGuest(raw: string): string | null {
+      const email = raw.trim().toLowerCase();
+      if (!email) return null;
+      if (!emailOk(email)) return copy.errGuestEmail;
+
+      const self = $<HTMLInputElement>('bk-email').value.trim().toLowerCase();
+      if (email === self || guests.includes(email)) {
+        guestInput.value = '';
+        return null;
+      }
+      /* The count, and the width. `guest_emails` is capped at 500 characters
+         in the database, and five long addresses can pass the first test
+         while failing the second — which would come back as a raw constraint
+         violation in place of the confirmation. */
+      if (guests.length >= cfg.maxGuests || guests.join(',').length + email.length + 1 > 500)
+        return fill(copy.errGuestLimit, { max: cfg.maxGuests });
+
+      guests.push(email);
+      guestInput.value = '';
+      renderGuests();
+      return null;
+    }
+
+    /* The toggle hides itself once used: it says "add guests", and once the
+       field is open and possibly filled, that is no longer what it does. */
+    guestToggle.addEventListener('click', () => {
+      guestPanel.hidden = false;
+      guestToggle.setAttribute('aria-expanded', 'true');
+      guestToggle.hidden = true;
+      guestInput.focus();
+    });
+
+    $('bk-guest-add').addEventListener('click', () => {
+      const err = addGuest(guestInput.value);
+      msg.textContent = err ?? '';
+      msg.className = err ? 'bk-msg is-error' : 'bk-msg';
+    });
+
+    /*
+     * ENTER ADDS A GUEST; IT DOES NOT SUBMIT THE FORM.
+     *
+     * Enter in a text input submits the form it is in, which here would send
+     * the booking the moment somebody finished typing the first guest's
+     * address — with that address still sitting in the box, and therefore
+     * absent from what was sent. The one keystroke people actually use for
+     * this is the one that had to be handled.
+     */
+    guestInput.addEventListener('keydown', (e) => {
+      if ((e as KeyboardEvent).key !== 'Enter') return;
+      e.preventDefault();
+      const err = addGuest(guestInput.value);
+      msg.textContent = err ?? '';
+      msg.className = err ? 'bk-msg is-error' : 'bk-msg';
+    });
+
     // ---------- step switching ----------
     function goToDetails() {
       if (!chosenSlot) return;
@@ -590,7 +753,19 @@ const initials = hostName
       const name = $<HTMLInputElement>('bk-name').value.trim();
       const email = $<HTMLInputElement>('bk-email').value.trim();
       if (!name) return fail(copy.errName);
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail(copy.errEmail);
+      if (!emailOk(email)) return fail(copy.errEmail);
+
+      /*
+       * A guest typed but never added is still a guest.
+       *
+       * Leaving it behind is the failure mode this catches: the address is
+       * visible in the box, the booking succeeds, and the person who was
+       * supposed to be invited simply is not — with nothing on screen to say
+       * so. Anything that will not parse stops the send instead.
+       */
+      const pending = addGuest(guestInput.value);
+      if (pending) return fail(pending);
+
       if (!cfg.configured) return fail(copy.errNotConfigured);
 
       submit.disabled = true;
@@ -635,6 +810,10 @@ const initials = hostName
              record of when was a sentence in someone else's local time. */
           slot_utc: chosenSlot ? chosenSlot.toISOString() : null,
           visitor_tz: tz || null,
+          /* One string, comma separated, because `submit` accepts only
+             scalars — see the shape check there, and `parseGuests` in
+             functions/_shared/util.ts, which is what reads it back. */
+          guest_emails: guests.join(',') || null,
           source_path: location.pathname,
         });
 
@@ -1195,6 +1374,107 @@ const initials = hostName
     resize: vertical;
   }
   .bk-form ::placeholder {
+    color: var(--color-ink-faint);
+  }
+
+  /* ── Guests ────────────────────────────────────────────────────── */
+  /* A link, not a button, in everything but semantics: it opens a field
+     rather than doing something, so it should not carry a button's weight
+     beside the one that actually submits. */
+  .bk-guest-toggle {
+    align-self: flex-start;
+    padding: 0;
+    background: none;
+    border: 0;
+    font-family: var(--font-body);
+    font-size: calc(0.84rem * var(--type-label-scale, 1));
+    font-weight: calc(600 + var(--type-label-weight, 0));
+    color: var(--color-accent);
+    cursor: pointer;
+  }
+  .bk-guest-toggle:hover {
+    text-decoration: underline;
+  }
+
+  .bk-guests {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+  .bk-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  /* :empty rather than a class the script has to remember to toggle — an
+     empty list should take no room, and the browser already knows when it
+     is empty. */
+  .bk-chips:empty {
+    display: none;
+  }
+  .bk-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.35rem 0.3rem 0.6rem;
+    background: var(--color-ground);
+    border: 1px solid var(--color-line);
+    border-radius: 1rem;
+    font-size: calc(0.8rem * var(--type-label-scale, 1));
+    /* Long addresses wrap inside the chip instead of widening the column. */
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+  .bk-chip-x {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* 1.35rem square: small on screen, but a real target under a thumb. */
+    width: 1.35rem;
+    height: 1.35rem;
+    flex: 0 0 auto;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 50%;
+    font-family: var(--font-body);
+    font-size: 1rem;
+    line-height: 1;
+    color: var(--color-ink-faint);
+    cursor: pointer;
+  }
+  .bk-chip-x:hover {
+    background: var(--color-surface-2);
+    color: var(--color-ink);
+  }
+
+  .bk-guest-row {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .bk-guest-add {
+    flex: 0 0 auto;
+    padding: 0 1rem;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-line);
+    border-radius: 0.4rem;
+    font-family: var(--font-body);
+    font-size: calc(0.85rem * var(--type-body-scale, 1));
+    font-weight: calc(600 + var(--type-body-weight, 0));
+    color: var(--color-ink);
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+  }
+  .bk-guest-add:hover {
+    border-color: var(--color-accent);
+  }
+
+  .bk-hint {
+    margin: 0;
+    font-size: calc(0.76rem * var(--type-label-scale, 1));
     color: var(--color-ink-faint);
   }
 

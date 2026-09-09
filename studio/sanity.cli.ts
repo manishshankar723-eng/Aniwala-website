@@ -12,4 +12,20 @@ export default defineCliConfig({
     dataset: process.env.SANITY_STUDIO_DATASET ?? 'production',
   },
   studioHost: 'aniwala',
+
+  /*
+   * Which deployed application this Studio IS.
+   *
+   * Without it `sanity deploy` prompts for an application id, which is fine
+   * for a person at a keyboard and fatal anywhere else — a non-interactive
+   * run has nobody to answer, and the obvious "fix" under pressure is to pick
+   * whichever option is highlighted. Pinning it means the deploy always
+   * updates aniwala.sanity.studio rather than possibly creating a second,
+   * near-identical Studio that half the bookmarks then point at.
+   *
+   * Reported by the CLI on the v6 deploy, 2026-09-09.
+   */
+  deployment: {
+    appId: 'pwez2hv7cdh41cpqli7rfppq',
+  },
 });

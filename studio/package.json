@@ -22,14 +22,17 @@
     "Both are CLI/build-time only: they are not in the deployed Studio bundle and not in",
     "the website. npm audit's own suggested fix is `sanity@5.14.1` — a DOWNGRADE out of v6,",
     "which would undo this upgrade to patch two moderate issues that nothing can reach.",
-    "These pins are the narrow alternative. Both stay within the dependency's own major,",
+    "These pins are the narrow alternative. All three stay within the dependency's own major,",
     "so nothing's API changes. Remove them once @sanity/cli ships newer transitives.",
-    "js-yaml (high, via @vercel/frameworks) is deliberately NOT pinned: the fix is 3.x -> 4.x,",
-    "which removes safeLoad, and @vercel/frameworks is exercised by `sanity deploy` — a path",
-    "that cannot be tested here without actually deploying. Reachable only by parsing our own",
-    "repo's config during a build we control, so the trade is not worth a broken deploy."
+    "js-yaml is pinned to ^3.15.2, NOT ^4. The advisory range is <=3.15.0, and 3.15.2 is a",
+    "patched 3.x — which matters because @vercel/frameworks/dist/read-config-file.js calls",
+    "js-yaml.safeLoad(), and safeLoad was REMOVED in 4.0. Overriding to ^4 would turn a",
+    "moderate-severity advisory into a hard TypeError on whatever path reads a config file.",
+    "Verified: 3.15.2 still exports safeLoad, and npm already resolves it elsewhere in this",
+    "tree (via gray-matter) without the advisory firing. Do not 'upgrade' this pin to ^4."
   ],
   "overrides": {
+    "js-yaml": "^3.15.2",
     "smol-toml": "^1.6.1",
     "uuid": "^11.1.1"
   },
