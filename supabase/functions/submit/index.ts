@@ -196,13 +196,36 @@ Deno.serve(async (req) => {
 
   if (!res.ok) {
     const text = await res.text();
-    // A rate-limit rejection arrives as PostgREST's PT429 mapping. Pass the
-    // message through: it is written for the person reading it.
+    /*
+     * ONLY A 429 IS PASSED THROUGH, and the narrowness is the point.
+     *
+     * The rate limiter raises PT429 with a message written for the person
+     * reading it — "please wait a little and try again" — so relaying that one
+     * is the whole reason this branch exists.
+     *
+     * Every OTHER failure here is Postgres talking to itself, and it is
+     * specific about the schema in a way nobody outside should see:
+     *
+     *   permission denied for table enquiries
+     *   new row for relation "enquiries" violates check constraint
+     *     "enquiries_email_check"
+     *
+     * That names tables, columns and constraints to anyone who can POST a
+     * malformed body — a free map of the database, handed out by the layer
+     * holding the service role key. It is not a break on its own; it is the
+     * reconnaissance step before one, and there is no reason to help with it.
+     *
+     * So the generic message stands for everything that is not a 429, and the
+     * real text goes to `console.error` below, where the person who needs it
+     * can read it in the function logs.
+     */
     let message = 'Something went wrong sending that. Please email us instead.';
-    try {
-      const parsed = JSON.parse(text);
-      if (parsed?.message) message = parsed.message;
-    } catch { /* non-JSON body — keep the generic message */ }
+    if (res.status === 429) {
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed?.message) message = parsed.message;
+      } catch { /* non-JSON body — keep the generic message */ }
+    }
     console.error(`insert into ${table} failed: ${res.status} ${text}`);
     return json(res.status === 429 ? 429 : 400, { error: message }, origin);
   }

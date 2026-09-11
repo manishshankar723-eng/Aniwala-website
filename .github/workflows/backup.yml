@@ -1,0 +1,341 @@
+name: Backup
+
+# =====================================================================
+# The daily off-site copy of everything that is not in git.
+#
+# WHAT WAS ACTUALLY AT RISK
+#
+# The code is in git and the built site is disposable — it is rebuilt from
+# source on every deploy. Two things were not backed up anywhere at all:
+#
+#   1. SUPABASE — every enquiry, booking, job application and comment the
+#      site has ever received. Irreplaceable: these are real people who got
+#      in touch once, and there is no second copy to re-derive them from.
+#   2. SANITY — every post, case study, service page, job listing and piece
+#      of site copy. Months of editorial work living in one vendor account.
+#
+# The recovery plan for a dropped table, a bad migration, a mistaken
+# `sanity dataset delete`, or an account lost to a phished password was that
+# there wasn't one.
+#
+# ---------------------------------------------------------------------
+# WHY THIS IS GENUINELY OFF-SITE
+#
+# The archive lands on GitHub, which is a third provider — not Supabase and
+# not Hostinger. A backup stored inside the system it protects is not a
+# backup, and that is the mistake this deliberately avoids: losing the
+# Supabase account does not touch these artifacts.
+#
+# ---------------------------------------------------------------------
+# IT IS ENCRYPTED, AND THAT IS NOT OPTIONAL
+#
+# This archive is personal data — names, email addresses, phone numbers and
+# CV links belonging to people who never agreed to be stored on GitHub. It is
+# encrypted before it is uploaded, with a passphrase GitHub does not hold in
+# any usable form outside a running job.
+#
+# THE PASSPHRASE IS NOT STORED ANYWHERE THIS WORKFLOW CAN REACH. If you lose
+# it, every archive here is unreadable. Put it in a password manager the day
+# you create it, and do not keep the only copy on the machine whose failure
+# is one of the things this protects against.
+#
+# ---------------------------------------------------------------------
+# HOW TO RESTORE  (read this BEFORE you need it)
+#
+#   1. Actions tab -> this workflow -> the run you want -> Artifacts ->
+#      download `backup-<date>`. Unzip it.
+#   2. Decrypt, using the passphrase from your password manager:
+#
+#        BKPASS='<the passphrase>' openssl enc -d -aes-256-cbc -pbkdf2 \
+#          -iter 600000 -pass env:BKPASS \
+#          -in supabase.json.enc -out supabase.json
+#
+#        BKPASS='<the passphrase>' openssl enc -d -aes-256-cbc -pbkdf2 \
+#          -iter 600000 -pass env:BKPASS \
+#          -in sanity.ndjson.enc -out sanity.ndjson
+#
+#      "bad decrypt" means the wrong passphrase. It does not mean the file is
+#      damaged, and trying it against another archive will not help.
+#
+#   3. SANITY — import the dataset back:
+#        cd studio
+#        npx sanity dataset import ../sanity.ndjson production --replace
+#      `--replace` overwrites documents with matching ids. Import into a NEW
+#      dataset first if you are unsure; it is one flag and it is reversible.
+#
+#   4. SUPABASE — `supabase.json` holds `data.enquiries`, `data.applications`
+#      and `data.comments` as full rows. There is no one-line restore, and it
+#      would be dishonest to pretend otherwise: rows carry ids and timestamps
+#      that must not be regenerated, so restore into an EMPTY table with the
+#      schema from `supabase/schema.sql` already applied, then insert with
+#      the service role key (which bypasses the column grants that would
+#      otherwise refuse `status` and `approved`).
+#
+# RETENTION IS 90 DAYS, which is the ceiling GitHub allows. That is a real
+# limit worth understanding: this protects against deletion, corruption and a
+# bad migration. It does NOT protect against something that went wrong four
+# months ago and was never noticed. If you want years, download one of these
+# each quarter and keep it somewhere of your own.
+#
+# ---------------------------------------------------------------------
+# SECRETS THIS NEEDS  — Settings -> Secrets and variables -> Actions
+#
+#   BACKUP_SECRET      opens the `backup` Edge Function. Generate with
+#                        openssl rand -base64 48
+#                      and set the SAME value on the function:
+#                        supabase secrets set BACKUP_SECRET=... --project-ref <ref>
+#   BACKUP_PASSPHRASE  encrypts the archive. Generate with
+#                        openssl rand -base64 32
+#                      Save it in a password manager FIRST.
+#
+# Already present for the deploy, and reused here unchanged:
+#   SUPABASE_URL, SANITY_PROJECT_ID, SANITY_DATASET, SANITY_READ_TOKEN
+# =====================================================================
+
+on:
+  schedule:
+    # 02:00 UTC = 07:30 IST, daily — before the working day, so a failure is
+    # in the inbox by the time anybody is making changes worth losing.
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+# Reads nothing from the repository and writes nothing back to it.
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ------------------------------------------------------------------
+      # Fail here, loudly, rather than uploading an artifact that turns out to
+      # be empty on the day it is needed.
+      # ------------------------------------------------------------------
+      - name: Check the secrets reached this job
+        env:
+          BACKUP_SECRET: ${{ secrets.BACKUP_SECRET }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SANITY_PROJECT_ID: ${{ secrets.SANITY_PROJECT_ID }}
+          SANITY_READ_TOKEN: ${{ secrets.SANITY_READ_TOKEN }}
+        run: |
+          set -uo pipefail
+          fail=0
+          for name in BACKUP_SECRET BACKUP_PASSPHRASE SUPABASE_URL SANITY_PROJECT_ID SANITY_READ_TOKEN; do
+            # Indirect expansion into a local, so only the LENGTH is ever
+            # printed. GitHub masks registered secrets in logs, but a job
+            # should not rely on that to avoid printing one.
+            value="${!name:-}"
+            if [ -z "$value" ]; then
+              echo "::error::$name is empty in this job — see the header of this file."
+              fail=1
+            else
+              echo "  ok      $name is present (${#value} characters)"
+            fi
+          done
+          exit $fail
+
+      # ------------------------------------------------------------------
+      - name: Export Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          BACKUP_SECRET: ${{ secrets.BACKUP_SECRET }}
+        run: |
+          set -uo pipefail
+          code=$(curl -sS -X POST \
+            -H "x-backup-secret: $BACKUP_SECRET" \
+            -o supabase.json -w '%{http_code}' \
+            --max-time 120 \
+            "$SUPABASE_URL/functions/v1/backup")
+
+          if [ "$code" != "200" ]; then
+            echo "::error::The backup function returned HTTP $code."
+            echo "401 means BACKUP_SECRET here and on the function do not match."
+            echo "404 means the function is not deployed:"
+            echo "  supabase functions deploy backup --no-verify-jwt"
+            exit 1
+          fi
+          echo "  ok      supabase.json ($(wc -c < supabase.json) bytes)"
+
+      # ------------------------------------------------------------------
+      # A 200 is not proof of a usable export. An error page, a truncated
+      # stream or an empty result all arrive as a successful HTTP response,
+      # and every one of them restores to nothing.
+      # ------------------------------------------------------------------
+      - name: The Supabase export is not empty or malformed
+        run: |
+          set -uo pipefail
+          node -e '
+            const fs = require("fs");
+            const d = JSON.parse(fs.readFileSync("supabase.json", "utf8"));
+            if (!d.data) { console.error("::error::No `data` key — this is not an export."); process.exit(1); }
+            const counts = d.counts ?? {};
+            for (const t of ["enquiries", "applications", "comments"]) {
+              if (!Array.isArray(d.data[t])) {
+                console.error(`::error::Table ${t} is missing from the export.`);
+                process.exit(1);
+              }
+              console.log(`  ok      ${t}: ${d.data[t].length} rows`);
+            }
+            const total = Object.values(counts).reduce((a, b) => a + b, 0);
+            /* Zero is legitimate on a brand-new project, so it is a warning
+               rather than a failure — but it is the shape of a broken export
+               on an established one, and worth a line in the log either way. */
+            if (total === 0) console.log("::warning::The export contains no rows at all.");
+          '
+
+      # ------------------------------------------------------------------
+      # The documented export endpoint, used directly rather than through the
+      # Sanity CLI: no `npm ci` in studio/, no CLI version to drift, and one
+      # fewer dependency in a job that handles the whole content archive.
+      # Returns NDJSON — one document per line, drafts included.
+      # ------------------------------------------------------------------
+      - name: Export Sanity
+        env:
+          SANITY_PROJECT_ID: ${{ secrets.SANITY_PROJECT_ID }}
+          SANITY_DATASET: ${{ secrets.SANITY_DATASET }}
+          SANITY_READ_TOKEN: ${{ secrets.SANITY_READ_TOKEN }}
+        run: |
+          set -uo pipefail
+          DS="${SANITY_DATASET:-production}"
+          code=$(curl -sS \
+            -H "Authorization: Bearer $SANITY_READ_TOKEN" \
+            -o sanity.ndjson -w '%{http_code}' \
+            --max-time 180 \
+            "https://$SANITY_PROJECT_ID.api.sanity.io/v2021-06-07/data/export/$DS")
+
+          if [ "$code" != "200" ]; then
+            echo "::error::Sanity export returned HTTP $code (dataset '$DS')."
+            exit 1
+          fi
+
+          lines=$(wc -l < sanity.ndjson)
+          if [ "$lines" -lt 1 ]; then
+            echo "::error::The Sanity export is empty — refusing to archive it."
+            exit 1
+          fi
+          # Every line must be a document. One bad line means a truncated stream.
+          if ! head -1 sanity.ndjson | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))'; then
+            echo "::error::The first line of the Sanity export is not valid JSON."
+            exit 1
+          fi
+          echo "  ok      sanity.ndjson ($lines documents, $(wc -c < sanity.ndjson) bytes)"
+
+      # ------------------------------------------------------------------
+      # THE TRIPWIRE. Read the long note on `intakePressure` in
+      # supabase/functions/backup/index.ts for why this is measured rather
+      # than reported at the moment of refusal.
+      #
+      # Runs BEFORE encryption, so the numbers can still be read out of the
+      # plaintext export without a passphrase.
+      # ------------------------------------------------------------------
+      - name: Are the forms close to turning people away?
+        run: |
+          set -uo pipefail
+          node -e '
+            const d = JSON.parse(require("fs").readFileSync("supabase.json", "utf8"));
+            const p = d.intake_pressure;
+
+            if (!p) {
+              console.log("::warning::Intake pressure was not measured on this run — the backup itself is fine.");
+              process.exit(0);
+            }
+
+            let worst = 0;
+            for (const [kind, v] of Object.entries(p)) {
+              console.log(`  ${kind}: ${v.accepted24h}/${v.ceiling} accepted in 24h (${v.pctOfCeiling}% of ceiling)`);
+              worst = Math.max(worst, v.pctOfCeiling);
+            }
+
+            /*
+             * 100% means the daily ceiling is reached and REAL ENQUIRIES ARE
+             * BEING REFUSED right now, with the visitor told only to email
+             * instead. That is the thing worth being woken up for, so it
+             * fails the run and GitHub sends the email.
+             *
+             * 70% is a warning: on a studio site that is already several
+             * times a normal day, and it is the level at which a look is
+             * cheap and being wrong is free.
+             */
+            if (worst >= 100) {
+              console.error("::error::A daily submission ceiling is FULL — the forms are refusing people.");
+              console.error("Check supabase/schema.sql section 5 for the limits, and the function logs");
+              console.error("for the source. If this is genuine traffic, raise the ceiling deliberately.");
+              process.exit(1);
+            }
+            if (worst >= 70) {
+              console.log(`::warning::Intake is at ${worst}% of a daily ceiling — worth a look.`);
+            }
+          '
+
+      # ------------------------------------------------------------------
+      - name: Encrypt
+        env:
+          BKPASS: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -uo pipefail
+          # -pbkdf2 with a high iteration count, because the passphrase is the
+          # only thing between this archive and whoever can read it. The
+          # OpenSSL default without -pbkdf2 is a single MD5 pass, which is not
+          # a key derivation function in any sense worth relying on.
+          for f in supabase.json sanity.ndjson; do
+            openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
+              -pass env:BKPASS -in "$f" -out "$f.enc"
+            echo "  ok      $f.enc ($(wc -c < "$f.enc") bytes)"
+          done
+
+          # The plaintext must not survive into the upload step.
+          shred -u supabase.json sanity.ndjson 2>/dev/null || rm -f supabase.json sanity.ndjson
+          ls -la *.enc
+
+      # ------------------------------------------------------------------
+      # THE STEP THAT MAKES THIS A BACKUP RATHER THAN A HOPE.
+      #
+      # An archive nobody has ever decrypted is a guess about the future. This
+      # decrypts what was just written, with the same secret a restore would
+      # use, and checks the result parses — so the day this is needed is not
+      # the first time the restore path has ever been exercised.
+      # ------------------------------------------------------------------
+      - name: Prove the archive can actually be restored
+        env:
+          BKPASS: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -uo pipefail
+
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
+            -pass env:BKPASS -in supabase.json.enc -out check.json
+          node -e '
+            const d = JSON.parse(require("fs").readFileSync("check.json", "utf8"));
+            if (!d.data || !Array.isArray(d.data.enquiries)) {
+              console.error("::error::Round-trip produced something that is not an export.");
+              process.exit(1);
+            }
+            console.log("  ok      supabase archive decrypts and parses");
+          '
+
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
+            -pass env:BKPASS -in sanity.ndjson.enc -out check.ndjson
+          head -1 check.ndjson | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))' \
+            && echo "  ok      sanity archive decrypts and parses"
+
+          shred -u check.json check.ndjson 2>/dev/null || rm -f check.json check.ndjson
+
+      # ------------------------------------------------------------------
+      - name: Stamp the archive with its date
+        id: stamp
+        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: backup-${{ steps.stamp.outputs.date }}
+          path: '*.enc'
+          # 90 days is GitHub's maximum. See the retention note in the header:
+          # this is protection against deletion and corruption, not an archive.
+          retention-days: 90
+          # These are already ciphertext, so there is nothing left to squeeze.
+          compression-level: 0
+          # An upload that silently matched nothing would be the quietest
+          # possible failure: a green run and an empty artifact.
+          if-no-files-found: error

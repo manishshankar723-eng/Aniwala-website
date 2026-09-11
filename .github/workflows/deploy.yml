@@ -47,6 +47,25 @@ concurrency:
 # packages, deployments, issues. That default is what turns a compromised
 # third-party action into a compromised repository, and this job runs three
 # actions it does not own.
+#
+# EVERY ACTION BELOW IS PINNED TO A COMMIT SHA, and the `# v4` after it is a
+# comment for humans — it has no effect on what runs.
+#
+# `actions/checkout@v4` is a TAG, and a tag is a movable pointer in a
+# repository nobody here controls. Whoever can write that tag decides what
+# executes in this job, and this job holds the SSH deploy key and every
+# secret above it. That is not hypothetical: moving a tag onto a malicious
+# commit is the shape most compromised-action incidents have taken.
+#
+# A SHA cannot be moved. The trade is that security fixes no longer arrive on
+# their own either — which is what the `github-actions` block in
+# .github/dependabot.yml is for: it proposes each bump as a pull request with
+# a diff to read, instead of the change arriving silently on the next run.
+#
+# TO UPDATE ONE BY HAND, resolve the tag and check the type is `commit`:
+#   curl -s https://api.github.com/repos/actions/checkout/git/ref/tags/v4
+# Do not paste a SHA from anywhere else, and do not "simplify" these back to
+# tags to make a diff read better.
 permissions:
   contents: read
 
@@ -94,9 +113,83 @@ jobs:
       TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # FULL HISTORY, for the secret scan below. The default is a shallow
+          # clone of one commit, against which a history scan is theatre: it
+          # would pass while a key committed last month sat two commits back.
+          # This repository is ~3MB, so the whole history costs nothing.
+          fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      # ------------------------------------------------------------------
+      # SECRET SCANNING, and why it is here rather than switched on in the
+      # repository settings.
+      #
+      # GitHub scans PUBLIC repositories for leaked credentials for free, and
+      # blocks pushes that contain them. Making a repository PRIVATE takes
+      # that away — it becomes a paid add-on — so the moment this repository
+      # is flipped to private, the control that catches a `.env` before it
+      # lands would silently disappear. This step is what replaces it, and it
+      # works identically either way.
+      #
+      # It runs FIRST, before `npm ci`, for two reasons: it is the fastest
+      # check in the job, and a leaked credential is not something to discover
+      # after four minutes of building.
+      #
+      # WHY THE BINARY AND NOT `gitleaks/gitleaks-action`
+      #
+      # The same argument as the SHA pins above, one step further. An action
+      # is code that runs inside a job holding every secret this deploy needs;
+      # a release tarball with a verified checksum is a fixed artifact that
+      # cannot change under a tag. It also sidesteps the licence key the
+      # official action asks organisations for.
+      #
+      # TO UPGRADE: pick a release, download the tarball, run `sha256sum` on
+      # it, and change both values together. A version bumped without its
+      # checksum fails the step, which is the intended behaviour — never
+      # "fix" that by deleting the checksum line.
+      # ------------------------------------------------------------------
+      - name: Scan the whole history for leaked credentials
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          set -euo pipefail
+
+          curl -sSL --max-time 120 -o gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+
+          # THE CHECKSUM IS THE POINT. Without it this step downloads and
+          # executes whatever that URL happens to serve today, inside a job
+          # that holds the SSH deploy key — which would make the secret
+          # scanner a better attack path than the thing it scans for.
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c -
+
+          tar xzf gitleaks.tar.gz gitleaks
+          chmod +x gitleaks
+
+          # `--redact` so a finding does not print the credential into a log
+          # that is itself public on a public repository. The file and line
+          # are enough to go and look.
+          if ! ./gitleaks git --no-banner --redact --exit-code 1 .; then
+            echo "::error::A credential was found in the repository or its history."
+            echo ""
+            echo "DO NOT simply delete the line and push. Anything that has been"
+            echo "committed is in the history and must be treated as compromised:"
+            echo "  1. ROTATE the credential at its source, first and immediately."
+            echo "  2. Then remove it from the working tree."
+            echo "  3. Rewriting history is optional and does not un-leak anything —"
+            echo "     assume it was scraped the moment it was pushed."
+            echo ""
+            echo "A false positive belongs in .gitleaks.toml with a comment saying"
+            echo "why — never by removing this step."
+            exit 1
+          fi
+
+          rm -f gitleaks gitleaks.tar.gz
+          echo "  ok      no credentials found in the working tree or history"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           # Must satisfy the `engines` field in package.json. This said 20
           # while package.json asked for >=22.12.0, so CI was building on a
@@ -161,7 +254,7 @@ jobs:
         run: node scripts/check-links.mjs
 
       - name: Keep the build for the deploy job
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dist
           path: dist/
@@ -209,21 +302,22 @@ jobs:
     # public_html and the WordPress database.
     #
     # NO LEADING SLASH, and that changed when this moved from FTP to SSH. The
-    # FTP account was chrooted so `/domains/...` meant `/home/u473349005/
-    # domains/...`; an SSH session is not, so a leading slash there would mean
-    # the real filesystem root and the upload would fail — or, worse, succeed
-    # somewhere nobody is serving from. Relative to the login home is the same
-    # directory the FTP path meant, spelled the way SSH reads it.
+    # FTP account was chrooted, so `/domains/...` there resolved inside the
+    # account's own home directory; an SSH session is not chrooted, so a
+    # leading slash would mean the real filesystem root and the upload would
+    # fail — or, worse, succeed somewhere nobody is serving from. Relative to
+    # the login home is the same directory the FTP path meant, spelled the way
+    # SSH reads it.
     # ------------------------------------------------------------------
     env:
       REMOTE_DIR: domains/aniwala.com/public_html/staging/
       SITE_TO_CHECK: https://staging.aniwala.com/
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Fetch the verified build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: dist
           path: dist/
@@ -256,11 +350,29 @@ jobs:
       #     provoke it, so both the retry and its sleep are gone.
       #
       # SECRETS THIS NEEDS — Settings -> Secrets and variables -> Actions:
-      #   SSH_HOST   89.117.157.182
-      #   SSH_USER   u473349005
-      #   SSH_PORT   65002
+      #   SSH_HOST   the server's address
+      #   SSH_USER   the hosting account's SSH username
+      #   SSH_PORT   the SSH port (Hostinger does not use 22)
       #   SSH_KEY    the PRIVATE half of the deploy key, the whole file
       #              including the BEGIN and END lines
+      #
+      # THE VALUES ARE NOT WRITTEN HERE ANY MORE, and that is deliberate.
+      #
+      # They used to be, as a convenience for whoever set the secrets up next.
+      # In a PUBLIC repository that convenience published a complete SSH
+      # target — address, port and username — leaving only the private key
+      # between a stranger and the server. Key-only authentication makes that
+      # hard rather than impossible, and there is no reason to hand out the
+      # first three quarters of the answer.
+      #
+      # Read them from hPanel -> Advanced -> SSH Access, which is where they
+      # are authoritative anyway. A comment goes stale; that panel does not.
+      #
+      # NOTE, IF YOU ARE READING THIS AFTER THE FACT: these values WERE public
+      # in this file's history, and making the repository private does not
+      # retract that. Treat the address, port and username as known, confirm
+      # PASSWORD authentication is disabled for the account, and rely on the
+      # key — which was never here.
       #
       # FTP_HOST, FTP_USER and FTP_PASS are no longer read by anything here.
       # Delete them once a deploy has succeeded, and rotate the FTP password:

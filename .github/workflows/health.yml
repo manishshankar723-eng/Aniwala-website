@@ -1,0 +1,226 @@
+name: Health check
+
+# =====================================================================
+# The standing check on the live site, between deploys.
+#
+# WHY THIS IS SEPARATE FROM deploy.yml
+#
+# The deploy job already asserts the security headers are live — but only in
+# the minute after it uploads. Everything it proves has a shelf life, and three
+# of the failures this site can actually have happen with no deploy involved:
+#
+#   1. .htaccess stops taking effect. The site serves all 67 pages perfectly
+#      with no CSP, no HSTS and no HTTPS redirect. NOTHING LOOKS WRONG. This
+#      has happened here before — see the `include-hidden-files` note in
+#      deploy.yml, where an artifact upload silently dropped the file.
+#
+#   2. The TLS certificate stops renewing. This is the expensive one, and it
+#      is expensive because of a decision in .htaccess:
+#
+#        Strict-Transport-Security: max-age=63072000; includeSubDomains
+#
+#      Two years. Every browser that has ever loaded this site will REFUSE to
+#      connect over a bad certificate, with no "proceed anyway" to click. An
+#      expired certificate is not a warning here, it is an outage, and the
+#      first report comes from a client who cannot reach the site at all.
+#
+#      The deploy already protects the renewal path (`--exclude='.well-known/'`
+#      keeps rsync --delete away from the ACME challenge directory). This is
+#      the other half: noticing when renewal fails for some OTHER reason, while
+#      there is still time to fix it by hand.
+#
+#   3. Somebody changes the site who should not have. A hash of the homepage
+#      will not catch a subtle edit, but it catches the loud version — and the
+#      loud version is what a defacement is.
+#
+# ---------------------------------------------------------------------
+# HOW YOU GET TOLD
+#
+# There is no paging service here and there does not need to be one: GitHub
+# emails the repository owner when a SCHEDULED workflow fails. That is the
+# alert. It costs nothing, needs no third-party account, and it is the reason
+# every check below `exit 1`s rather than printing a warning — a check that
+# only ever writes to a log nobody opens is not monitoring.
+#
+# GITHUB DISABLES SCHEDULED WORKFLOWS ON REPOSITORIES WITH NO ACTIVITY FOR 60
+# DAYS, and it does so quietly. If this site goes a couple of months without a
+# commit, check the Actions tab is still green rather than assuming silence
+# means health. Silence has two causes and only one of them is good.
+# =====================================================================
+
+on:
+  schedule:
+    # 06:30 UTC = 12:00 IST, daily. A failure lands in the inbox at midday
+    # rather than at 3am, which is when it is likeliest to be read.
+    - cron: '30 6 * * *'
+  # So a fix can be confirmed immediately instead of waiting for tomorrow.
+  workflow_dispatch:
+
+# Reads nothing, writes nothing. It only makes outbound HTTPS requests.
+permissions:
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+
+    env:
+      # ------------------------------------------------------------------
+      # MUST TRACK `SITE_TO_CHECK` IN deploy.yml. That file deploys to staging
+      # today because aniwala.com still serves a WordPress install; when the
+      # cutover happens, both files change together or this check quietly
+      # starts watching a host nobody is using any more.
+      # ------------------------------------------------------------------
+      SITE: https://staging.aniwala.com
+      HOST: staging.aniwala.com
+      # Days of certificate life below which this fails. ACME clients normally
+      # renew with 30 days to go, so 21 means "renewal should already have
+      # happened and did not" rather than "expiry is close".
+      CERT_MIN_DAYS: 21
+
+    steps:
+      # ------------------------------------------------------------------
+      - name: The site is actually up
+        run: |
+          set -uo pipefail
+          code=$(curl -sS -o /tmp/home.html -w '%{http_code}' --max-time 30 "$SITE/")
+          if [ "$code" != "200" ]; then
+            echo "::error::$SITE returned HTTP $code, expected 200."
+            exit 1
+          fi
+          echo "  ok      HTTP 200 ($(wc -c < /tmp/home.html) bytes)"
+
+      # ------------------------------------------------------------------
+      - name: The security headers are still being served
+        run: |
+          set -uo pipefail
+          HEADERS=$(curl -sSI --max-time 30 "$SITE/" | tr -d '\r')
+          fail=0
+
+          # The same four the deploy asserts. Kept in the same order and with
+          # the same wording so a failure here reads identically to one there.
+          for h in strict-transport-security x-frame-options x-content-type-options content-security-policy; do
+            if echo "$HEADERS" | grep -qi "^$h:"; then
+              echo "  ok      $h"
+            else
+              echo "::error::Missing header: $h — .htaccess is not taking effect."
+              fail=1
+            fi
+          done
+
+          # A host's own default CSP can be present and useless. `default-src`
+          # is the marker that the policy being served is the one in this repo.
+          if echo "$HEADERS" | grep -qi "^content-security-policy:.*default-src"; then
+            echo "  ok      CSP is ours (has default-src)"
+          else
+            echo "::error::CSP present but not ours — the host default is showing through."
+            fail=1
+          fi
+
+          # connect-src NAMING THE PROJECT is what stops an injected script
+          # posting a form to somebody else's Supabase. A policy that lost this
+          # would still pass every check above it.
+          if echo "$HEADERS" | grep -qi "^content-security-policy:.*connect-src[^;]*supabase\.co"; then
+            echo "  ok      connect-src still names the Supabase project"
+          else
+            echo "::error::CSP no longer names the Supabase project in connect-src."
+            fail=1
+          fi
+
+          exit $fail
+
+      # ------------------------------------------------------------------
+      - name: HTTP still redirects to HTTPS
+        run: |
+          set -uo pipefail
+          # --max-time only; deliberately NOT following the redirect, because
+          # what is being tested is that the redirect exists at all.
+          loc=$(curl -sSI --max-time 30 "http://$HOST/" | tr -d '\r' | grep -i '^location:' | head -1)
+          case "$loc" in
+            *https://*) echo "  ok      http -> $loc" ;;
+            *) echo "::error::No HTTPS redirect on http://$HOST/ — got: ${loc:-<none>}"; exit 1 ;;
+          esac
+
+      # ------------------------------------------------------------------
+      # The dotfile rule in .htaccess. `Options -Indexes` and the
+      # `<FilesMatch "^\.">` deny are belt and braces against one bad upload
+      # publishing a .env or a .git directory — and belt-and-braces guards are
+      # exactly the ones that rot unnoticed, because nothing depends on them
+      # until the day everything does.
+      # ------------------------------------------------------------------
+      - name: Dotfiles are not served
+        run: |
+          set -uo pipefail
+          fail=0
+          for path in .env .git/config .htaccess; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$SITE/$path")
+            # 403 or 404 are both fine: denied, or not there at all.
+            if [ "$code" = "403" ] || [ "$code" = "404" ]; then
+              echo "  ok      /$path -> $code"
+            else
+              echo "::error::/$path returned $code — it may be publicly readable."
+              fail=1
+            fi
+          done
+          exit $fail
+
+      # ------------------------------------------------------------------
+      - name: The TLS certificate is not about to expire
+        run: |
+          set -uo pipefail
+
+          end=$(echo \
+            | openssl s_client -servername "$HOST" -connect "$HOST:443" 2>/dev/null \
+            | openssl x509 -noout -enddate 2>/dev/null \
+            | cut -d= -f2)
+
+          if [ -z "${end:-}" ]; then
+            echo "::error::Could not read the certificate for $HOST at all."
+            echo "That is either a connection failure or a broken TLS setup; both need a look."
+            exit 1
+          fi
+
+          left=$(( ( $(date -d "$end" +%s) - $(date +%s) ) / 86400 ))
+          echo "  cert    expires $end ($left days left)"
+
+          if [ "$left" -lt "$CERT_MIN_DAYS" ]; then
+            echo "::error::Certificate for $HOST expires in $left days (threshold $CERT_MIN_DAYS)."
+            echo ""
+            echo "RENEWAL HAS PROBABLY FAILED — an ACME client renews at about 30 days."
+            echo ""
+            echo "This is urgent because .htaccess sends a two-year HSTS header: once the"
+            echo "certificate expires, browsers that have seen this site REFUSE to connect"
+            echo "and no visitor can click through the warning."
+            echo ""
+            echo "Check the ACME challenge path is reachable and was not deleted by a deploy:"
+            echo "  curl -I $SITE/.well-known/acme-challenge/probe"
+            echo "Then renew from hPanel -> Security -> SSL."
+            exit 1
+          fi
+
+      # ------------------------------------------------------------------
+      # Not integrity in the cryptographic sense — the homepage changes every
+      # time a document is published in the Studio, so a fixed hash would cry
+      # wolf weekly. What is checked is that the page still looks like THIS
+      # site: the markers a defacement or a wrong-directory deploy would take
+      # with it.
+      # ------------------------------------------------------------------
+      - name: The homepage is still our homepage
+        run: |
+          set -uo pipefail
+          fail=0
+          for marker in '<html' 'aniwala' 'canonical'; do
+            if grep -qi -- "$marker" /tmp/home.html; then
+              echo "  ok      homepage contains '$marker'"
+            else
+              echo "::error::Homepage no longer contains '$marker' — check what is being served."
+              fail=1
+            fi
+          done
+          # A WordPress marker on this host means the deploy went to the wrong
+          # directory, or the cutover happened without this file being updated.
+          if grep -qi 'wp-content\|wp-includes' /tmp/home.html; then
+            echo "::error::The homepage contains WordPress markup — this host is serving the wrong site."
+            fail=1
+          fi
+          exit $fail

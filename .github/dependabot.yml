@@ -1,0 +1,111 @@
+# =====================================================================
+# Dependabot — the thing that would have caught the last one.
+#
+# WHY THIS FILE EXISTS
+#
+# A security audit is a photograph. It tells you the state of the tree on the
+# day somebody looked, and says nothing about the advisory published the
+# Tuesday after. This site went from "no known vulnerabilities" to a CRITICAL
+# remote-code-execution advisory in Astro (GHSA-26w7-cxv4-gfx2, AVIF image
+# decoding) without a single line of this repository changing — and nothing
+# here would have said so. It was found by running `npm audit` by hand,
+# which is a habit, and habits are not a control.
+#
+# So this is the standing version of that check: once a week, against the
+# advisory database, as a pull request with a diff to read.
+#
+# ---------------------------------------------------------------------
+# WHY THREE ECOSYSTEMS AND NOT ONE
+#
+# `directory:` is not recursive. One entry for `/` watches the site's own
+# package.json and NOTHING else, which would leave two real trees unwatched:
+#
+#   /         the site. Its build runs on the CI runner that holds the SSH
+#             deploy key, so a compromised build dependency there reaches
+#             production directly.
+#   /studio   a separate npm package (Sanity v6, React 19). It never ships to
+#             visitors, but it is the CMS — whoever runs it can publish to the
+#             live site.
+#   github-actions
+#             the workflow's own pinned action SHAs. See the long note in
+#             deploy.yml: pinning stops a moved tag executing in a job that
+#             holds every secret, but it also stops security fixes arriving on
+#             their own. This is the half that gives them back, as a reviewable
+#             PR rather than a silent change.
+#
+# ---------------------------------------------------------------------
+# READ THE STUDIO PRs BEFORE MERGING THEM
+#
+# `studio/package.json` carries an `overrides` block with a comment explaining
+# why one pin must NOT be moved to the next major. Dependabot has not read that
+# comment and will cheerfully offer the bump. Merging it is how that pin gets
+# lost — the PR looks like every other green dependency update.
+#
+# The site's own tree is safer to take on trust: `npm run verify` is exactly
+# what CI runs (astro check + build + link check), and the deploy job is gated
+# on it, so a bump that breaks the build cannot reach the server.
+# =====================================================================
+version: 2
+
+updates:
+  # ------------------------------------------------------------------
+  # The site. This is the tree that ships to visitors AND builds on the
+  # runner holding the deploy key, so it is the one that matters most.
+  # ------------------------------------------------------------------
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      # Monday morning IST. A PR that lands on a Friday evening sits over the
+      # weekend, and a security PR sitting unread is the same as not having it.
+      day: monday
+      time: '09:00'
+      timezone: Asia/Kolkata
+    # Enough to see a week of drift, few enough to actually read. Security
+    # updates are NOT subject to this limit — Dependabot opens those regardless,
+    # which is the behaviour worth knowing before lowering the number.
+    open-pull-requests-limit: 5
+    labels: [dependencies]
+    groups:
+      # One PR for the routine version drift, so the security ones are not
+      # buried among six patch bumps nobody reads. Majors stay separate:
+      # they are the ones that need the build watched.
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  # ------------------------------------------------------------------
+  # The Studio. Not shipped to visitors — but it publishes to the live site,
+  # so a compromised dependency here is a compromised website by a slower road.
+  # ------------------------------------------------------------------
+  - package-ecosystem: npm
+    directory: /studio
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 3
+    labels: [dependencies, studio]
+    # NO GROUPING, deliberately. The `overrides` pin in studio/package.json has
+    # to be checked against each bump by hand, and a grouped PR is exactly where
+    # that check gets skipped.
+    ignore:
+      # Majors here mean a Sanity Studio migration, which is a deliberate
+      # afternoon's work and not something to be prompted into weekly. Security
+      # advisories still come through — `ignore` does not suppress those.
+      - dependency-name: '*'
+        update-types: [version-update:semver-major]
+
+  # ------------------------------------------------------------------
+  # The pinned action SHAs in deploy.yml. Dependabot rewrites the SHA and
+  # updates the `# v4` comment beside it, so the pin stays a pin.
+  # ------------------------------------------------------------------
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 3
+    labels: [dependencies, ci]

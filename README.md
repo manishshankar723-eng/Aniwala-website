@@ -577,6 +577,43 @@ so it is safe to re-run and safe to run against production.
      `Accept: application/vnd.github+json`
    - Body: `{"event_type": "sanity-publish"}`
    - Trigger on: create, update, delete
+   - **Filter (GROQ):** `_type != "submission"`
+
+   **THE FILTER IS NOT OPTIONAL, and leaving it blank is not a tidiness
+   problem.**
+
+   Every form submission is mirrored into this same dataset as a
+   `submission` document — see *Reading everything in the Studio*. Without
+   the filter, the webhook cannot tell that copy apart from a published
+   page, so:
+
+   - somebody filling in the contact form rebuilds and re-uploads the
+     entire site;
+   - pressing **Confirm** on a booking does it again, because the mirror
+     updates the document;
+   - approving a comment does it a third time.
+
+   None of those change a single byte of the site. A busy day can reach
+   seventy deploys that exist only because a stranger used a form, each one
+   an rsync over the live site — and on a PRIVATE repository, where Actions
+   minutes are billable, that alone can exhaust a monthly allowance in about
+   a week.
+
+   It is also the one part of this pipeline a visitor can trigger. A filter
+   that names what SHOULD rebuild the site is the difference between a
+   content webhook and an open deploy button.
+
+   Add document types here as the mirror grows. If a future document type is
+   internal rather than published, exclude it too:
+
+   ```
+   _type != "submission" && _type != "someOtherInternalType"
+   ```
+
+   **This lives in Sanity's UI, not in this repository**, which is the same
+   hazard as the `validation:` rules in `studio/schemas/`: nothing in a build
+   will ever tell you it is missing. If deploys start firing for no reason
+   anybody can explain, check this field first.
 
 8. **sanity.io/manage → Members → Invite** — add the editor by email. They
    need no GitHub account and no repo access, which is the entire reason this
@@ -850,6 +887,13 @@ With `SANITY_WRITE_TOKEN` set as a Supabase secret, `notify` copies every
 submission into Sanity as a **Form submission** document — call requests,
 briefs, job applications and blog comments, in one section at the top of the
 Studio sidebar with a filtered list per kind.
+
+> **Before turning this on, check the publish webhook has its filter.**
+> These documents land in the same dataset the deploy webhook watches, so
+> without `_type != "submission"` on it (step 7 of *One-time setup*) every
+> enquiry, booking confirmation and comment approval rebuilds and re-uploads
+> the whole site. The mirror is what makes that filter necessary, so the two
+> belong switched on together.
 
 ```bash
 supabase secrets set \
