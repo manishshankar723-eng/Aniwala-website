@@ -98,7 +98,40 @@ updates:
 
   # ------------------------------------------------------------------
   # The pinned action SHAs in deploy.yml. Dependabot rewrites the SHA and
-  # updates the `# v4` comment beside it, so the pin stays a pin.
+  # updates the `# v4` comment beside it, so the pin stays a pin — confirmed
+  # against a real PR, which produced exactly:
+  #
+  #   -  uses: actions/upload-artifact@ea165f8d...  # v4
+  #   +  uses: actions/upload-artifact@043fb46d...  # v7.0.1
+  #
+  # ------------------------------------------------------------------
+  # WHY MAJORS ARE HELD BACK HERE BUT NOT IN THE SITE'S OWN TREE
+  #
+  # The distinction is not caution versus speed. It is whether a bad update
+  # ANNOUNCES ITSELF.
+  #
+  # An npm major that breaks something fails `npm run verify` — the type
+  # check or the build goes red, the PR cannot be merged in good conscience,
+  # and `deploy` is gated on `verify` so the server never sees it. The
+  # pipeline catches those on its own, which is why majors are left flowing
+  # in the two npm blocks above.
+  #
+  # An ACTION major is the other kind. Nothing type-checks a workflow, and
+  # the failure mode on record here is silent: upload-artifact v3 -> v4
+  # started excluding hidden files by default, the upload still succeeded,
+  # and the deploy shipped a site with NO .htaccess — so no CSP, no HSTS, no
+  # HTTPS redirect — while every page rendered perfectly and the run was
+  # green. `include-hidden-files: true` in deploy.yml exists because of that
+  # day, and it is exactly the kind of option a major can redefine again.
+  #
+  # A green run is not evidence for this ecosystem the way it is for the
+  # other two. So majors arrive as something to read rather than something
+  # to merge: check the changelog for the options this repository actually
+  # depends on, then bump the SHA by hand (the method is in deploy.yml).
+  #
+  # SECURITY UPDATES ARE NOT AFFECTED. Dependabot raises those regardless of
+  # any ignore rule, which is the property that makes holding majors back a
+  # review decision rather than a hole.
   # ------------------------------------------------------------------
   - package-ecosystem: github-actions
     directory: /
@@ -109,3 +142,6 @@ updates:
       timezone: Asia/Kolkata
     open-pull-requests-limit: 3
     labels: [dependencies, ci]
+    ignore:
+      - dependency-name: '*'
+        update-types: [version-update:semver-major]
