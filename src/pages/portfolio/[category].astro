@@ -10,6 +10,7 @@ import { getWorkCategories, type WorkCategory } from '../../lib/workCategories';
 import { piecesIn } from '../../lib/pieces';
 import { servicesBySlugs, type Service } from '../../lib/services';
 import { getUiCopy } from '../../lib/studio';
+import { heroArtwork } from '../../lib/artwork';
 import { shareCard } from '../../lib/sanity/client';
 import { fill } from '../../lib/copy';
 
@@ -43,6 +44,7 @@ const ownCount = pieces.filter((p) => p.kind === 'Studio project').length;
 const allOwn = pieces.length > 0 && ownCount === pieces.length;
 
 const ui = await getUiCopy();
+const art = await heroArtwork(category.image);
 const words = { name: category.shortName, title: category.title };
 ---
 
@@ -52,9 +54,11 @@ const words = { name: category.shortName, title: category.title };
   canonical={category.canonicalUrl ?? `/portfolio/${category.slug}/`}
   ogImage={shareCard(category.ogImage)}
   noindex={category.noindex}
+  hero="page"
 >
   <main id="main">
     <PageHero
+      image={art}
       eyebrow={ui.portfolioEyebrow}
       title={category.title}
       lead={category.intro}
@@ -63,8 +67,6 @@ const words = { name: category.shortName, title: category.title };
         { label: ui.crumbPortfolio, href: '/portfolio/' },
         { label: category.title },
       ]}
-      tint={category.tint}
-      compact
     />
 
     <section class="section" id="work">
@@ -76,7 +78,7 @@ const words = { name: category.shortName, title: category.title };
             <p class="empty-title">{fill(ui.portfolioEmptyTitle, words)}</p>
             <p class="empty-body">{ui.portfolioEmptyBodyOne}</p>
             <p class="empty-body">{ui.portfolioEmptyBodyTwo}</p>
-            <a href="/contact/" class="empty-cta">
+            <a href="/contact/" class="btn btn--primary">
               {fill(ui.portfolioEmptyCta, words)} <span aria-hidden="true">&rarr;</span>
             </a>
           </div>
@@ -221,36 +223,4 @@ const words = { name: category.shortName, title: category.title };
   }
 
   /* --- Empty state ------------------------------------------------------ */
-  .empty {
-    padding: clamp(3rem, 8vw, 6rem) 1.5rem;
-    text-align: center;
-    border: 1px dashed var(--color-line-strong);
-    border-radius: 0.75rem;
-  }
-  .empty-title {
-    margin: 0;
-    font-family: var(--font-display);
-    font-size: calc(clamp(1.4rem, 3vw, 2rem) * var(--type-display-scale, 1));
-    font-weight: calc(750 + var(--type-display-weight, 0));
-    font-stretch: 108%;
-    letter-spacing: calc(-0.022em + var(--type-display-track, 0em));
-    text-wrap: balance;
-  }
-  .empty-body {
-    margin: 1rem auto 0;
-    max-width: 48ch;
-    line-height: 1.65;
-    color: var(--color-ink-muted);
-  }
-  .empty-cta {
-    display: inline-block;
-    margin-top: 1.75rem;
-    font-family: var(--font-label);
-    font-size: calc(0.75rem * var(--type-label-scale, 1));
-    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
-    color: var(--color-accent);
-    text-decoration: none;
-    padding-bottom: 0.3rem;
-    border-bottom: 1px solid currentColor;
-  }
 </style>

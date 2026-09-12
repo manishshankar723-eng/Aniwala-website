@@ -22,7 +22,20 @@
 import { defineType, defineField, defineArrayMember } from 'sanity';
 import { seoFields } from './seoFields';
 
-const titleBody = (name: string, title: string, description: string, withTools = false) =>
+/**
+ * A list of title-and-body entries, with the two extras the pipeline needs.
+ *
+ * `tools` is small print under a stage. `image` is the picture beside it —
+ * see `ProcessFlow.astro` for where it lands. Both are pipeline-only, so they
+ * are options rather than fields on every list of this shape: the offerings
+ * list is prose and a picture per line would be four more uploads for nothing.
+ */
+const titleBody = (
+  name: string,
+  title: string,
+  description: string,
+  extras: { tools?: boolean; image?: boolean } = {}
+) =>
   defineField({
     name,
     title,
@@ -47,7 +60,7 @@ const titleBody = (name: string, title: string, description: string, withTools =
             rows: 3,
             validation: (Rule) => Rule.required(),
           }),
-          ...(withTools
+          ...(extras.tools
             ? [
                 defineField({
                   name: 'tools',
@@ -58,8 +71,30 @@ const titleBody = (name: string, title: string, description: string, withTools =
                 }),
               ]
             : []),
+          ...(extras.image
+            ? [
+                defineField({
+                  name: 'image',
+                  title: 'Image',
+                  type: 'image',
+                  options: { hotspot: true },
+                  description:
+                    'Work from this stage — the rough, the blockout, the sheet. Shown beside the step on a wide screen and above it on a phone. Landscape reads best. Optional: a stage with nothing uploaded simply renders as text, and the others keep their pictures.',
+                  fields: [
+                    defineField({
+                      name: 'alt',
+                      title: 'Alt text',
+                      type: 'string',
+                      description:
+                        'What the picture shows, for screen readers and for when it fails to load. Describe the work, not the stage — the step title beside it already names that.',
+                      validation: (Rule) => Rule.required().error('Every image needs alt text.'),
+                    }),
+                  ],
+                }),
+              ]
+            : []),
         ],
-        preview: { select: { title: 'title', subtitle: 'body' } },
+        preview: { select: { title: 'title', subtitle: 'body', media: 'image' } },
       }),
     ],
   });
@@ -180,7 +215,7 @@ export default defineType({
       'pipeline',
       'Pipeline',
       'The route a job takes through the studio. A real sequence — it renders numbered.',
-      true,
+      { tools: true, image: true },
     ),
     defineField({
       name: 'tools',

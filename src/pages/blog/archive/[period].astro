@@ -7,6 +7,7 @@ import CtaBand from '../../../components/CtaBand.astro';
 import Footer from '../../../components/Footer.astro';
 import { getArchive, getPostsByPeriod, getPosts, type Post, getPostCategories } from '../../../lib/posts';
 import { getUiCopy } from '../../../lib/studio';
+import { heroArtwork } from '../../../lib/artwork';
 import { fill, plural } from '../../../lib/copy';
 
 /**
@@ -47,6 +48,7 @@ interface Props {
 const { label, period, posts, counts } = Astro.props;
 
 const ui = await getUiCopy();
+const art = await heroArtwork();
 const count = plural(posts.length, ui.postCountOne, ui.postCountMany);
 ---
 
@@ -54,9 +56,11 @@ const count = plural(posts.length, ui.postCountOne, ui.postCountMany);
   title={`${label} — ${ui.crumbBlog} — ${ui.siteName}`}
   description={fill(ui.archiveDescription, { name: label })}
   canonical={`/blog/archive/${period}/`}
+  hero="page"
 >
   <main id="main">
     <PageHero
+      image={art}
       eyebrow={ui.archiveEyebrow}
       title={label}
       lead={fill(ui.archiveLead, { name: label })}
@@ -66,8 +70,6 @@ const count = plural(posts.length, ui.postCountOne, ui.postCountMany);
         { label: ui.crumbBlog, href: '/blog/' },
         { label },
       ]}
-      tint="195 60% 24%"
-      compact
     />
 
     <section class="section">

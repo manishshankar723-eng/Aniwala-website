@@ -61,6 +61,7 @@ export function initMotion() {
     // fetched just to set two properties.
     revealAllImmediately();
     initAnchors();
+    landOnHash();
     return;
   }
 
@@ -81,6 +82,7 @@ export function initMotion() {
     initReveals();
     initAnchors();
     ScrollTrigger!.refresh();
+    landOnHash();
   })();
 }
 
@@ -190,42 +192,100 @@ function initAnchors() {
       if (!target) return;
 
       e.preventDefault();
-
-      /*
-       * LENIS APPLIES scroll-margin-top ITSELF, as of 1.3 — it reads the
-       * computed property off the target and subtracts it (see `scrollTo` in
-       * lenis.mjs). This used to pass `offset: -margin` to reproduce a native
-       * jump, which is what older versions needed and what the comment here
-       * used to say; against this version it subtracted the margin a SECOND
-       * time and every anchor landed a full header-height too low. On #book
-       * that was most of a screen of empty space above the heading, with the
-       * widget pushed off the bottom.
-       *
-       * So the margin is read only for the arithmetic in `fitShift`, and the
-       * offset carries nothing but the shift.
-       */
-      const margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
-      const shift = fitShift(target, margin);
-
-      if (lenis) {
-        lenis.scrollTo(target, { offset: shift });
-      } else if (shift) {
-        // scrollIntoView cannot express "and then a bit further", so the
-        // destination is computed outright. Same arithmetic the browser does
-        // for scroll-margin-top, plus the shift.
-        const top = window.scrollY + target.getBoundingClientRect().top - margin + shift;
-        window.scrollTo({ top });
-      } else {
-        // Native scrollIntoView honours scroll-margin-top by itself.
-        target.scrollIntoView({ block: 'start' });
-      }
-
-      // Move keyboard focus too, or the skip link scrolls but strands the
-      // caret in the nav. tabindex lets a non-interactive target receive it.
-      if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
-      target.focus({ preventScroll: true });
+      jumpTo(target);
     });
   });
+}
+
+/**
+ * Scroll so that `target` — and the thing inside it actually worth seeing —
+ * is on screen.
+ *
+ * LENIS APPLIES scroll-margin-top ITSELF, as of 1.3: it reads the computed
+ * property off the target and subtracts it (see `scrollTo` in lenis.mjs).
+ * This used to pass `offset: -margin` to reproduce a native jump, which is
+ * what older versions needed; against this version it subtracted the margin a
+ * SECOND time and every anchor landed a full header-height too low. On #book
+ * that was most of a screen of empty space above the heading, with the widget
+ * pushed off the bottom. So the margin is read only for the arithmetic in
+ * `fitShift`, and the offset carries nothing but the shift.
+ *
+ * `immediate` is for a jump the visitor did not watch begin — arriving on a
+ * page that already carries the fragment. Animating that would scroll the
+ * page out from under someone who has not seen it yet.
+ */
+function jumpTo(target: HTMLElement, immediate = false) {
+  const margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
+  const shift = fitShift(target, margin);
+
+  if (lenis) {
+    lenis.scrollTo(target, { offset: shift, immediate });
+  } else if (shift) {
+    // scrollIntoView cannot express "and then a bit further", so the
+    // destination is computed outright. Same arithmetic the browser does
+    // for scroll-margin-top, plus the shift.
+    const top = window.scrollY + target.getBoundingClientRect().top - margin + shift;
+    window.scrollTo({ top });
+  } else {
+    // Native scrollIntoView honours scroll-margin-top by itself.
+    target.scrollIntoView({ block: 'start' });
+  }
+
+  // Move keyboard focus too, or the skip link scrolls but strands the
+  // caret in the nav. tabindex lets a non-interactive target receive it.
+  if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+  target.focus({ preventScroll: true });
+}
+
+/**
+ * Land on the fragment the page was OPENED with.
+ *
+ * `initAnchors` only ever handled a click on a link to the page you were
+ * already on. That covered "Book Appointment" on the two pages that carry the
+ * widget — the homepage and the contact page — and covered nothing at all on
+ * the other sixty-odd, where the same button is a real navigation to
+ * `/contact/#book`. Those arrived through the browser, or through
+ * ClientRouter, and got a plain anchor jump: the top of the section, under
+ * the header, which on `#book` is 120px of padding and a centred display
+ * headline with the calendar below the fold. The button said "Book
+ * Appointment" and delivered a title.
+ *
+ * So the correction `fitShift` exists to make is applied on arrival too, and
+ * the button means the same thing from every page on the site.
+ *
+ * TWO PASSES, because the page is still moving when the first one runs:
+ *
+ *   The calendar does not exist in the HTML — `BookCall` builds the day grid
+ *   in its own `astro:page-load` handler — so the widget's height, which is
+ *   the whole input to `fitShift`, is wrong until that has run. A frame is
+ *   enough: every handler for that event has fired synchronously by then.
+ *
+ *   The display face swaps in after first paint, and the headline above the
+ *   target changes height when it does, moving the target out from under the
+ *   position just scrolled to. Hence the second pass — skipped if the visitor
+ *   has scrolled in the meantime, because then the page is theirs.
+ */
+function landOnHash() {
+  if (!location.hash || location.hash === '#') return;
+
+  const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+  if (!target) return;
+
+  let landedAt = -1;
+  const land = () => {
+    jumpTo(target, true);
+    landedAt = window.scrollY;
+  };
+
+  requestAnimationFrame(land);
+
+  if (document.fonts && document.fonts.status !== 'loaded') {
+    void document.fonts.ready.then(() =>
+      requestAnimationFrame(() => {
+        if (Math.abs(window.scrollY - landedAt) < 4) land();
+      })
+    );
+  }
 }
 
 /**

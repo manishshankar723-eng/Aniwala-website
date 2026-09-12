@@ -167,7 +167,7 @@ export interface SiteCopy {
   marqueeItems: string[];
   capabilities: string[];
   /** The numbered "how we work" sequence. One list, two pages. */
-  processSteps: { title: string; body: string }[];
+  processSteps: { title: string; body: string; image?: SanityImage }[];
 }
 
 /**
@@ -995,7 +995,6 @@ export interface PrivacyPage {
   eyebrow: string;
   title: string;
   lead: string;
-  tint: string;
   /** ISO date. The page prints it as the "last updated" line. */
   lastUpdated: string;
   lastUpdatedLabel: string;
@@ -1025,7 +1024,6 @@ const EMPTY_PRIVACY: PrivacyPage = {
   eyebrow: '',
   title: '',
   lead: '',
-  tint: '210 70% 22%',
   lastUpdated: '',
   lastUpdatedLabel: '',
   body: [],

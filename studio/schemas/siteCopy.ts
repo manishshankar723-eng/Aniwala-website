@@ -70,8 +70,29 @@ export default defineType({
           fields: [
             defineField({ name: 'title', title: 'Title', type: 'string', validation: (R) => R.required() }),
             defineField({ name: 'body', title: 'Body', type: 'text', rows: 3, validation: (R) => R.required() }),
+            /* Optional, one per step. A step with nothing uploaded renders as
+               text and the ones beside it keep their pictures, so this can be
+               filled in over time rather than all at once. */
+            defineField({
+              name: 'image',
+              title: 'Image',
+              type: 'image',
+              options: { hotspot: true },
+              description:
+                'Shown above the step. Landscape reads best — it is drawn wide and short.',
+              fields: [
+                defineField({
+                  name: 'alt',
+                  title: 'Alt text',
+                  type: 'string',
+                  description:
+                    'What the picture shows, for screen readers and for when it fails to load.',
+                  validation: (R) => R.required().error('Every image needs alt text.'),
+                }),
+              ],
+            }),
           ],
-          preview: { select: { title: 'title', subtitle: 'body' } },
+          preview: { select: { title: 'title', subtitle: 'body', media: 'image' } },
         }),
       ],
     }),

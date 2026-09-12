@@ -709,6 +709,9 @@ export const sanityServices = (): Loader =>
         title: p.title,
         body: p.body,
         ...(p.tools ? { tools: p.tools } : {}),
+        /* Omitted rather than sent as null, for the reason `hero` is above:
+           the Zod field is `.optional()`, which null does not satisfy. */
+        ...(p.image ? { image: p.image } : {}),
       })),
       tools: doc.tools ?? [],
       deliverables: doc.deliverables ?? [],
@@ -871,6 +874,7 @@ export const sanitySiteCopy = (): Loader =>
       processSteps: (doc.processSteps ?? []).map((p: Record<string, any>) => ({
         title: p.title,
         body: p.body,
+        ...(p.image ? { image: p.image } : {}),
       })),
       draft: isDraft,
     }),
@@ -1042,14 +1046,13 @@ export const sanityPrivacyPage = (): Loader =>
     hasBody: false,
     idFrom: () => 'privacyPage',
     projection: `
-      _id, eyebrow, title, lead, tint, lastUpdated, lastUpdatedLabel, body,
+      _id, eyebrow, title, lead, lastUpdated, lastUpdatedLabel, body,
       contactHeading, contactLead, seoTitle, seoDescription, ogImage, noindex, canonicalUrl
     `,
     toData: (doc, isDraft) => ({
       eyebrow: doc.eyebrow,
       title: doc.title,
       lead: doc.lead,
-      tint: doc.tint,
       lastUpdated: doc.lastUpdated,
       lastUpdatedLabel: doc.lastUpdatedLabel,
       body: doc.body ?? [],

@@ -3,10 +3,26 @@ import { getNavigation, getUiCopy, getBrand } from '../lib/studio';
 import { fill } from '../lib/copy';
 
 interface Props {
-  /** True on pages with a full-bleed hero that the header sits on top of. */
-  overlay?: boolean;
+  /**
+   * Which hero the header is sitting on top of, if any.
+   *
+   * `'video'`  the homepage's full-bleed loop. Transparent, and pinned
+   *            light-on-dark in BOTH themes, because the scrim over the video
+   *            is dark either way.
+   * `'page'`   an inner page's hero band. Transparent too — the header used to
+   *            go solid everywhere but the homepage, which is why the top of
+   *            `/about` looked nothing like the top of `/` — but following the
+   *            theme tokens rather than pinning, because that band is light in
+   *            light mode and near-black type on it is the readable choice.
+   * omitted    no hero. Solid from the first pixel; the page owns its own top
+   *            offset. `/404`, `/schedule` and the admin routes.
+   *
+   * Both overlay modes go solid once scrolled past the hero — see
+   * `.is-scrolled` and the listener at the foot of this file.
+   */
+  overlay?: 'video' | 'page';
 }
-const { overlay = false } = Astro.props;
+const { overlay } = Astro.props;
 const path = Astro.url.pathname;
 
 /* Some routes are worth a footer link and a search entry but not one of the
@@ -21,8 +37,8 @@ const isCurrent = (href?: string) =>
 
 <header
   id="site-header"
-  data-overlay={overlay ? '' : null}
-  class:list={['site-header', overlay ? 'is-transparent' : 'is-solid']}
+  data-overlay={overlay ?? null}
+  class:list={['site-header', overlay ? ['is-overlay', `is-overlay--${overlay}`] : 'is-solid']}
 >
   <div class="header-inner">
     {/*
@@ -191,7 +207,7 @@ const isCurrent = (href?: string) =>
         </svg>
       </button>
 
-      <a href={ctaHref} class="cta-btn">{ctaLabel}</a>
+      <a href={ctaHref} class="btn btn--sm btn--primary cta-btn">{ctaLabel}</a>
 
       <button
         type="button"
@@ -267,7 +283,7 @@ const isCurrent = (href?: string) =>
       )
     }
 
-    <a href={ctaHref} class="cta-btn cta-btn--block">{ctaLabel}</a>
+    <a href={ctaHref} class="btn btn--primary cta-btn--block">{ctaLabel}</a>
   </nav>
 </div>
 
@@ -286,7 +302,7 @@ const isCurrent = (href?: string) =>
       border-color 0.3s ease;
   }
 
-  .site-header.is-transparent {
+  .site-header.is-overlay {
     background: transparent;
   }
   .site-header.is-solid,
@@ -297,27 +313,34 @@ const isCurrent = (href?: string) =>
     border-bottom-color: var(--color-line);
   }
 
-  /* While transparent over the hero, the header stays light-on-dark in BOTH
-     themes: the hero scrim is dark regardless of theme, so --color-ink would
-     render the nav near-black and invisible in light mode. Once .is-scrolled
-     adds the solid background, the normal theme tokens take over again. */
-  .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .brand,
-  .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .nav-link,
-  .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .nav-caret-btn,
-  .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .icon-btn {
+  /*
+    Over the VIDEO hero only, the header stays light-on-dark in BOTH themes:
+    that scrim is dark regardless of theme, so --color-ink would render the
+    nav near-black and invisible in light mode. Once .is-scrolled adds the
+    solid background, the normal theme tokens take over again.
+
+    Over a PAGE hero there is deliberately no override. That band follows the
+    theme, so the nav inherits --color-ink and is dark on light, light on dark
+    — which is the whole reason inner pages can be transparent at all without
+    dragging a black stripe across the top of light mode.
+  */
+  .site-header.is-overlay--video:not(.is-scrolled):not(.menu-open) .brand,
+  .site-header.is-overlay--video:not(.is-scrolled):not(.menu-open) .nav-link,
+  .site-header.is-overlay--video:not(.is-scrolled):not(.menu-open) .nav-caret-btn,
+  .site-header.is-overlay--video:not(.is-scrolled):not(.menu-open) .icon-btn {
     color: #f4f4f2;
   }
-  .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .brand-sub {
+  .site-header.is-overlay--video:not(.is-scrolled):not(.menu-open) .brand-sub {
     color: rgb(255 255 255 / 0.62);
   }
-  .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .burger-bar {
+  .site-header.is-overlay--video:not(.is-scrolled):not(.menu-open) .burger-bar {
     background: #f4f4f2;
   }
-  .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .nav-link:hover,
-  .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .nav-link[aria-current='page'],
-  .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .nav-group:hover .nav-link--parent,
-  .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .nav-group:hover .nav-caret-btn,
-  .site-header.is-transparent:not(.is-scrolled):not(.menu-open) .icon-btn:hover {
+  .site-header.is-overlay--video:not(.is-scrolled):not(.menu-open) .nav-link:hover,
+  .site-header.is-overlay--video:not(.is-scrolled):not(.menu-open) .nav-link[aria-current='page'],
+  .site-header.is-overlay--video:not(.is-scrolled):not(.menu-open) .nav-group:hover .nav-link--parent,
+  .site-header.is-overlay--video:not(.is-scrolled):not(.menu-open) .nav-group:hover .nav-caret-btn,
+  .site-header.is-overlay--video:not(.is-scrolled):not(.menu-open) .icon-btn:hover {
     color: var(--color-accent-on-dark);
   }
 
@@ -681,35 +704,23 @@ const isCurrent = (href?: string) =>
   /* Theme icon visibility lives in global.css — it keys off :root, which
      Astro's style scoping would rewrite if it were declared here. */
 
+  /* Everything this button LOOKS like is `.btn.btn--sm.btn--primary` in
+     global.css. What is left here is only where it sits: hidden until there
+     is room for it, and nudged off the icon beside it. */
   .cta-btn {
     display: none;
-    align-items: center;
-    padding: 0.72rem 1.15rem;
     margin-left: 0.4rem;
-    border-radius: 0.3rem;
-    background: var(--color-cta);
-    color: var(--color-cta-ink);
-    font-family: var(--font-label);
-    font-size: calc(0.92rem * var(--type-label-scale, 1));
-    font-weight: calc(600 + var(--type-label-weight, 0));
-    letter-spacing: calc(0.005em + var(--type-label-track, 0em));
-    text-decoration: none;
-    white-space: nowrap;
-    transition: background-color 0.2s ease;
   }
   @media (min-width: 900px) {
     .cta-btn {
       display: inline-flex;
     }
   }
-  .cta-btn:hover {
-    background: var(--color-cta-hover);
-  }
+  /* The same button inside the mobile drawer, where it is the last thing in a
+     stacked list and takes the full width rather than hugging its label. */
   .cta-btn--block {
-    display: inline-flex;
-    justify-content: center;
+    display: flex;
     margin: 1.75rem 0 0;
-    padding: 0.95rem 1.25rem;
   }
 
   /* --- Burger ------------------------------------------------------- */

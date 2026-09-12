@@ -149,26 +149,32 @@ export const heroBlock = defineType({
         'The trail above the title reads "Home / <this>". Leave blank for no trail. Not used on a video hero.',
       hidden: ({ parent }) => parent?.variant === 'video',
     }),
+    /*
+     * The picture behind the headline.
+     *
+     * WHY THIS AND NOT A SLOT: a hero background belongs to the page it is
+     * the top of. Filed against a named slot it would need a code change and
+     * a Studio redeploy before a newly written page could have one — see the
+     * long note in `src/config/imageSlots.ts` about the twelve slots that
+     * turned out to be wrong for exactly this reason. Here it is created with
+     * the page, deleted with the page, and a page an editor invents on a
+     * Tuesday can have its own picture on the same Tuesday.
+     *
+     * Leave it blank and the hero falls back to the site-wide picture filed
+     * under Images → "Every page — hero background", and then to the colour
+     * wash if that is empty too. No page ever renders broken for want of one.
+     *
+     * There is no alt text because there is nothing to say: the headline
+     * sitting on top of it already names the page, and a screen reader
+     * reading the same thing twice is worse than reading it once.
+     */
     defineField({
-      name: 'tint',
-      title: 'Tint',
-      type: 'string',
+      name: 'image',
+      title: 'Background image',
+      type: 'image',
+      options: { hotspot: true },
       description:
-        'Washes the hero background. An HSL triple like "210 70% 22%" — hue, saturation, lightness. Leave blank for the default.',
-      validation: (Rule) =>
-        Rule.custom((value) =>
-          !value || /^\d{1,3} \d{1,3}% \d{1,3}%$/.test(value)
-            ? true
-            : 'Three parts, like "210 70% 22%".'
-        ),
-      hidden: ({ parent }) => parent?.variant === 'video',
-    }),
-    defineField({
-      name: 'compact',
-      title: 'Compact',
-      type: 'boolean',
-      description: 'Tighter vertical space. Use on pages that lead straight into a grid or list.',
-      initialValue: false,
+        'Sits behind the headline, dimmed under a wash so the text stays readable whatever you upload. Leave blank to use the site-wide hero background from Images.',
       hidden: ({ parent }) => parent?.variant === 'video',
     }),
     /**
@@ -212,7 +218,15 @@ export const heroBlock = defineType({
       type: 'string',
       description:
         'Shown before the video loads and wherever it cannot play — on a slow connection this may be the only thing seen. Upload the picture under Images against the slot you pick here.',
-      options: { list: IMAGE_SLOTS.map((s) => ({ title: s.title, value: s.name })) },
+      /* Home slots only. The site-wide hero background is also a slot, and
+         offering it here would let someone pick the picture that every OTHER
+         page falls back to as this video's still. */
+      options: {
+        list: IMAGE_SLOTS.filter((s) => s.group === 'Home').map((s) => ({
+          title: s.title,
+          value: s.name,
+        })),
+      },
       hidden: ({ parent }) => parent?.variant !== 'video',
     }),
   ],

@@ -604,7 +604,13 @@ const siteCopy = defineCollection({
        two that drift. Required to be non-empty: both pages render a heading
        above it unconditionally. */
     processSteps: z
-      .array(z.object({ title: z.string().min(1), body: z.string().min(1) }))
+      .array(
+        z.object({
+          title: z.string().min(1),
+          body: z.string().min(1),
+          image: sanityImage.optional(),
+        })
+      )
       .min(1),
     /* `categoryBlurbs` was here. It moved onto the `postCategory` documents,
        where a category and its description are one thing rather than two
@@ -736,6 +742,9 @@ const titleBodyEntry = z.object({
   title: z.string().min(1),
   body: z.string().min(1),
   tools: z.string().optional(),
+  /* Pipeline steps only, and optional there — a stage with no picture falls
+     back to text, which is what every stage did before any of them had one. */
+  image: sanityImage.optional(),
 });
 
 const servicesCollection = defineCollection({
@@ -1134,7 +1143,6 @@ const privacyPage = defineCollection({
     eyebrow: z.string().min(1),
     title: z.string().min(1),
     lead: z.string().min(1),
-    tint: z.string().min(1),
     lastUpdated: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD.'),
     lastUpdatedLabel: z.string().min(1),
     body: z

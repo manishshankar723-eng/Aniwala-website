@@ -9,13 +9,15 @@
  * is a compact band, and folding both into one component with a `variant` flag
  * would mean every future change to either having to reason about the other.
  *
- * The CTA is rendered here rather than inside `VideoHero` because the button
- * sits on the dark scrim and needs light-on-dark styling that only makes sense
- * in that context — the same reason the markup lived in `index.astro` before.
+ * The CTA is rendered here rather than inside `VideoHero` because it belongs
+ * to the block's fields, not to the hero's chrome. It carries `.btn--on-dark`:
+ * the scrim under it is dark in BOTH themes, so it is the one button on the
+ * site that cannot follow the theme tokens. See global.css.
  */
 import VideoHero from '../VideoHero.astro';
 import PageHero from '../PageHero.astro';
-import { getArtwork } from '../../lib/artwork';
+import { getArtwork, heroArtwork } from '../../lib/artwork';
+import type { SanityImage } from '../../lib/sanity/client';
 
 interface Props {
   block: {
@@ -26,10 +28,10 @@ interface Props {
     ctaLabel?: string;
     ctaHref?: string;
     crumbLabel?: string;
-    tint?: string;
-    compact?: boolean;
     videoUrl?: string;
     posterSlot?: string;
+    /** Background picture for a standard hero. The video variant uses `posterSlot`. */
+    image?: SanityImage;
   };
 }
 
@@ -40,6 +42,11 @@ const isVideo = block.variant === 'video';
    is shown before the video paints and whenever it cannot play at all, so on a
    slow connection it may be the only thing a visitor sees. */
 const poster = isVideo && block.posterSlot ? await getArtwork(block.posterSlot) : undefined;
+
+/* The band's backdrop: this page's own picture, or the site-wide one when the
+   editor has not set one here. `heroArtwork` owns that fallback so the eleven
+   other `PageHero` call sites do not each re-decide it. */
+const art = isVideo ? undefined : await heroArtwork(block.image);
 
 /* Every inner page's trail is "Home / <this page>", so it is built here
    rather than typed into each document — one fewer thing to get wrong, and
@@ -61,7 +68,7 @@ const hasCta = Boolean(block.ctaLabel && block.ctaHref);
       sub={block.sub}
     >
       {hasCta && (
-        <a href={block.ctaHref} class="hero-cta" data-reveal data-reveal-delay="0.24">
+        <a href={block.ctaHref} class="btn btn--on-dark" data-reveal data-reveal-delay="0.24">
           {block.ctaLabel}
           <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path
@@ -81,44 +88,7 @@ const hasCta = Boolean(block.ctaLabel && block.ctaHref);
       title={block.headline}
       lead={block.sub}
       crumbs={crumbs}
-      tint={block.tint}
-      compact={block.compact}
+      image={art}
     />
   )
 }
-
-<style>
-  /* Sits on the dark scrim, so these colours are pinned light-on-dark rather
-     than taken from the theme tokens. */
-  .hero-cta {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.6rem;
-    margin-top: 2.25rem;
-    padding: 0.85rem 1.5rem;
-    border: 1px solid rgb(255 255 255 / 0.45);
-    border-radius: 100px;
-    font-family: var(--font-label);
-    font-size: calc(0.75rem * var(--type-label-scale, 1));
-    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
-    color: #f4f4f2;
-    text-decoration: none;
-    transition:
-      background-color 0.25s ease,
-      color 0.25s ease,
-      border-color 0.25s ease;
-  }
-  .hero-cta svg {
-    width: 1rem;
-    height: 1rem;
-    transition: transform 0.25s ease;
-  }
-  .hero-cta:hover {
-    background: var(--color-accent-on-dark);
-    border-color: var(--color-accent-on-dark);
-    color: #14161d;
-  }
-  .hero-cta:hover svg {
-    transform: translateX(3px);
-  }
-</style>

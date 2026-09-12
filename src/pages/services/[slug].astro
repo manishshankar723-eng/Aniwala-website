@@ -1,7 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import PageHero from '../../components/PageHero.astro';
-import { toArtwork } from '../../lib/artwork';
+import { heroArtwork } from '../../lib/artwork';
 import { getFaqs, getUiCopy } from '../../lib/studio';
 import { shareCard } from '../../lib/sanity/client';
 import { fill, ldJson } from '../../lib/copy';
@@ -66,7 +66,7 @@ const serviceSchema = {
    `service-<slug>`, which came from a hardcoded list of six and so could
    never cover a seventh service created in the Studio. See
    `config/imageSlots.ts`. */
-const heroArt = toArtwork(service.hero);
+const heroArt = await heroArtwork(service.hero);
 
 /* FAQs moved to the CMS — they are the most-edited copy on a service page. */
 const faqs = await getFaqs(`service:${service.slug}`);
@@ -78,6 +78,7 @@ const faqs = await getFaqs(`service:${service.slug}`);
   canonical={service.canonicalUrl ?? `/services/${service.slug}/`}
   ogImage={shareCard(service.ogImage)}
   noindex={service.noindex}
+  hero="page"
 >
   <main id="main">
     <PageHero
@@ -85,7 +86,6 @@ const faqs = await getFaqs(`service:${service.slug}`);
       eyebrow={ui.serviceEyebrow}
       title={service.title}
       lead={service.intro}
-      tint={service.tint}
       crumbs={[
         { label: ui.crumbHome, href: '/' },
         { label: ui.crumbServices, href: '/services/' },
@@ -93,8 +93,8 @@ const faqs = await getFaqs(`service:${service.slug}`);
       ]}
     >
       <div class="hero-actions" data-reveal data-reveal-delay="0.22">
-        <a href="/contact/" class="btn-primary">{ui.serviceHeroPrimary}</a>
-        <a href="#pipeline" class="btn-ghost">{ui.serviceHeroSecondary}</a>
+        <a href="/contact/" class="btn btn--primary">{ui.serviceHeroPrimary}</a>
+        <a href="#pipeline" class="btn btn--ghost">{ui.serviceHeroSecondary}</a>
       </div>
     </PageHero>
 
@@ -138,8 +138,8 @@ const faqs = await getFaqs(`service:${service.slug}`);
         <div class="spec" data-reveal>
           <p class="section-eyebrow">{ui.serviceToolsEyebrow}</p>
           <h2 class="spec-title">{ui.serviceToolsTitle}</h2>
-          <ul class="tools">
-            {service.tools.map((t) => <li class="tool">{t}</li>)}
+          <ul class="chip-row">
+            {service.tools.map((t) => <li class="chip chip--lg">{t}</li>)}
           </ul>
           <p class="spec-note">{ui.serviceToolsNote}</p>
         </div>
@@ -221,42 +221,6 @@ const faqs = await getFaqs(`service:${service.slug}`);
     flex-wrap: wrap;
     gap: 0.75rem;
     margin-top: 2.25rem;
-  }
-  .btn-primary {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.95rem 1.6rem;
-    border-radius: 0.3rem;
-    background: var(--color-cta);
-    color: var(--color-cta-ink);
-    font-family: var(--font-label);
-    font-size: calc(0.92rem * var(--type-label-scale, 1));
-    font-weight: calc(600 + var(--type-label-weight, 0));
-    letter-spacing: calc(0.005em + var(--type-label-track, 0em));
-    text-decoration: none;
-    transition: background-color 0.2s ease;
-  }
-  .btn-primary:hover {
-    background: var(--color-cta-hover);
-  }
-  .btn-ghost {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.95rem 1.6rem;
-    border: 1px solid var(--color-line-strong);
-    border-radius: 0.3rem;
-    font-family: var(--font-label);
-    font-size: calc(0.72rem * var(--type-label-scale, 1));
-    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
-    color: var(--color-ink);
-    text-decoration: none;
-    transition:
-      border-color 0.2s ease,
-      color 0.2s ease;
-  }
-  .btn-ghost:hover {
-    border-color: var(--color-accent);
-    color: var(--color-accent);
   }
 
   /* --- Offerings -------------------------------------------------------- */
@@ -340,22 +304,6 @@ const faqs = await getFaqs(`service:${service.slug}`);
     color: var(--color-ink-faint);
   }
 
-  .tools {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.6rem;
-  }
-  .tool {
-    padding: 0.6rem 1.1rem;
-    border: 1px solid var(--color-line);
-    border-radius: 100px;
-    font-family: var(--font-label);
-    font-size: calc(0.78rem * var(--type-label-scale, 1));
-    color: var(--color-ink-muted);
-  }
 
   .deliverables {
     list-style: none;
@@ -388,7 +336,8 @@ const faqs = await getFaqs(`service:${service.slug}`);
   /* --- Related ---------------------------------------------------------- */
   .related {
     display: grid;
-    gap: 1rem;
+    /* Matches the related grids on the blog post and case study pages. */
+    gap: 1.25rem;
     grid-template-columns: 1fr;
   }
   @media (min-width: 700px) {

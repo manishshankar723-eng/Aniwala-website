@@ -293,7 +293,7 @@ const initials = hostName
         <Turnstile />
 
         <div class="bk-actions">
-          <button type="submit" class="bk-submit" id="bk-submit">{booking.submitLabel}</button>
+          <button type="submit" class="btn btn--primary bk-submit" id="bk-submit">{booking.submitLabel}</button>
         </div>
 
         {
@@ -1491,23 +1491,9 @@ const initials = hostName
     display: flex;
     justify-content: flex-end;
   }
-  .bk-submit {
-    padding: 0.8rem 1.5rem;
-    background: var(--color-cta);
-    border: 0;
-    border-radius: 0.4rem;
-    font-family: var(--font-body);
-    font-size: calc(0.88rem * var(--type-body-scale, 1));
-    font-weight: calc(600 + var(--type-body-weight, 0));
-    color: var(--color-cta-ink);
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-  }
-  .bk-submit:hover:not(:disabled) {
-    background: var(--color-cta-hover);
-  }
+  /* Shape and colour are `.btn.btn--primary` in global.css. The one
+     thing that stays here: while the form is in flight, so the cursor says "working", not "no". */
   .bk-submit:disabled {
-    opacity: 0.6;
     cursor: wait;
   }
 

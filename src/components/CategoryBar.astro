@@ -35,31 +35,31 @@ const total = Object.values(counts).reduce((n, c) => n + c, 0);
 const isUnfiltered = Astro.url.pathname === '/blog/';
 ---
 
-<nav class="cats" aria-label={ui.filterByCategory} data-reveal>
+<nav class="chip-row filter-row" aria-label={ui.filterByCategory} data-reveal>
   <a
     href="/blog/"
-    class:list={['cat', isUnfiltered && 'is-active']}
+    class:list={['chip chip--filter', isUnfiltered && 'is-active']}
     aria-current={isUnfiltered ? 'page' : undefined}
   >
-    {ui.barAllCategories} <span class="cat-n">{total}</span>
+    {ui.barAllCategories} <span class="chip-n">{total}</span>
   </a>
 
   {
     categories.map(({ title: c, slug }) => {
       const n = counts[c] ?? 0;
       return n === 0 ? (
-        <span class="cat is-empty" aria-disabled="true">
-          {c} <span class="cat-n">0</span>
+        <span class="chip chip--filter is-empty" aria-disabled="true">
+          {c} <span class="chip-n">0</span>
         </span>
       ) : (
         <a
           href={active === c ? '/blog/' : `/blog/category/${slug}/`}
-          class:list={['cat', active === c && 'is-active']}
+          class:list={['chip chip--filter', active === c && 'is-active']}
           aria-current={active === c ? 'page' : undefined}
           title={active === c ? ui.barClearFilter : undefined}
         >
-          {c} <span class="cat-n">{n}</span>
-          {active === c && <span class="cat-clear" aria-hidden="true" />}
+          {c} <span class="chip-n">{n}</span>
+          {active === c && <span class="chip-clear" aria-hidden="true" />}
         </a>
       );
     })
@@ -67,83 +67,18 @@ const isUnfiltered = Astro.url.pathname === '/blog/';
 
   {
     extraActive && (
-      <a href="/blog/" class="cat is-active" title={ui.barClearFilter}>
-        {extraActive} <span class="cat-clear" aria-hidden="true" />
+      <a href="/blog/" class="chip chip--filter is-active" title={ui.barClearFilter}>
+        {extraActive} <span class="chip-clear" aria-hidden="true" />
       </a>
     )
   }
 </nav>
 
 <style>
-  .cats {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
+  /* Chip, row and the × on a selected one are all in global.css — this
+     bar and the one on the other side of the site are the same object.
+     Only the space under the row is local. */
+  .filter-row {
     margin-bottom: clamp(2rem, 4vw, 3rem);
-  }
-
-  .cat {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.55rem 1.05rem;
-    border: 1px solid var(--color-line);
-    border-radius: 100px;
-    font-family: var(--font-label);
-    font-size: calc(0.73rem * var(--type-label-scale, 1));
-    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
-    color: var(--color-ink-muted);
-    text-decoration: none;
-    white-space: nowrap;
-    transition:
-      border-color 0.2s ease,
-      color 0.2s ease,
-      background-color 0.2s ease;
-  }
-  .cat:hover {
-    border-color: var(--color-line-strong);
-    color: var(--color-ink);
-  }
-  .cat.is-active {
-    background: var(--color-cta);
-    border-color: var(--color-cta);
-    color: var(--color-cta-ink);
-  }
-  /* A category with nothing in it stays visible but is plainly not a link —
-     hiding it would make the row change shape as posts get published. */
-  .cat.is-empty {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  .cat-n {
-    font-size: calc(0.62rem * var(--type-label-scale, 1));
-    opacity: 0.7;
-  }
-
-  /* The selected chip links back to /blog/, so clicking it again clears the
-     filter. This × says so. */
-  .cat-clear {
-    position: relative;
-    width: 0.65rem;
-    height: 0.65rem;
-    margin-left: 0.1rem;
-  }
-  .cat-clear::before,
-  .cat-clear::after {
-    content: '';
-    position: absolute;
-    inset: 50% 0 auto 0;
-    height: 1.5px;
-    background: currentColor;
-  }
-  .cat-clear::before {
-    transform: rotate(45deg);
-  }
-  .cat-clear::after {
-    transform: rotate(-45deg);
-  }
-  .cat.is-active .cat-n {
-    opacity: 0.8;
   }
 </style>

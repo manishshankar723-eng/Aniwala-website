@@ -10,6 +10,7 @@ import { getFlatRoles } from '../../lib/roles';
 import { getFaqs, getContactDetails, getCareersContent, getUiCopy } from '../../lib/studio';
 import { fill, plural, ldJson } from '../../lib/copy';
 import { shareCard } from '../../lib/sanity/client';
+import { heroArtwork } from '../../lib/artwork';
 
 /**
  * Careers.
@@ -30,6 +31,7 @@ const copy = await getCareersContent();
 const { values, hiringSteps, hiringOpen } = copy;
 
 const ui = await getUiCopy();
+const art = await heroArtwork();
 
 const roles = hiringOpen ? await getFlatRoles() : [];
 
@@ -98,14 +100,15 @@ const jobSchema = roles.map((r) => ({
   canonical={copy.canonicalUrl ?? '/careers/'}
   ogImage={shareCard(copy.ogImage)}
   noindex={copy.noindex}
+  hero="page"
 >
   <main id="main">
     <PageHero
+      image={art}
       eyebrow={copy.heroEyebrow}
       title={copy.heroTitle}
       lead={copy.heroLead}
       crumbs={[{ label: ui.crumbHome, href: '/' }, { label: ui.crumbCareers }]}
-      tint="265 60% 28%"
     >
       <div class="hero-stats" data-reveal data-reveal-delay="0.22">
         <div class="hero-stat">
@@ -125,8 +128,8 @@ const jobSchema = roles.map((r) => ({
       </div>
 
       <div class="hero-acts" data-reveal data-reveal-delay="0.28">
-        <a href="#roles" class="hero-act hero-act--primary">{copy.heroActRoles}</a>
-        <a href="#apply" class="hero-act" data-open-application>{copy.heroActOpen}</a>
+        <a href="#roles" class="btn btn--primary">{copy.heroActRoles}</a>
+        <a href="#apply" class="btn btn--ghost" data-open-application>{copy.heroActOpen}</a>
       </div>
     </PageHero>
 
@@ -153,13 +156,13 @@ const jobSchema = roles.map((r) => ({
         /* Filters only earn their place once there is more than one thing to
            filter. Below three listings the chips are noise. */
         disciplineFilters.length > 1 && roles.length > 2 && (
-          <div class="filters" role="group" aria-label={ui.filterRoles} data-reveal>
-            <button type="button" class="filter is-on" data-filter="all">
-              {ui.careersFilterAll} <span class="filter-n">{roles.length}</span>
+          <div class="chip-row filter-row" role="group" aria-label={ui.filterRoles} data-reveal>
+            <button type="button" class="chip chip--filter is-active" data-filter="all">
+              {ui.careersFilterAll} <span class="chip-n">{roles.length}</span>
             </button>
             {disciplineFilters.map((d) => (
-              <button type="button" class="filter" data-filter={d}>
-                {d} <span class="filter-n">{roles.filter((r) => r.discipline === d).length}</span>
+              <button type="button" class="chip chip--filter" data-filter={d}>
+                {d} <span class="chip-n">{roles.filter((r) => r.discipline === d).length}</span>
               </button>
             ))}
           </div>
@@ -184,10 +187,10 @@ const jobSchema = roles.map((r) => ({
                 </div>
 
                 <ul class="job-meta">
-                  <li class="job-tag job-tag--kind">{r.kind}</li>
-                  <li class="job-tag">{r.location}</li>
-                  <li class="job-tag">{r.experience}</li>
-                  <li class="job-tag">
+                  <li class="chip job-tag--kind">{r.kind}</li>
+                  <li class="chip">{r.location}</li>
+                  <li class="chip">{r.experience}</li>
+                  <li class="chip">
                     {plural(r.openings, ui.careersOpeningOne, ui.careersOpeningMany)}
                   </li>
                 </ul>
@@ -203,7 +206,7 @@ const jobSchema = roles.map((r) => ({
                     <a href={`/careers/${r.slug}/`} class="job-read">
                       {ui.careersReadRole} <span aria-hidden="true">&rarr;</span>
                     </a>
-                    <a href="#apply" class="job-apply" data-apply={r.slug}>
+                    <a href="#apply" class="btn btn--sm btn--ghost" data-apply={r.slug}>
                       {ui.careersApply}
                     </a>
                   </div>
@@ -217,11 +220,11 @@ const jobSchema = roles.map((r) => ({
              unambiguously the right thing to show, so it says so plainly
              instead of apologising. */
           <div class="empty" data-reveal>
-            <p class="empty-lead">
+            <p class="empty-title">
               {hiringOpen ? copy.emptyOpen : copy.emptyPaused}
             </p>
             <p class="empty-body">{copy.emptyBody}</p>
-            <a href="#apply" class="empty-act" data-open-application>{copy.emptyAct}</a>
+            <a href="#apply" class="btn btn--primary" data-open-application>{copy.emptyAct}</a>
           </div>
         )
       }
@@ -236,7 +239,7 @@ const jobSchema = roles.map((r) => ({
               <h3 class="spec-title">{copy.specTitle}</h3>
               <p class="spec-body">{copy.specBody}</p>
             </div>
-            <a href="#apply" class="spec-act" data-open-application>
+            <a href="#apply" class="btn btn--ghost" data-open-application>
               {copy.specAct} <span aria-hidden="true">&rarr;</span>
             </a>
           </div>
@@ -283,7 +286,7 @@ const jobSchema = roles.map((r) => ({
               <div class="hire-body">
                 <div class="hire-head">
                   <h3 class="hire-title">{s.title}</h3>
-                  <span class="hire-when">{s.when}</span>
+                  <span class="chip">{s.when}</span>
                 </div>
                 <p class="hire-text">{s.body}</p>
               </div>
@@ -335,12 +338,12 @@ const jobSchema = roles.map((r) => ({
     const list = document.getElementById('jobs');
 
     /* ---------- filters ---------- */
-    const chips = document.querySelectorAll<HTMLButtonElement>('.filter');
+    const chips = document.querySelectorAll<HTMLButtonElement>('.chip--filter');
     if (list && chips.length) {
       chips.forEach((chip) => {
         chip.addEventListener('click', () => {
           const want = chip.dataset.filter;
-          chips.forEach((c) => c.classList.toggle('is-on', c === chip));
+          chips.forEach((c) => c.classList.toggle('is-active', c === chip));
           list.querySelectorAll<HTMLLIElement>('.job').forEach((job) => {
             const show = want === 'all' || job.dataset.discipline === want;
             job.hidden = !show;
@@ -412,73 +415,10 @@ const jobSchema = roles.map((r) => ({
     gap: 0.75rem;
     margin-top: 2rem;
   }
-  .hero-act {
-    padding: 0.8rem 1.6rem;
-    border: 1px solid var(--color-line-strong);
-    border-radius: 100px;
-    font-family: var(--font-label);
-    font-size: calc(0.85rem * var(--type-label-scale, 1));
-    font-weight: calc(600 + var(--type-label-weight, 0));
-    color: var(--color-ink);
-    text-decoration: none;
-    transition:
-      border-color 0.18s ease,
-      background 0.18s ease,
-      transform 0.18s ease;
-  }
-  .hero-act:hover {
-    border-color: var(--color-accent);
-    transform: translateY(-1px);
-  }
-  .hero-act--primary {
-    background: var(--color-cta);
-    border-color: var(--color-cta);
-    color: var(--color-cta-ink);
-    font-weight: 700;
-  }
-  .hero-act--primary:hover {
-    background: var(--color-cta-hover);
-    border-color: var(--color-cta-hover);
-  }
 
   /* --- Filters ---------------------------------------------------------- */
-  .filters {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
+  .filter-row {
     margin-bottom: 2rem;
-  }
-  .filter {
-    appearance: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.55rem 1.05rem;
-    background: transparent;
-    border: 1px solid var(--color-line);
-    border-radius: 100px;
-    font-family: var(--font-label);
-    font-size: calc(0.8rem * var(--type-label-scale, 1));
-    font-weight: calc(600 + var(--type-label-weight, 0));
-    color: var(--color-ink-muted);
-    cursor: pointer;
-    transition:
-      border-color 0.18s ease,
-      color 0.18s ease,
-      background 0.18s ease;
-  }
-  .filter:hover {
-    border-color: var(--color-line-strong);
-    color: var(--color-ink);
-  }
-  .filter.is-on {
-    background: var(--color-ink);
-    border-color: var(--color-ink);
-    color: var(--color-ground);
-  }
-  .filter-n {
-    font-size: calc(0.72rem * var(--type-label-scale, 1));
-    opacity: 0.6;
   }
 
   /* --- Job rows ---------------------------------------------------------
@@ -594,14 +534,6 @@ const jobSchema = roles.map((r) => ({
     flex-wrap: wrap;
     gap: 0.45rem;
   }
-  .job-tag {
-    padding: 0.35rem 0.8rem;
-    border: 1px solid var(--color-line);
-    border-radius: 100px;
-    font-family: var(--font-label);
-    font-size: calc(0.75rem * var(--type-label-scale, 1));
-    color: var(--color-ink-faint);
-  }
   .job-tag--kind {
     border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
     color: var(--color-accent);
@@ -644,69 +576,8 @@ const jobSchema = roles.map((r) => ({
   .job-read:hover span {
     transform: translateX(4px);
   }
-  .job-apply {
-    padding: 0.55rem 1.4rem;
-    border: 1px solid var(--color-line-strong);
-    border-radius: 100px;
-    font-family: var(--font-label);
-    font-size: calc(0.83rem * var(--type-label-scale, 1));
-    font-weight: calc(700 + var(--type-label-weight, 0));
-    color: var(--color-ink);
-    text-decoration: none;
-    transition:
-      background 0.18s ease,
-      border-color 0.18s ease,
-      color 0.18s ease;
-  }
-  .job-apply:hover {
-    background: var(--color-cta);
-    border-color: var(--color-cta);
-    color: var(--color-cta-ink);
-  }
 
   /* --- Empty state ------------------------------------------------------ */
-  .empty {
-    padding: clamp(2rem, 5vw, 3.5rem);
-    background: var(--color-surface);
-    border: 1px solid var(--color-line);
-    border-radius: 0.9rem;
-    text-align: center;
-  }
-  .empty-lead {
-    margin: 0 auto;
-    max-width: 34ch;
-    font-family: var(--font-display);
-    font-weight: calc(700 + var(--type-display-weight, 0));
-    font-stretch: 106%;
-    letter-spacing: calc(-0.025em + var(--type-display-track, 0em));
-    line-height: 1.2;
-    font-size: calc(clamp(1.35rem, 3vw, 2rem) * var(--type-display-scale, 1));
-    color: var(--color-ink);
-    text-wrap: balance;
-  }
-  .empty-body {
-    margin: 1.25rem auto 0;
-    max-width: 54ch;
-    font-size: calc(0.97rem * var(--type-body-scale, 1));
-    line-height: 1.65;
-    color: var(--color-ink-muted);
-  }
-  .empty-act {
-    display: inline-block;
-    margin-top: 1.75rem;
-    padding: 0.85rem 1.9rem;
-    background: var(--color-cta);
-    border-radius: 100px;
-    font-family: var(--font-label);
-    font-size: calc(0.88rem * var(--type-label-scale, 1));
-    font-weight: calc(700 + var(--type-label-weight, 0));
-    color: var(--color-cta-ink);
-    text-decoration: none;
-    transition: background 0.18s ease;
-  }
-  .empty-act:hover {
-    background: var(--color-cta-hover);
-  }
 
   /* --- Speculative panel ------------------------------------------------ */
   .spec {
@@ -749,32 +620,6 @@ const jobSchema = roles.map((r) => ({
     font-size: calc(0.93rem * var(--type-body-scale, 1));
     line-height: 1.65;
     color: var(--color-ink-muted);
-  }
-  .spec-act {
-    flex: 0 0 auto;
-    padding: 0.8rem 1.7rem;
-    border: 1px solid var(--color-accent);
-    border-radius: 100px;
-    font-family: var(--font-label);
-    font-size: calc(0.85rem * var(--type-label-scale, 1));
-    font-weight: calc(700 + var(--type-label-weight, 0));
-    color: var(--color-accent);
-    text-decoration: none;
-    white-space: nowrap;
-    transition:
-      background 0.18s ease,
-      color 0.18s ease;
-  }
-  .spec-act:hover {
-    background: var(--color-accent);
-    color: var(--color-ground);
-  }
-  .spec-act span {
-    display: inline-block;
-    transition: transform 0.25s ease;
-  }
-  .spec-act:hover span {
-    transform: translateX(4px);
   }
 
   /* --- Values ------------------------------------------------------------ */
@@ -867,15 +712,6 @@ const jobSchema = roles.map((r) => ({
     letter-spacing: calc(-0.02em + var(--type-heading-track, 0em));
     font-size: calc(clamp(1.1rem, 2.2vw, 1.4rem) * var(--type-heading-scale, 1));
     color: var(--color-ink);
-  }
-  .hire-when {
-    padding: 0.25rem 0.7rem;
-    border: 1px solid var(--color-line);
-    border-radius: 100px;
-    font-family: var(--font-label);
-    font-size: calc(0.72rem * var(--type-label-scale, 1));
-    color: var(--color-accent);
-    white-space: nowrap;
   }
   .hire-text {
     margin: 0;

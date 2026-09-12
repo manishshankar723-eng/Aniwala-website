@@ -5,6 +5,7 @@ import Footer from '../components/Footer.astro';
 import { getContactDetails, getPrivacyPage, getUiCopy } from '../lib/studio';
 import { renderBody } from '../lib/sanity/portableText';
 import { shareCard } from '../lib/sanity/client';
+import { heroArtwork } from '../lib/artwork';
 import { fillRendered, fillHtml } from '../lib/copy';
 
 /**
@@ -39,6 +40,7 @@ import { fillRendered, fillHtml } from '../lib/copy';
  */
 const policy = await getPrivacyPage();
 const ui = await getUiCopy();
+const art = await heroArtwork();
 const { email, legalName, addressLines, country } = await getContactDetails();
 
 /* Formatted here rather than stored, so the line cannot drift from the date
@@ -63,16 +65,16 @@ const contactLead = fillHtml(policy.contactLead, { legalName }, links);
   canonical={policy.canonicalUrl ?? '/privacy/'}
   ogImage={shareCard(policy.ogImage)}
   noindex={policy.noindex}
+  hero="page"
 >
   <main id="main">
     <PageHero
+      image={art}
       eyebrow={policy.eyebrow}
       title={policy.title}
       lead={policy.lead}
       crumbs={[{ label: ui.crumbHome, href: '/' }, { label: policy.title }]}
-      tint={policy.tint}
       meta={[`${policy.lastUpdatedLabel} ${formatted}`]}
-      compact
     />
 
     <section class="section">

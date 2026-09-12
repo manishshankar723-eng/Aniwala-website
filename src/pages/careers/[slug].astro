@@ -7,6 +7,7 @@ import { employmentTypeSchema } from '../../config/careers';
 import { getFlatRoles, type Role } from '../../lib/roles';
 import { getContactDetails, getCareersContent, getUiCopy } from '../../lib/studio';
 import { shareCard } from '../../lib/sanity/client';
+import { heroArtwork } from '../../lib/artwork';
 import { fill, plural, ldJson } from '../../lib/copy';
 
 /**
@@ -52,6 +53,7 @@ const { careersEmail, addressLines } = await getContactDetails();
 const { hiringSteps } = await getCareersContent();
 
 const ui = await getUiCopy();
+const art = await heroArtwork();
 
 const fmtDate = (iso: string) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', {
@@ -115,9 +117,11 @@ const jobSchema = {
   canonical={role.canonicalUrl ?? `/careers/${role.slug}/`}
   ogImage={shareCard(role.ogImage)}
   noindex={role.noindex}
+  hero="page"
 >
   <main id="main">
     <PageHero
+      image={art}
       eyebrow={role.discipline}
       title={role.title}
       lead={role.summary}
@@ -126,7 +130,6 @@ const jobSchema = {
         { label: ui.crumbCareers, href: '/careers/' },
         { label: role.title },
       ]}
-      tint={role.tint}
       meta={[
         role.kind,
         role.location,
@@ -135,12 +138,12 @@ const jobSchema = {
       ]}
     >
       <div class="hero-acts" data-reveal data-reveal-delay="0.22">
-        <a href="#apply" class="hero-act hero-act--primary">{ui.roleApplyAct}</a>
+        <a href="#apply" class="btn btn--primary">{ui.roleApplyAct}</a>
         <a
           href={`mailto:${careersEmail}?subject=${encodeURIComponent(
             fill(ui.roleAskSubject, { role: role.title })
           )}`}
-          class="hero-act"
+          class="btn btn--ghost"
         >
           {ui.roleAskAct}
         </a>
@@ -189,8 +192,8 @@ const jobSchema = {
 
           <div class="block" data-reveal>
             <h2 class="block-title">{ui.roleSoftwareTitle}</h2>
-            <ul class="tools">
-              {role.software.map((s) => <li class="tool">{s}</li>)}
+            <ul class="chip-row">
+              {role.software.map((s) => <li class="chip chip--lg">{s}</li>)}
             </ul>
           </div>
 
@@ -217,7 +220,7 @@ const jobSchema = {
                 ))
               }
             </dl>
-            <a href="#apply" class="rail-act">{ui.roleApplyAct}</a>
+            <a href="#apply" class="btn btn--primary rail-act">{ui.roleApplyAct}</a>
             <p class="rail-note">{ui.roleRailNote}</p>
           </div>
 
@@ -285,34 +288,6 @@ const jobSchema = {
     flex-wrap: wrap;
     gap: 0.75rem;
     margin-top: 2.25rem;
-  }
-  .hero-act {
-    padding: 0.8rem 1.6rem;
-    border: 1px solid var(--color-line-strong);
-    border-radius: 100px;
-    font-family: var(--font-label);
-    font-size: calc(0.85rem * var(--type-label-scale, 1));
-    font-weight: calc(600 + var(--type-label-weight, 0));
-    color: var(--color-ink);
-    text-decoration: none;
-    transition:
-      border-color 0.18s ease,
-      background 0.18s ease,
-      transform 0.18s ease;
-  }
-  .hero-act:hover {
-    border-color: var(--color-accent);
-    transform: translateY(-1px);
-  }
-  .hero-act--primary {
-    background: var(--color-cta);
-    border-color: var(--color-cta);
-    color: var(--color-cta-ink);
-    font-weight: 700;
-  }
-  .hero-act--primary:hover {
-    background: var(--color-cta-hover);
-    border-color: var(--color-cta-hover);
   }
 
   /* --- Shell ------------------------------------------------------------
@@ -413,22 +388,11 @@ const jobSchema = {
     color: var(--color-ink-faint);
   }
 
-  .tools {
-    list-style: none;
-    margin: 0;
-    padding: 0;
+  /* Full width of the rail it sits in — the look is `.btn.btn--primary`. */
+  .rail-act {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
   }
-  .tool {
-    padding: 0.5rem 1rem;
-    border: 1px solid var(--color-line);
-    border-radius: 100px;
-    font-family: var(--font-label);
-    font-size: calc(0.8rem * var(--type-label-scale, 1));
-    color: var(--color-ink-muted);
-  }
+
 
   /* --- What to send ----------------------------------------------------- */
   .reel {
@@ -523,22 +487,6 @@ const jobSchema = {
     color: var(--color-ink);
   }
 
-  .rail-act {
-    display: block;
-    padding: 0.8rem 1.25rem;
-    background: var(--color-cta);
-    border-radius: 100px;
-    font-family: var(--font-label);
-    font-size: calc(0.86rem * var(--type-label-scale, 1));
-    font-weight: calc(700 + var(--type-label-weight, 0));
-    color: var(--color-cta-ink);
-    text-align: center;
-    text-decoration: none;
-    transition: background 0.18s ease;
-  }
-  .rail-act:hover {
-    background: var(--color-cta-hover);
-  }
   .rail-note {
     margin: 1rem 0 0;
     font-size: calc(0.78rem * var(--type-label-scale, 1));

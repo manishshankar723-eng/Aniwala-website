@@ -350,7 +350,7 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
         <Turnstile />
 
         <div class="ap-actions">
-          <button type="submit" class="ap-submit" id="ap-submit">
+          <button type="submit" class="btn btn--lg btn--primary ap-submit" id="ap-submit">
             {locked ? copy.applySubmitRole : copy.applySubmitOpen}
           </button>
           <p class="ap-consent">{copy.applyConsent}</p>
@@ -1025,28 +1025,9 @@ const reelNotes = Object.fromEntries(openRoles.map((r) => [r.slug, r.reelNote]))
     padding-top: 1.25rem;
     border-top: 1px solid var(--color-line);
   }
-  .ap-submit {
-    appearance: none;
-    padding: 0.85rem 1.9rem;
-    font-family: var(--font-label);
-    font-size: calc(0.9rem * var(--type-label-scale, 1));
-    font-weight: calc(700 + var(--type-label-weight, 0));
-    letter-spacing: calc(0.01em + var(--type-label-track, 0em));
-    color: var(--color-cta-ink);
-    background: var(--color-cta);
-    border: 0;
-    border-radius: 100px;
-    cursor: pointer;
-    transition:
-      background 0.18s ease,
-      transform 0.18s ease;
-  }
-  .ap-submit:hover:not(:disabled) {
-    background: var(--color-cta-hover);
-    transform: translateY(-1px);
-  }
+  /* Shape and colour are `.btn.btn--primary` in global.css. The one
+     thing that stays here: while the form is uploading a CV, so the cursor says "working", not "no". */
   .ap-submit:disabled {
-    opacity: 0.6;
     cursor: progress;
   }
   .ap-consent {

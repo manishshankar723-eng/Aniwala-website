@@ -8,6 +8,7 @@
  */
 import SectionHead from './SectionHead.astro';
 import { getSiteCopy } from '../../lib/studio';
+import { imageUrl, imageSrcSet } from '../../lib/sanity/client';
 
 interface Props {
   block: { eyebrow?: string; title?: string; anchor?: string };
@@ -25,6 +26,17 @@ const { processSteps } = await getSiteCopy();
     {
       processSteps.map((step, i) => (
         <li class="step" data-reveal>
+          {step.image && (
+            <img
+              class="step-art"
+              src={imageUrl(step.image, 600)}
+              srcset={imageSrcSet(step.image, [300, 450, 600, 900])}
+              sizes="(min-width: 1100px) 22vw, (min-width: 700px) 45vw, calc(100vw - 2 * var(--gutter))"
+              alt={step.image.alt ?? ''}
+              loading="lazy"
+              decoding="async"
+            />
+          )}
           <span class="step-n">{String(i + 1).padStart(2, '0')}</span>
           <h3 class="step-title">{step.title}</h3>
           <p class="step-body">{step.body}</p>
@@ -59,6 +71,25 @@ const { processSteps } = await getSiteCopy();
     gap: 0.7rem;
     padding-top: 1.25rem;
     border-top: 1px solid var(--color-line-strong);
+  }
+  /*
+    Optional, one per step, and the column is built to survive it being
+    absent: the picture is the first thing in a flex column, so a step
+    without one simply starts at its number and sits level with the rest.
+  
+    Fixed `aspect-ratio` with `object-fit: cover` for the same reason the
+    pipeline's are — four pictures uploaded separately, each picking its own
+    height, read as an accident rather than a row.
+  */
+  .step-art {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+    border-radius: 0.6rem;
+    border: 1px solid var(--color-line);
+    background: var(--color-surface);
+    margin-bottom: 0.3rem;
   }
   .step-n {
     font-family: var(--font-label);

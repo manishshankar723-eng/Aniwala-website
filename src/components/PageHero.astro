@@ -1,13 +1,23 @@
 ---
 /**
  * The hero for inner pages — services, blog, anything that is not the
- * homepage. Deliberately NOT the full-bleed video hero: those pages run under
- * a solid header, so this one carries the top offset for the fixed header and
- * announcement strip itself.
+ * homepage. Deliberately NOT the full-bleed video hero: that one fills the
+ * window and is an arrival. This is a band, and it carries the top offset for
+ * the fixed header and the announcement strip itself.
+ *
+ * ONE SHAPE, EVERY PAGE. There used to be two: a `compact` flag cut the title
+ * from 6.5rem to 4rem on the pages that lead into a grid, and a per-page
+ * `tint` gave each its own colour. Between them, `/about` and `/blog` looked
+ * like they came off different sites — same font, forty percent apart in size,
+ * one blue and one teal. A house style that every page opts out of is not a
+ * house style, so both knobs are gone and the size and wash below are the
+ * whole vocabulary.
  *
  * Unlike VideoHero it follows the theme tokens rather than pinning to
  * light-on-dark. There is no dark video underneath to force the issue, and a
- * black band across the top of every page fights light mode.
+ * black band across the top of every page fights light mode. The header sits
+ * transparently on top of this and follows the theme for the same reason —
+ * see `is-overlay--page` in Header.astro.
  */
 interface Crumb {
   label: string;
@@ -21,14 +31,12 @@ interface Props {
   lead?: string;
   /** Trail shown above the title. The last item renders as plain text. */
   crumbs?: Crumb[];
-  /** HSL triple, e.g. '210 70% 22%'. Washes the background. */
-  tint?: string;
   /** Small caps row under the lead — dates, categories, reading time. */
   meta?: string[];
-  /** Tighter vertical rhythm, for listing pages that lead into a grid. */
-  compact?: boolean;
   /**
-   * Optional background artwork, from the CMS — see `lib/artwork.ts`.
+   * Optional background artwork, from the CMS. Resolve it with
+   * `heroArtwork()` in `lib/artwork.ts` rather than reading a field directly:
+   * that is what falls back to the site-wide picture when a page has none.
    *
    * Layered UNDER the tint wash rather than replacing it, so the heading
    * keeps its contrast over whatever gets uploaded. Without that the page
@@ -40,19 +48,18 @@ interface Props {
 
 import { getUiCopy } from '../lib/studio';
 import { ldJson } from '../lib/copy';
+import { displayWidth } from '../config/displayMetrics';
 
 const ui = await getUiCopy();
 
-const {
-  eyebrow,
-  title,
-  lead,
-  crumbs = [],
-  tint = '210 70% 22%',
-  meta = [],
-  compact = false,
-  image,
-} = Astro.props;
+const { eyebrow, title, lead, crumbs = [], meta = [], image } = Astro.props;
+
+/**
+ * How wide this headline is at 1em, so CSS can pick a size that fits it on
+ * one line. See `config/displayMetrics.ts`, and the note on `.page-hero-title`
+ * for what the size ends up being.
+ */
+const titleWidth = displayWidth(title).toFixed(3);
 
 /**
  * The same trail, as structured data.
@@ -86,7 +93,7 @@ const crumbSchema =
     : null;
 ---
 
-<section class:list={['page-hero', compact && 'page-hero--compact']} style={`--tint:${tint}`}>
+<section class:list={['page-hero', image && 'page-hero--art']}>
   {
     /* Decorative: the heading beside it already says what the page is, so an
        alt here would only make a screen reader read the page twice. The alt
@@ -131,7 +138,14 @@ const crumbSchema =
 
     {eyebrow && <p class="page-hero-eyebrow" data-reveal data-reveal-delay="0.04">{eyebrow}</p>}
 
-    <h1 class="page-hero-title" data-reveal data-reveal-delay="0.08">{title}</h1>
+    <h1
+      class="page-hero-title"
+      style={`--title-w:${titleWidth}`}
+      data-reveal
+      data-reveal-delay="0.08"
+    >
+      {title}
+    </h1>
 
     {
       lead && (
@@ -161,8 +175,60 @@ const crumbSchema =
     isolation: isolate;
     overflow: hidden;
     border-bottom: 1px solid var(--color-line);
-    /* Clears the fixed header AND the announcement strip above it. */
+    /* Clears the fixed header AND the announcement strip above it. The header
+       is transparent over this band, so the offset is what stops the nav
+       landing on the breadcrumb rather than above it. */
     padding-top: calc(var(--announce-h) + var(--header-h));
+
+    /* The one tint the site uses, and the two knobs light mode turns down. A
+       value here rather than a prop — see the note at the top of this file
+       for what the per-page version cost. */
+    --tint: 210 70% 22%;
+    --tint-alpha: 0.5;
+    --tint-accent: 12%;
+
+    /*
+      The opaque floor, ON THE SECTION rather than inside `.page-hero-wash`.
+
+      It used to be the bottom layer of the wash, and since the wash paints
+      over `.page-hero-img` — both sit at `z-index: -1`, so DOM order decides
+      — an opaque layer there covered the background picture completely. The
+      picture never appeared on any page that set one. Nobody had uploaded one
+      yet, so it built, shipped, and looked exactly right.
+
+      Down here it paints first (a stacking context's own background goes
+      below its negative-z-index children), which leaves the wash free to be
+      what its name says: translucent, over the picture.
+    */
+    background: linear-gradient(to bottom, var(--color-surface), var(--color-ground) 92%);
+
+    /* No picture, no floor — see `.page-hero--art`. */
+    --floor: none;
+  }
+
+  /*
+    With a picture behind it, the wash also has to carry a legibility floor.
+
+    `--color-ground` is near-black in dark and near-white in light, so this one
+    rule darkens or lightens as the theme needs, and the heading, the lead and
+    the nav sitting transparently on top all get the same guarantee over
+    whatever an editor uploaded.
+
+    Three stops rather than a straight fall, because the thing most at risk is
+    not the headline. That is display type at 6.5rem and survives almost
+    anything; the NAV is 0.95rem and sits in the top few rem of this band, the
+    weakest part of a top-to-bottom fade. So the floor starts heavy behind the
+    header, thins out through the middle where the picture is actually worth
+    seeing, and comes back at the foot so the section below starts on flat
+    ground rather than mid-photograph.
+  */
+  .page-hero--art {
+    --floor: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--color-ground) 80%, transparent) 0%,
+      color-mix(in srgb, var(--color-ground) 52%, transparent) 26%,
+      color-mix(in srgb, var(--color-ground) 86%, transparent) 100%
+    );
   }
 
   /* Tint wash. Sits behind the content and fades out downward so the section
@@ -172,14 +238,19 @@ const crumbSchema =
     inset: 0;
     z-index: -1;
     background:
-      radial-gradient(ellipse 70% 90% at 88% 0%, hsl(var(--tint) / 0.5), transparent 70%),
+      radial-gradient(
+        ellipse 70% 90% at 88% 0%,
+        hsl(var(--tint) / var(--tint-alpha)),
+        transparent 70%
+      ),
       radial-gradient(
         ellipse 60% 80% at 0% 10%,
-        color-mix(in srgb, var(--color-accent) 12%, transparent),
+        color-mix(in srgb, var(--color-accent) var(--tint-accent), transparent),
         transparent 65%
       ),
-      linear-gradient(to bottom, var(--color-surface), var(--color-ground) 92%);
+      var(--floor);
   }
+
   /* Sits beneath the wash, which is what keeps the heading legible over an
      arbitrary upload. Dimmed for the same reason — a hero still is background,
      not the subject. */
@@ -193,26 +264,23 @@ const crumbSchema =
     z-index: -1;
   }
 
-  /* Light mode: the same tint at full strength turns the type unreadable. */
-  :global(:root[data-theme='light']) .page-hero-wash {
-    background:
-      radial-gradient(ellipse 70% 90% at 88% 0%, hsl(var(--tint) / 0.16), transparent 70%),
-      radial-gradient(
-        ellipse 60% 80% at 0% 10%,
-        color-mix(in srgb, var(--color-accent) 14%, transparent),
-        transparent 65%
-      ),
-      linear-gradient(to bottom, var(--color-surface-2), var(--color-ground) 92%);
+  /* Light mode: the same tint at full strength turns the type unreadable, and
+     the floor starts from the off-white rather than pure white. */
+  :global(:root[data-theme='light']) .page-hero {
+    --tint-alpha: 0.16;
+    --tint-accent: 14%;
+    background: linear-gradient(to bottom, var(--color-surface-2), var(--color-ground) 92%);
   }
 
   .page-hero-inner {
     max-width: var(--shell-max);
     margin: 0 auto;
     padding: clamp(3.5rem, 8vw, 7rem) var(--gutter) clamp(3rem, 6vw, 5rem);
-  }
-  .page-hero--compact .page-hero-inner {
-    padding-top: clamp(2.5rem, 6vw, 4.5rem);
-    padding-bottom: clamp(2rem, 4vw, 3rem);
+    /* Makes `100cqw` below mean "the width this block gives its text" —
+       its content box, so the gutter is already taken off. `100vw` would
+       have been close but counts the scrollbar, and the headline sized
+       from it would overflow by exactly that much. */
+    container-type: inline-size;
   }
 
   /* --- Breadcrumb ---------------------------------------------------- */
@@ -257,20 +325,51 @@ const crumbSchema =
     margin: 0 0 1.25rem;
   }
 
+  /*
+    ONE LINE, on every page.
+  
+    The old rule capped the headline at `max-width: 18ch` — about 1030px at
+    full size — so a title wrapped when it passed that, regardless of how much
+    room the page actually had. On a 1900px screen the hero offers 1819px, and
+    "Notes from inside the pipeline." needs 1314px: it fit comfortably and
+    broke anyway, while the shorter contact headline squeaked under the cap
+    and did not. Two pages, same component, different shape, for no reason a
+    reader could see.
+  
+    So the cap is gone and the SIZE gives way instead. `--title-w` is this
+    headline's width at 1em (`config/displayMetrics.ts`), so `100cqw /
+    var(--title-w)` is the exact size at which it fills the measure on one
+    line. Take whichever is smaller, that or the normal size, and a short
+    headline is unaffected while a long one shrinks just enough to fit.
+  
+    The `max()` is the floor. Below roughly 590px there is no size that both
+    fits a long headline on one line and is still a heading, so the floor wins
+    and it wraps — with `text-wrap: balance` to break it evenly when it does.
+  
+    `font-optical-sizing: none` is load bearing, not a detail. On `auto`, opsz
+    follows font-size and the face draws up to 12.8% wider as text gets
+    smaller — so shrinking to fit would widen the text it was fitting, and the
+    calculation would be chasing itself. Pinned, the metrics table is exact.
+  
+    (`font-stretch: 115%` used to be here and did nothing: Bricolage's width
+    axis stops at 100, so the browser clamped it and drew the default.)
+  */
   .page-hero-title {
     margin: 0;
     font-family: var(--font-display);
     font-weight: calc(800 + var(--type-display-weight, 0));
-    font-stretch: 115%;
+    font-optical-sizing: none;
     letter-spacing: calc(-0.03em + var(--type-display-track, 0em));
     line-height: 1;
-    font-size: calc(clamp(2.4rem, 6.5vw, 6.5rem) * var(--type-display-scale, 1));
+    font-size: max(
+      calc(2.4rem * var(--type-display-scale, 1)),
+      min(
+        calc(clamp(2.4rem, 6.5vw, 6.5rem) * var(--type-display-scale, 1)),
+        calc(100cqw / var(--title-w, 12))
+      )
+    );
     text-wrap: balance;
-    max-width: 18ch;
     color: var(--color-ink);
-  }
-  .page-hero--compact .page-hero-title {
-    font-size: calc(clamp(2rem, 5.5vw, 4rem) * var(--type-display-scale, 1));
   }
 
   .page-hero-lead {

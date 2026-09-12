@@ -72,16 +72,6 @@ export default defineType({
       description: 'One or two sentences under the title.',
       validation: (Rule) => Rule.required(),
     }),
-    defineField({
-      name: 'tint',
-      title: 'Tint',
-      type: 'string',
-      group: 'hero',
-      description: 'HSL triple washing the hero background, e.g. "210 70% 22%".',
-      initialValue: '210 70% 22%',
-      validation: (Rule) => Rule.required(),
-    }),
-
     /**
      * The "last updated" line.
      *

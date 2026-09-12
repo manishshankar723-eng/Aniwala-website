@@ -22,7 +22,7 @@ const { email, legalName, addressLines, country, mapsUrl, publishedSocials: soci
       <p class="footer-eyebrow">{ui.footerEyebrow}</p>
       <a href={`mailto:${email}`} class="footer-mail">{email}</a>
       <p class="footer-note">{ui.footerNote}</p>
-      <a href={ctaHref} class="footer-cta">{ctaLabel}</a>
+      <a href={ctaHref} class="btn btn--primary footer-cta">{ctaLabel}</a>
 
       {/*
         The postal address, which is doing more work here than it looks. For a
@@ -147,6 +147,11 @@ const { email, legalName, addressLines, country, mapsUrl, publishedSocials: soci
     color: var(--color-accent);
     margin: 0 0 1.25rem;
   }
+  /* Only its place in the column. The look is `.btn.btn--primary`. */
+  .footer-cta {
+    margin-top: 2rem;
+  }
+
   .footer-mail {
     display: inline-block;
     font-family: var(--font-display);
@@ -167,23 +172,6 @@ const { email, legalName, addressLines, country, mapsUrl, publishedSocials: soci
     color: var(--color-ink-muted);
     font-size: calc(0.95rem * var(--type-label-scale, 1));
     line-height: 1.6;
-  }
-  .footer-cta {
-    display: inline-flex;
-    margin-top: 2rem;
-    padding: 0.8rem 1.35rem;
-    border-radius: 0.3rem;
-    background: var(--color-cta);
-    color: var(--color-cta-ink);
-    font-family: var(--font-label);
-    font-size: calc(0.92rem * var(--type-label-scale, 1));
-    font-weight: calc(600 + var(--type-label-weight, 0));
-    letter-spacing: calc(0.005em + var(--type-label-track, 0em));
-    text-decoration: none;
-    transition: background-color 0.2s ease;
-  }
-  .footer-cta:hover {
-    background: var(--color-cta-hover);
   }
 
   /* --- Office address --------------------------------------------------- */

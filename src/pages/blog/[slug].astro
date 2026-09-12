@@ -9,6 +9,7 @@ import CtaBand from '../../components/CtaBand.astro';
 import Footer from '../../components/Footer.astro';
 import { imageUrl, imageSrcSet, shareCard } from '../../lib/sanity/client';
 import { getUiCopy } from '../../lib/studio';
+import { heroArtwork } from '../../lib/artwork';
 import { ldJson } from '../../lib/copy';
 import {
   getPosts,
@@ -29,7 +30,7 @@ interface Props {
   post: Post;
 }
 const { post } = Astro.props;
-const { title, description, pubDate, updatedDate, category, tags, author, tint, cover, seoTitle, seoDescription, noindex } =
+const { title, description, pubDate, updatedDate, category, tags, author, cover, seoTitle, seoDescription, noindex } =
   post.data;
 
 /*
@@ -44,6 +45,7 @@ const { title, description, pubDate, updatedDate, category, tags, author, tint, 
 const seoImage = post.data.ogImage;
 
 const ui = await getUiCopy();
+const art = await heroArtwork();
 
 /**
  * Who the post is bylined to.
@@ -91,13 +93,14 @@ const articleSchema = {
   ogImage={shareCard(seoImage, cover)}
   ogImageAlt={seoImage ? undefined : cover?.alt}
   noindex={noindex}
+  hero="page"
 >
   <main id="main">
     <PageHero
+      image={art}
       eyebrow={category}
       title={title}
       lead={description}
-      tint={tint}
       meta={[formatDate(pubDate), readingTime(post.body), byline]}
       crumbs={[
         { label: ui.crumbHome, href: '/' },
@@ -144,10 +147,10 @@ const articleSchema = {
         <footer class="article-foot">
           {
             tags.length > 0 && (
-              <ul class="tags" aria-label={ui.tagsLabel}>
+              <ul class="chip-row" aria-label={ui.tagsLabel}>
                 {tags.map((t) => (
                   <li>
-                    <a href={`/blog/tag/${tagSlug(t)}/`}>#{t}</a>
+                    <a href={`/blog/tag/${tagSlug(t)}/`} class="chip">#{t}</a>
                   </li>
                 ))}
               </ul>
@@ -227,31 +230,6 @@ const articleSchema = {
     padding-top: 1.75rem;
     border-top: 1px solid var(--color-line);
     max-width: 68ch;
-  }
-  .tags {
-    list-style: none;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin: 0;
-    padding: 0;
-  }
-  .tags a {
-    display: inline-block;
-    padding: 0.35rem 0.75rem;
-    border: 1px solid var(--color-line);
-    border-radius: 100px;
-    font-family: var(--font-label);
-    font-size: calc(0.72rem * var(--type-label-scale, 1));
-    color: var(--color-ink-faint);
-    text-decoration: none;
-    transition:
-      border-color 0.2s ease,
-      color 0.2s ease;
-  }
-  .tags a:hover {
-    border-color: var(--color-accent);
-    color: var(--color-accent);
   }
   .updated {
     margin: 0;

@@ -96,7 +96,7 @@ const showSetupHint = !live && import.meta.env.DEV;
           <Turnstile />
 
           <div class="comments-actions">
-            <button type="submit" class="comments-submit">{ui.commentsSubmit}</button>
+            <button type="submit" class="btn btn--primary comments-submit">{ui.commentsSubmit}</button>
             <span class="comments-note">{ui.commentsNote}</span>
           </div>
         </form>
@@ -330,26 +330,6 @@ const showSetupHint = !live && import.meta.env.DEV;
     align-items: center;
     gap: 0.75rem 1.25rem;
     margin-top: 0.5rem;
-  }
-  .comments-submit {
-    padding: 0.8rem 1.5rem;
-    border: 0;
-    border-radius: 0.3rem;
-    background: var(--color-cta);
-    color: var(--color-cta-ink);
-    font-family: var(--font-label);
-    font-size: calc(0.92rem * var(--type-label-scale, 1));
-    font-weight: calc(600 + var(--type-label-weight, 0));
-    letter-spacing: calc(0.005em + var(--type-label-track, 0em));
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-  }
-  .comments-submit:hover:not(:disabled) {
-    background: var(--color-cta-hover);
-  }
-  .comments-submit:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
   }
   .comments-note {
     font-size: calc(0.8rem * var(--type-label-scale, 1));

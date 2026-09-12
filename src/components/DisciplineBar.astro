@@ -25,13 +25,13 @@ const counts = await pieceCounts();
 const total = Object.values(counts).reduce((n, c) => n + c, 0);
 ---
 
-<nav class="disciplines" aria-label={ui.filterByDiscipline} data-reveal>
+<nav class="chip-row filter-row" aria-label={ui.filterByDiscipline} data-reveal>
   <a
     href="/portfolio/"
-    class:list={['disc', !active && 'is-active']}
+    class:list={['chip chip--filter', !active && 'is-active']}
     aria-current={!active ? 'page' : undefined}
   >
-    {ui.barAllWork} <span class="disc-n">{total}</span>
+    {ui.barAllWork} <span class="chip-n">{total}</span>
   </a>
 
   {
@@ -46,18 +46,18 @@ const total = Object.values(counts).reduce((n, c) => n + c, 0);
         not filled in yet. The category page itself still exists and says so.
       */
       return n === 0 && !isActive ? (
-        <span class="disc is-empty" aria-disabled="true">
-          {c.title} <span class="disc-n">0</span>
+        <span class="chip chip--filter is-empty" aria-disabled="true">
+          {c.title} <span class="chip-n">0</span>
         </span>
       ) : (
         <a
           href={isActive ? '/portfolio/' : categoryHref(c.slug)}
-          class:list={['disc', isActive && 'is-active']}
+          class:list={['chip chip--filter', isActive && 'is-active']}
           aria-current={isActive ? 'page' : undefined}
           title={isActive ? ui.barClearFilter : undefined}
         >
-          {c.title} <span class="disc-n">{n}</span>
-          {isActive && <span class="disc-clear" aria-hidden="true" />}
+          {c.title} <span class="chip-n">{n}</span>
+          {isActive && <span class="chip-clear" aria-hidden="true" />}
         </a>
       );
     })
@@ -65,73 +65,10 @@ const total = Object.values(counts).reduce((n, c) => n + c, 0);
 </nav>
 
 <style>
-  .disciplines {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
+  /* Chip, row and the × on a selected one are all in global.css — this
+     bar and the one on the other side of the site are the same object.
+     Only the space under the row is local. */
+  .filter-row {
     margin-bottom: clamp(2rem, 4vw, 3rem);
-  }
-
-  .disc {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.55rem 1.05rem;
-    border: 1px solid var(--color-line);
-    border-radius: 100px;
-    font-family: var(--font-label);
-    font-size: calc(0.73rem * var(--type-label-scale, 1));
-    letter-spacing: calc(0.015em + var(--type-label-track, 0em));
-    color: var(--color-ink-muted);
-    text-decoration: none;
-    white-space: nowrap;
-    transition:
-      border-color 0.2s ease,
-      color 0.2s ease,
-      background-color 0.2s ease;
-  }
-  .disc:hover {
-    border-color: var(--color-line-strong);
-    color: var(--color-ink);
-  }
-  .disc.is-active {
-    background: var(--color-cta);
-    border-color: var(--color-cta);
-    color: var(--color-cta-ink);
-  }
-  .disc.is-empty {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  .disc-n {
-    font-size: calc(0.62rem * var(--type-label-scale, 1));
-    opacity: 0.7;
-  }
-  .disc.is-active .disc-n {
-    opacity: 0.8;
-  }
-
-  /* The selected chip links back to /portfolio/, so clicking it again clears
-     the filter. This × says so. */
-  .disc-clear {
-    position: relative;
-    width: 0.65rem;
-    height: 0.65rem;
-    margin-left: 0.1rem;
-  }
-  .disc-clear::before,
-  .disc-clear::after {
-    content: '';
-    position: absolute;
-    inset: 50% 0 auto 0;
-    height: 1.5px;
-    background: currentColor;
-  }
-  .disc-clear::before {
-    transform: rotate(45deg);
-  }
-  .disc-clear::after {
-    transform: rotate(-45deg);
   }
 </style>

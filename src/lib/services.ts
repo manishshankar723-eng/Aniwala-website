@@ -23,6 +23,8 @@ export interface PipelineStep {
   body: string;
   /** Software actually touched at this stage. Shown as small print. */
   tools?: string;
+  /** Work from this stage. Optional — a step without one renders as text. */
+  image?: SanityImage;
 }
 
 export interface Service {

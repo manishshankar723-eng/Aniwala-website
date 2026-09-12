@@ -18,8 +18,15 @@ interface Props {
   description?: string;
   /** Path only, e.g. "/work/nexus-origins/" */
   canonical?: string;
-  /** True on pages whose hero runs under a transparent header. */
-  transparentHeader?: boolean;
+  /**
+   * Which hero this page opens with, if any.
+   *
+   * The header sits transparently on top of BOTH kinds and goes solid on
+   * scroll — see `Header.astro` for the difference between them. Leave it out
+   * on a page with no hero: the header stays solid and the page is expected to
+   * carry its own top offset, the way `/404` does.
+   */
+  hero?: 'video' | 'page';
   /**
    * Keep the page out of search results.
    *
@@ -232,7 +239,7 @@ const {
      supplies its own, and one that does not is usually a page that forgot. */
   description = ui.defaultDescription,
   canonical = Astro.url.pathname,
-  transparentHeader = false,
+  hero,
   noindex = false,
   ogImage: ogImageProp,
   ogImageAlt,
@@ -510,7 +517,7 @@ const ogImage = ogImageProp ?? new URL('/og-default.jpg', Astro.site).href;
 
     <a href="#main" class="skip-link">{ui.skipToContent}</a>
     <Announce />
-    <Header overlay={transparentHeader} />
+    <Header overlay={hero} />
     <slot />
     <Search />
 

@@ -43,14 +43,26 @@ const ogImage = page.data.ogImage ? ogImageUrl(page.data.ogImage as SanityImage)
 /*
  * The hero decides the header treatment, not the page.
  *
- * A video hero is full-bleed and dark, so the header has to sit transparently
- * on top of it. Every other page runs under a solid header — `PageHero` even
- * carries the top offset for it itself. Deriving this from the first block
- * rather than offering it as a field means an editor cannot produce the one
- * broken combination: a solid header overlapping a full-screen video.
+ * The header sits transparently on top of EITHER hero — a page that opens
+ * with one gets the same uninterrupted top as the homepage, which is the
+ * whole reason `'page'` exists here. What differs is only how the nav colours
+ * itself, and `Header.astro` decides that from this value.
+ *
+ * A page that opens with something other than a hero gets no overlay at all:
+ * the header goes solid immediately, because there is nothing underneath it
+ * that expects to be seen through.
+ *
+ * Derived from the first block rather than offered as a field, so an editor
+ * cannot produce the one broken combination: a solid header overlapping a
+ * full-screen video.
  */
 const first = page.data.blocks[0] as { _type?: string; variant?: string } | undefined;
-const transparentHeader = first?._type === 'heroBlock' && first?.variant === 'video';
+const hero =
+  first?._type === 'heroBlock' ? (first.variant === 'video' ? 'video' : 'page') : undefined;
+
+/* Only the video hero is full-bleed, and only a full-bleed arrival sits
+   outside `<main>`. A hero band is part of the document. */
+const fullBleed = hero === 'video';
 ---
 
 <Base
@@ -59,7 +71,7 @@ const transparentHeader = first?._type === 'heroBlock' && first?.variant === 'vi
   ogImage={ogImage}
   canonical={page.data.canonicalUrl}
   noindex={page.data.noindex}
-  transparentHeader={transparentHeader}
+  hero={hero}
 >
   {/*
     The hero sits OUTSIDE `<main>` when it is a video, matching the homepage:
@@ -67,7 +79,7 @@ const transparentHeader = first?._type === 'heroBlock' && first?.variant === 'vi
     skip link should land on the content below it rather than on the video.
   */}
   {
-    transparentHeader ? (
+    fullBleed ? (
       <>
         <Blocks blocks={[page.data.blocks[0]] as never} label={`/${page.id}/`} />
         <main id="main">

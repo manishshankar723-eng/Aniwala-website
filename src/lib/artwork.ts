@@ -25,6 +25,7 @@
 import { getCollection } from 'astro:content';
 import { previewMode } from './sanity/client';
 import { imageUrl, imageSrcSet, type SanityImage } from './sanity/client';
+import { DEFAULT_HERO_SLOT } from '../config/imageSlots';
 
 export interface Artwork {
   image: SanityImage;
@@ -87,6 +88,23 @@ function load(): Promise<Map<string, Artwork>> {
 /** The artwork for one slot, or undefined when nothing is filed against it. */
 export async function getArtwork(slot: string): Promise<Artwork | undefined> {
   return (await load()).get(slot);
+}
+
+/**
+ * The picture behind a page hero: this page's own, or the site-wide fallback.
+ *
+ * Every `PageHero` on the site resolves its background through here, which is
+ * the point — the rule for which image shows up is written once rather than
+ * re-decided at each of the eleven call sites, where it would drift.
+ *
+ * Takes the image field off whichever document the route is built from. The
+ * pages that ARE documents pass theirs; the routes that are views of other
+ * documents — a tag listing, an archive month — pass nothing and get the
+ * fallback. Nothing anywhere still returns `undefined`, and the hero renders
+ * as the tint wash it always did.
+ */
+export async function heroArtwork(image?: SanityImage): Promise<Artwork | undefined> {
+  return toArtwork(image) ?? (await getArtwork(DEFAULT_HERO_SLOT));
 }
 
 /*

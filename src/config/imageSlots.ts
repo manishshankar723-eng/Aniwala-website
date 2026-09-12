@@ -4,8 +4,9 @@
  * WHAT A SLOT IS FOR
  * A slot is for an image that belongs to a PAGE rather than to a document —
  * something a template asks for by name, with no record of its own to hang
- * off. There is one of those left on this site: the still behind the
- * homepage's video hero, which is chosen on the hero block itself.
+ * off. There are two of those left on this site: the still behind the
+ * homepage's video hero, which is chosen on the hero block itself, and the
+ * fallback picture behind every other page's hero.
  *
  * WHAT SLOTS TURNED OUT TO BE WRONG FOR, and it is worth writing down because
  * the list here used to be thirteen entries rather than one.
@@ -47,11 +48,30 @@ export interface ImageSlot {
   /** How it reads in the Studio dropdown. */
   title: string;
   /** Which part of the site it belongs to — groups the dropdown. */
-  group: 'Home';
+  group: 'Home' | 'Site';
 }
 
 export const IMAGE_SLOTS: ImageSlot[] = [
   { name: 'home-hero-poster', title: 'Home — hero still', group: 'Home' },
+  { name: 'page-hero-default', title: 'Every page — hero background', group: 'Site' },
 ];
+
+/**
+ * The picture behind a page hero when nothing nearer supplies one.
+ *
+ * The pages a visitor lands on are documents, and those carry their own
+ * pictures: a hero image on the page's own hero section, the cover on a case
+ * study, the tile on a discipline. But a handful of routes are VIEWS rather
+ * than documents — `/blog/tag/rigging/`, `/blog/archive/2026-05/`, a category
+ * listing — and there is no document to hang a picture off, because there is
+ * no document at all. The same is true of the pages whose copy lives in a
+ * singleton: careers, privacy.
+ *
+ * Without this those pages would be the only flat ones on the site, which is
+ * the inconsistency this whole change exists to remove. So: one upload here
+ * backs every hero that has nothing of its own, and anything more specific
+ * wins. Nothing uploaded falls back to the tint wash, exactly as before.
+ */
+export const DEFAULT_HERO_SLOT = 'page-hero-default';
 
 export const IMAGE_SLOT_NAMES = IMAGE_SLOTS.map((s) => s.name);

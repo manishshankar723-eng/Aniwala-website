@@ -12,6 +12,7 @@ import {
   type CaseStudy,
 } from '../../lib/caseStudies';
 import { getUiCopy } from '../../lib/studio';
+import { heroArtwork } from '../../lib/artwork';
 import { shareCard } from '../../lib/sanity/client';
 import { ldJson } from '../../lib/copy';
 
@@ -24,7 +25,7 @@ interface Props {
   study: CaseStudy;
 }
 const { study } = Astro.props;
-const { title, description, kind, client, sector, year, deliverables, tools, results, tint, cover, seoTitle, seoDescription, noindex } =
+const { title, description, kind, client, sector, year, deliverables, tools, results, cover, seoTitle, seoDescription, noindex } =
   study.data;
 
 /* This page used to pass no sharing image at all, so a case study with a
@@ -32,6 +33,8 @@ const { title, description, kind, client, sector, year, deliverables, tools, res
 const seoImage = study.data.ogImage;
 
 const { Content } = await render(study);
+
+const art = await heroArtwork(cover);
 const related = await getRelatedCaseStudies(study);
 const linkedServices = await servicesFor(study);
 
@@ -69,13 +72,14 @@ const caseSchema = {
   ogImage={shareCard(seoImage, cover)}
   ogImageAlt={seoImage ? undefined : cover?.alt}
   noindex={noindex}
+  hero="page"
 >
   <main id="main">
     <PageHero
+      image={art}
       eyebrow={ui.caseEyebrow}
       title={title}
       lead={description}
-      tint={tint}
       meta={[kind, sector, String(year)]}
       crumbs={[
         { label: ui.crumbHome, href: '/' },
@@ -166,9 +170,9 @@ const caseSchema = {
             tools.length > 0 && (
               <div class="rail-block">
                 <h2 class="rail-title">{ui.caseRailTools}</h2>
-                <ul class="rail-tools">
+                <ul class="chip-row">
                   {tools.map((t) => (
-                    <li>{t}</li>
+                    <li class="chip">{t}</li>
                   ))}
                 </ul>
               </div>
@@ -317,8 +321,7 @@ const caseSchema = {
   }
 
   .rail-links,
-  .rail-list,
-  .rail-tools {
+  .rail-list {
     list-style: none;
     margin: 0;
     padding: 0;
@@ -360,19 +363,6 @@ const caseSchema = {
     border-top: 1px solid var(--color-line);
   }
 
-  .rail-tools {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-  }
-  .rail-tools li {
-    padding: 0.4rem 0.8rem;
-    border: 1px solid var(--color-line);
-    border-radius: 100px;
-    font-family: var(--font-label);
-    font-size: calc(0.72rem * var(--type-label-scale, 1));
-    color: var(--color-ink-faint);
-  }
 
   /* --- Related ---------------------------------------------------------- */
   .related {

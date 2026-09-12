@@ -41,7 +41,7 @@ const {
     </div>
 
     <div class="cta-band-actions">
-      <a href={primary.href} class="cta-band-primary">{primary.label}</a>
+      <a href={primary.href} class="btn btn--lg btn--primary">{primary.label}</a>
       {secondary && <a href={secondary.href} class="cta-band-secondary">{secondary.label}</a>}
     </div>
   </div>
@@ -106,24 +106,6 @@ const {
     }
   }
 
-  .cta-band-primary {
-    display: inline-flex;
-    align-items: center;
-    padding: 1rem 1.75rem;
-    border-radius: 0.3rem;
-    background: var(--color-cta);
-    color: var(--color-cta-ink);
-    font-family: var(--font-label);
-    font-size: calc(0.95rem * var(--type-label-scale, 1));
-    font-weight: calc(600 + var(--type-label-weight, 0));
-    letter-spacing: calc(0.005em + var(--type-label-track, 0em));
-    text-decoration: none;
-    white-space: nowrap;
-    transition: background-color 0.2s ease;
-  }
-  .cta-band-primary:hover {
-    background: var(--color-cta-hover);
-  }
 
   .cta-band-secondary {
     font-family: var(--font-label);
