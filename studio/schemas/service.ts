@@ -41,6 +41,17 @@ const titleBody = (
     title,
     type: 'array',
     description,
+    /*
+     * The tab these belong on, and they were missing from it.
+     *
+     * A field with no `group` on a schema that HAS groups shows up under "All
+     * fields" and nowhere else. Both lists this helper builds are Offerings
+     * and Pipeline — so the tab literally called "Offerings & pipeline"
+     * contained neither of them, only the Tools and Deliverables that sit
+     * below and do declare the group. An editor opening the obvious tab to
+     * edit the pipeline found everything except the pipeline.
+     */
+    group: 'detail',
     validation: (Rule) => Rule.min(1),
     of: [
       defineArrayMember({

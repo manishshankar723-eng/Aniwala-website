@@ -39,6 +39,12 @@ let lenis: LenisType | null = null;
  */
 let stale = false;
 
+/**
+ * The reveal failsafe's observer — see `watchForStuckReveals`. Held at module
+ * level so a view transition can disconnect it along with everything else.
+ */
+let rescue: IntersectionObserver | null = null;
+
 export const prefersReducedMotion = () =>
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -83,6 +89,22 @@ export function initMotion() {
     initAnchors();
     ScrollTrigger!.refresh();
     landOnHash();
+    watchForStuckReveals();
+
+    /*
+     * Measure again once the page has stopped moving.
+     *
+     * The triggers above were built against whatever the layout was at that
+     * instant. The display face swaps in after first paint and every heading
+     * changes height when it does, which moves every trigger's start — and on
+     * a client-side navigation the new stylesheet can still be in flight, so
+     * the first measurement can be of a layout that never actually renders.
+     * A refresh costs nothing and is the difference between a trigger that
+     * fires where the element is and one that fires where it briefly was.
+     */
+    void document.fonts?.ready.then(() => {
+      if (!stale) ScrollTrigger?.refresh();
+    });
   })();
 }
 
@@ -97,6 +119,57 @@ function revealAllImmediately() {
     el.style.opacity = '';
     el.style.transform = '';
   });
+}
+
+/**
+ * Last resort: show anything a visitor can see but the animation left hidden.
+ *
+ * WHY THIS HAS TO EXIST. Once the engine loads, every `[data-reveal]` element
+ * is set to `opacity: 0` by `gsap.from()` and depends on a ScrollTrigger
+ * firing to come back. That makes the page's content invisible BY DEFAULT and
+ * visible only if a measurement is right — and a measurement taken before the
+ * stylesheet applies is not right. When that happens the element never
+ * returns, and the page renders as a heading over an empty screen with all of
+ * its text present in the DOM.
+ *
+ * That is not a hypothetical: it is what `/blog/` did on staging after a
+ * deploy landed mid-session. ClientRouter keeps the already-imported modules
+ * and swaps in the new document, the new stylesheet arrives asynchronously,
+ * and the triggers get built against a layout that is not the final one. A
+ * hard reload fixed it, which is the signature of exactly this.
+ *
+ * So: watch every reveal, and if one is more than half on screen and STILL
+ * transparent a beat later, clear it. A correct reveal has always finished by
+ * then, so this never fights a working animation — it only ever rescues a
+ * broken one. Cheap, and it makes "content permanently invisible" unreachable
+ * no matter what else goes wrong upstream.
+ */
+function watchForStuckReveals() {
+  rescue?.disconnect();
+
+  const clear = (el: HTMLElement) => {
+    if (Number(getComputedStyle(el).opacity) > 0.05) return;
+    gsap?.killTweensOf(el);
+    el.style.opacity = '';
+    el.style.transform = '';
+  };
+
+  rescue = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((e) => {
+        if (!e.isIntersecting) return;
+        const el = e.target as HTMLElement;
+        window.setTimeout(() => {
+          if (!el.isConnected) return;
+          clear(el);
+          rescue?.unobserve(el);
+        }, 700);
+      });
+    },
+    { threshold: 0.5 }
+  );
+
+  document.querySelectorAll<HTMLElement>('[data-reveal]').forEach((el) => rescue!.observe(el));
 }
 
 /** Breathing room under the thing an anchor jump has to bring into view. */
@@ -352,6 +425,8 @@ export function teardownMotion() {
   // Null before the engine has ever loaded — on a reduced-motion visit it
   // never loads at all, and teardown still runs on every navigation.
   ScrollTrigger?.getAll().forEach((t) => t.kill());
+  rescue?.disconnect();
+  rescue = null;
   lenis?.destroy();
   lenis = null;
 }
