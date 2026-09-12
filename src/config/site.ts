@@ -19,10 +19,25 @@
  * build where `process.env` is the reliable source. `astro.config.mjs` loads
  * `.env` into `process.env` before anything else runs, so both paths see the
  * same values. `import.meta.env` is checked second for the dev server.
+ *
+ * TRIMMED, and it is not tidiness.
+ *
+ * `astro.config.mjs` trims what it parses out of `.env`, but a value arriving
+ * from the JOB ENVIRONMENT in CI never passes through that — it is whatever
+ * was pasted into the GitHub secret, newline and all. `SUPABASE_ANON_KEY` was
+ * pasted with a trailing newline, so the key went into `window.__aniwalaConfig`
+ * as "eyJ...DPiI\n" and shipped that way in the HTML of every page.
+ *
+ * It happened to work: the Fetch spec normalises header values, so the browser
+ * stripped it before it reached the wire. That is the entire reason nobody
+ * noticed — a whitespace bug surviving on a technicality in one consumer, in a
+ * value that is also string-compared, logged and pasted elsewhere. Trim it at
+ * the source, where it is one call and covers every reader, rather than at the
+ * three or four places that would each have to remember.
  */
 const env = (key: string): string => {
   const fromNode = typeof process !== 'undefined' ? process.env?.[key] : undefined;
-  return fromNode ?? (import.meta.env as Record<string, string | undefined>)[key] ?? '';
+  return (fromNode ?? (import.meta.env as Record<string, string | undefined>)[key] ?? '').trim();
 };
 
 /**

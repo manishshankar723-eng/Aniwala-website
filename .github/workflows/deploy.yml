@@ -197,6 +197,23 @@ jobs:
           node-version: 22
           cache: npm
 
+      # ------------------------------------------------------------------
+      # BEFORE `npm ci`, and for the same reason the secret scan is before it:
+      # this needs no dependencies, takes about a second, and an open door on
+      # the CMS is not something to discover after four minutes of building.
+      #
+      # It asks Sanity, with NO credentials, whether a stranger can read the
+      # dataset — and whether the Studio mirror has put any form submissions
+      # in there for them to read. A public dataset with submissions in it is
+      # a live disclosure of names, phone numbers and CV links, and fails the
+      # build. A public dataset with none is a warning: the write guard in
+      # supabase/functions/_shared/sanity.ts means nothing can get in.
+      #
+      # See the header of scripts/check-dataset.mjs for the whole argument.
+      # ------------------------------------------------------------------
+      - name: Check the CMS dataset is not serving personal data to strangers
+        run: node scripts/check-dataset.mjs
+
       - run: npm ci
 
       # Fails in two seconds with a readable message, rather than letting the

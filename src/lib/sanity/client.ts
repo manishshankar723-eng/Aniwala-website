@@ -22,10 +22,15 @@ import { createImageUrlBuilder } from '@sanity/image-url';
 
 /* Loaders run in Node during the build, before Vite has processed anything,
    so `process.env` is the reliable source. `import.meta.env` is checked too
-   because that is what a `.env` file feeds under `astro dev`. */
+   because that is what a `.env` file feeds under `astro dev`.
+
+   Trimmed, for the reason spelled out in `config/site.ts`: a value coming from
+   a CI secret rather than from `.env` has never been through the trim in
+   `astro.config.mjs`, and a token with a stray newline on it fails
+   authentication with a message that blames the token rather than the paste. */
 const env = (key: string): string => {
   const fromNode = typeof process !== 'undefined' ? process.env?.[key] : undefined;
-  return fromNode ?? (import.meta.env as Record<string, string | undefined>)[key] ?? '';
+  return (fromNode ?? (import.meta.env as Record<string, string | undefined>)[key] ?? '').trim();
 };
 
 export const SANITY_PROJECT_ID = env('SANITY_PROJECT_ID');

@@ -143,9 +143,10 @@ studio/                  The Sanity Studio. A separate npm package.
 ## Checks
 
 ```bash
-npm run verify      # astro check + build + link check. What CI runs.
-npm run check       # types and templates only
-npm run check:links # needs an existing dist/
+npm run verify        # dataset check + astro check + build + link check. What CI runs.
+npm run check         # types and templates only
+npm run check:links   # needs an existing dist/
+npm run check:dataset # asks Sanity, with no credentials, what a stranger can read
 ```
 
 `scripts/check-links.mjs` crawls `dist/` and fails on any internal `href`,
@@ -180,6 +181,37 @@ public by design; Row Level Security and the column grants are the only thing
 protecting enquiries, applications and comments. Read the header of that file
 before changing any policy in it.
 
+**And the Sanity dataset must be Private, or that boundary has a way around
+it.** A Sanity dataset is public or private, and a new one is **public** —
+meaning an unauthenticated GROQ query from anywhere on the internet is
+answered in full. The address is not secret and cannot be made secret: every
+CMS image on the site is served from
+`cdn.sanity.io/images/<projectId>/<dataset>/...`, so the project id and the
+dataset name are in the HTML of every page.
+
+For website content that is fine — it is published anyway. It stops being
+fine the moment the Studio mirror is switched on, because `notify` then copies
+every enquiry, booking, **job application** (name, phone number, CV link) and
+comment into that same dataset. Every policy and grant in `schema.sql` still
+holds, and none of them reach a second copy living in another vendor's
+database with no access control on it.
+
+Two things enforce this now, and neither replaces setting the dataset to
+Private:
+
+- `supabase/functions/_shared/sanity.ts` asks Sanity's management API for the
+  dataset's `aclMode` before every write and refuses to mirror unless it is
+  `private`. It fails safe — anything short of a definite "private" counts as
+  unsafe. Deletes are deliberately exempt, because a delete only ever removes
+  personal data.
+- `scripts/check-dataset.mjs` runs first in `npm run verify` and in CI. A
+  public dataset with submissions in it **fails the build**; a public dataset
+  with none is a warning.
+
+To close it properly: confirm `SANITY_READ_TOKEN` is a GitHub Actions secret
+(a private dataset is what makes the build need it), then sanity.io/manage →
+API → Datasets → **Private**, then confirm CMS images still render.
+
 ### What the build refuses to ship
 
 CI fails, and the deploy never runs, if:
@@ -192,6 +224,8 @@ CI fails, and the deploy never runs, if:
 - an internal **link or asset does not resolve**
 - a **redirect** would hide a real page, duplicate another, or chain
 - **`dist/.htaccess` is missing** from the build
+- the **CMS dataset is public and has form submissions in it** — personal
+  data being served to anonymous callers
 
 ### Why `href` is checked at all
 
@@ -577,15 +611,30 @@ so it is safe to re-run and safe to run against production.
      `Accept: application/vnd.github+json`
    - Body: `{"event_type": "sanity-publish"}`
    - Trigger on: create, update, delete
-   - **Filter (GROQ):** `_type != "submission"`
+   - **Filter (GROQ):**
+
+   ```
+   !(_id in path("drafts.**")) && !(_type in ["submission", "sanity.imageAsset", "sanity.fileAsset"])
+   ```
 
    **THE FILTER IS NOT OPTIONAL, and leaving it blank is not a tidiness
-   problem.**
+   problem.** It is one GROQ boolean expression — the same language the site
+   queries content with, so `&&` is required between the two halves. Two
+   conditions on separate lines is a syntax error, and an unparseable filter
+   fails in whichever direction you were not expecting: firing on everything,
+   or silently on nothing.
 
-   Every form submission is mirrored into this same dataset as a
-   `submission` document — see *Reading everything in the Studio*. Without
-   the filter, the webhook cannot tell that copy apart from a published
-   page, so:
+   Each half earns its place, and each was learned from a real symptom.
+
+   **The drafts clause — otherwise writing is deploying.** Sanity autosaves a draft
+   continuously as somebody types, and every save is an `update` this webhook
+   triggers on. Without this clause an editor drafting a blog post fires a
+   deploy every few seconds, all afternoon, for a page nobody has published.
+
+   **`submission` — otherwise visitors deploy the site.** Every form
+   submission is mirrored into this same dataset as a `submission` document
+   (see *Reading everything in the Studio*), and the webhook cannot tell that
+   copy apart from a published page. Without this clause:
 
    - somebody filling in the contact form rebuilds and re-uploads the
      entire site;
@@ -597,18 +646,30 @@ so it is safe to re-run and safe to run against production.
    seventy deploys that exist only because a stranger used a form, each one
    an rsync over the live site — and on a PRIVATE repository, where Actions
    minutes are billable, that alone can exhaust a monthly allowance in about
-   a week.
-
-   It is also the one part of this pipeline a visitor can trigger. A filter
-   that names what SHOULD rebuild the site is the difference between a
+   a week. It is also the one part of this pipeline a visitor can trigger; a
+   filter naming what SHOULD rebuild the site is the difference between a
    content webhook and an open deploy button.
 
-   Add document types here as the mirror grows. If a future document type is
-   internal rather than published, exclude it too:
+   **The asset types — otherwise one edit is two deploys.** Sanity stores
+   every upload as its own document, so changing a single image publishes
+   TWO things: a `sanity.imageAsset` and the document referencing it. Both
+   pass the first two clauses, and the result is two identical deploys
+   racing each other over the same directory. Excluding assets loses
+   nothing: an upload changes no page until a document points at it, and
+   that document's own publish still fires. `sanity.fileAsset` is here for
+   the same reason, covering PDFs and video.
+
+   Extend the array as the CMS grows — anything internal rather than
+   published belongs in it:
 
    ```
-   _type != "submission" && _type != "someOtherInternalType"
+   !(_id in path("drafts.**")) && !(_type in ["submission", "sanity.imageAsset", "sanity.fileAsset", "someOtherInternalType"])
    ```
+
+   **HOW TO TELL IT IS RIGHT:** publish one small change and count the runs
+   in the Actions tab. Exactly one. Three means the filter is not parsing at
+   all; two means an asset type is missing from the array; none means it is
+   parsing but excluding too much.
 
    **This lives in Sanity's UI, not in this repository**, which is the same
    hazard as the `validation:` rules in `studio/schemas/`: nothing in a build
@@ -888,12 +949,23 @@ submission into Sanity as a **Form submission** document — call requests,
 briefs, job applications and blog comments, in one section at the top of the
 Studio sidebar with a filtered list per kind.
 
-> **Before turning this on, check the publish webhook has its filter.**
+> **Before turning this on, set the dataset to Private.** A Sanity dataset is
+> public on creation, and a public one answers an unauthenticated query from
+> anyone — while the project id and dataset name sit in every CMS image URL on
+> the site. Switching the mirror on against a public dataset publishes every
+> lead and every job applicant's name, phone number and CV link to the open
+> internet. `supabase/functions/_shared/sanity.ts` now refuses to write into a
+> public dataset and `npm run verify` reports one, so this cannot happen
+> silently — but the setting is still yours to change: sanity.io/manage → API
+> → Datasets. Confirm `SANITY_READ_TOKEN` is a GitHub Actions secret first;
+> that is what the build needs once the dataset is private.
+
+> **Also check the publish webhook has its filter.**
 > These documents land in the same dataset the deploy webhook watches, so
-> without `_type != "submission"` on it (step 7 of *One-time setup*) every
-> enquiry, booking confirmation and comment approval rebuilds and re-uploads
-> the whole site. The mirror is what makes that filter necessary, so the two
-> belong switched on together.
+> unless `submission` is excluded by the GROQ filter on it (step 7 of
+> *One-time setup*), every enquiry, booking confirmation and comment approval
+> rebuilds and re-uploads the whole site. The mirror is what makes that filter
+> necessary, so the two belong switched on together.
 
 ```bash
 supabase secrets set \
@@ -937,8 +1009,9 @@ email buttons, or in the Supabase dashboard.
 numbers and CV links; enquiries carry client leads. Sanity has no per-document
 permissions on the standard plans, so anybody invited to the project can read
 all of it — worth remembering on the day you invite an editor just to write a
-blog post. A deletion request now has to be honoured in both places, and the
-privacy policy should say where the data lives.
+blog post. And if the dataset is **public**, "anybody invited" is "anybody":
+see the warning above. A deletion request now has to be honoured in both
+places, and the privacy policy should say where the data lives.
 
 Leave `SANITY_WRITE_TOKEN` unset and none of this happens; everything else
 works exactly as before.

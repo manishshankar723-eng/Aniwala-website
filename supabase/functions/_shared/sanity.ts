@@ -33,6 +33,12 @@
  * invited to write a blog post. A deletion request now has to be honoured in
  * both places, and the privacy policy should say so.
  *
+ * AND IF THE DATASET IS PUBLIC, "everybody invited" is "everybody". That is
+ * not a hypothetical — a Sanity dataset is public on creation. It is the
+ * reason for `datasetIsPrivate()` below, which is the last thing standing
+ * between this module and a public export of everyone who has ever contacted
+ * the studio. Read its comment before touching it.
+ *
  * TURNING IT OFF is not setting SANITY_WRITE_TOKEN. Every function that calls
  * this keeps working; the copy simply is not made.
  */
@@ -57,6 +63,166 @@ function sanityEnv(): SanityEnv | null {
 
 /** Whether the mirror is switched on at all. */
 export const sanityConfigured = (): boolean => sanityEnv() !== null;
+
+/* ------------------------------------------------------------------ */
+/* The dataset has to be PRIVATE before any of this may run            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * REFUSE TO MIRROR INTO A PUBLICLY READABLE DATASET.
+ *
+ * A Sanity dataset can be public or private, and `production` is public on
+ * creation. A public dataset answers an unauthenticated GROQ query from
+ * anywhere on the internet — no token, no account, one curl.
+ *
+ * The project id and dataset name are not secret and cannot be made secret:
+ * they are in the URL of every CMS image on the site
+ * (`cdn.sanity.io/images/<projectId>/<dataset>/...`), so anybody who views
+ * source has both halves of the address.
+ *
+ * Put those two facts together with what this module does — copy every
+ * enquiry, booking, JOB APPLICATION (name, phone number, CV link) and comment
+ * (including the author's email) into that dataset — and a public dataset
+ * turns the mirror into a public export of everyone who has ever contacted
+ * the studio.
+ *
+ * That is not a smaller version of the risk `schema.sql` already manages. It
+ * is a way AROUND it. Section 4 of that file revokes every SELECT on
+ * `applications` from anon specifically because the table "holds job
+ * applicants' names, phone numbers and CV links, so a SELECT policy here
+ * would be a personal-data breach, not just a lead leak". The RLS policies,
+ * the column grants and the rate limiter all still hold — and none of them
+ * reach a second copy sitting in a different vendor's database with no access
+ * control on it at all.
+ *
+ * So the check lives HERE, at the write, rather than in a setup document.
+ * README.md can say "set the dataset to private" and be right, and a year
+ * from now somebody restoring a project, adding a dataset, or clicking
+ * through Sanity's project wizard gets a public one by default and nothing
+ * says otherwise. This is the thing that says otherwise.
+ *
+ * FAIL SAFE, NOT FAIL OPEN. The mirror is made only when the dataset has been
+ * POSITIVELY CONFIRMED private. An inconclusive check — Sanity unreachable, a
+ * timeout, a token that cannot read project metadata, an unrecognised response
+ * — counts as unsafe and the copy is not made. The cost of being wrong in that
+ * direction is a Studio list that is briefly out of date, against a permanent
+ * disclosure of personal data in the other. Supabase is the source of truth
+ * either way (see the header of this file), so nothing is lost.
+ *
+ * ASK SANITY WHAT THE DATASET IS, DO NOT INFER IT FROM A QUERY.
+ *
+ * The first version of this asked, unauthenticated, "can a stranger read a
+ * document" and inferred public/private from the answer. That was wrong in a
+ * way that testing caught: a private dataset answers an anonymous
+ * `query=true` with `{"result":true}` and HTTP 200 — because `true` is a
+ * constant GROQ expression that reads no documents, so it evaluates the same
+ * whether or not the caller may see anything. The probe reported PUBLIC for a
+ * dataset that was genuinely private, which fails in the SAFE direction here
+ * (it refuses to mirror) but silently defeats the whole feature.
+ *
+ * The management API states the answer outright. `GET
+ * api.sanity.io/.../projects/<id>/datasets` returns each dataset's `aclMode`,
+ * which is exactly `"private"` or `"public"` — Sanity's own classification,
+ * not something reconstructed from document visibility. It needs a token, and
+ * this function already holds one, so it is asked WITH the token. (An
+ * unauthenticated caller gets 401 from that endpoint, which is why it cannot
+ * be used from the browser, only from here.)
+ */
+const PROBE_TIMEOUT_MS = 5_000;
+
+/**
+ * The management API version for the datasets endpoint. A LITERAL, and
+ * separate from `API_VERSION` above: that one versions the CONTENT API
+ * (querying and mutating documents); this versions the PROJECTS API (reading
+ * project and dataset metadata), which is a different surface with its own
+ * dated versions. Pinned for the same reason everything else here is.
+ */
+const PROJECTS_API_VERSION = 'v2021-06-07';
+
+/**
+ * Cached only when the answer is PRIVATE.
+ *
+ * A "safe" verdict cannot go stale in a direction that hurts: a dataset that
+ * was private when the isolate started and is made public later is a decision
+ * somebody took deliberately, and the next cold isolate re-checks it. An
+ * "unsafe" verdict is deliberately NOT cached, so that flipping the dataset to
+ * private takes effect on the very next submission instead of waiting for the
+ * isolate to recycle. Re-checking on the blocked path costs one request on a
+ * path that is already refusing to do its work.
+ */
+let confirmedPrivate = false;
+
+async function datasetIsPrivate(env: SanityEnv): Promise<boolean> {
+  if (confirmedPrivate) return true;
+
+  /* WITH the token — this is the management API, which 401s an anonymous
+     caller. The token this function already holds can read project metadata. */
+  const url = `https://api.sanity.io/${PROJECTS_API_VERSION}/projects/${env.projectId}/datasets`;
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `Bearer ${env.token}` },
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+    });
+  } catch (err) {
+    console.error(
+      `sanity mirror: could not reach the Sanity projects API to check whether ` +
+        `dataset "${env.dataset}" is private (${(err as Error).message}). Not ` +
+        `mirroring — a copy of personal data is only written to a dataset confirmed ` +
+        `private.`
+    );
+    return false;
+  }
+
+  if (!res.ok) {
+    console.error(
+      `sanity mirror: the Sanity projects API returned ${res.status} when asked ` +
+        `whether dataset "${env.dataset}" is private, so it is unknown. Not mirroring. ` +
+        `A 401/403 here means SANITY_WRITE_TOKEN cannot read project metadata — that ` +
+        `is unusual for an Editor token and worth checking.`
+    );
+    return false;
+  }
+
+  let datasets: Array<{ name?: string; aclMode?: string }>;
+  try {
+    datasets = await res.json();
+  } catch {
+    console.error(
+      `sanity mirror: could not parse the Sanity projects API response for dataset ` +
+        `"${env.dataset}". Not mirroring.`
+    );
+    return false;
+  }
+
+  const match = Array.isArray(datasets)
+    ? datasets.find((d) => d.name === env.dataset)
+    : undefined;
+
+  if (!match) {
+    console.error(
+      `sanity mirror: dataset "${env.dataset}" was not found on project ` +
+        `${env.projectId}. Not mirroring.`
+    );
+    return false;
+  }
+
+  if (match.aclMode !== 'private') {
+    console.error(
+      `sanity mirror: REFUSING to copy submissions into dataset "${env.dataset}" ` +
+        `on project ${env.projectId} — its aclMode is "${match.aclMode}", not ` +
+        `"private", so the copy would publish names, email addresses, phone numbers ` +
+        `and CV links to anyone who queries it. Nothing has been written. Fix it at ` +
+        `sanity.io/manage -> API -> Datasets -> set "${env.dataset}" to Private. To ` +
+        `turn the mirror off instead, unset SANITY_WRITE_TOKEN on the Edge Functions.`
+    );
+    return false;
+  }
+
+  confirmedPrivate = true;
+  return true;
+}
 
 /* ------------------------------------------------------------------ */
 /* Shaping a row into a document                                       */
@@ -231,12 +397,28 @@ export async function mirrorRow(
     if (!id) return;
     /* A rejected comment is deleted from the database, and its copy has to go
        with it — a mirror that outlives the thing it mirrors is worse than no
-       mirror, because it reads as a comment still waiting for moderation. */
+       mirror, because it reads as a comment still waiting for moderation.
+
+       DELIBERATELY NOT BEHIND THE PUBLIC-DATASET CHECK BELOW. A delete only
+       ever REMOVES personal data from the dataset, so it is safe on a public
+       one and refusing it would be actively harmful: on the day somebody
+       discovers the dataset is public, this is the operation that cleans up
+       after it, and a guard that blocked it would pin the exposure in place. */
     await mutate(env, [{ delete: { id: docId(table, id) } }]);
     return;
   }
 
   const doc = toDocument(table, row);
   if (!doc) return;
+
+  /* THE LAST THING BEFORE PERSONAL DATA LEAVES THIS FUNCTION. Everything
+     above has built a document full of names, email addresses, phone numbers
+     and CV links; this decides whether there is anywhere safe to put it.
+     Silent no-op rather than a throw, exactly like an unset SANITY_WRITE_TOKEN
+     — the mirror is optional and `notify` treats a thrown mirror differently
+     per event, so failing loudly here would turn a configuration problem into
+     a retrying webhook. The reason is on the console either way. */
+  if (!(await datasetIsPrivate(env))) return;
+
   await mutate(env, [{ createOrReplace: doc }]);
 }

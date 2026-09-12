@@ -11,7 +11,8 @@ Manage the background server with `astro dev stop`, `astro dev status`, and `ast
 ## Before pushing
 
 ```
-npm run verify      # astro check + build + link check. Exactly what CI runs.
+npm run verify      # dataset check + astro check + build + link check.
+                    # Exactly what CI runs.
 ```
 
 The `deploy` job is gated on `verify`, so a red build never reaches the
@@ -26,6 +27,16 @@ server. Do not work around a failing check — they are load bearing:
   `studio/schemas/` run in the Studio UI only — the Content Lake API ignores
   them, so any write token skips them. Anything that must be true of CMS
   content belongs in `src/content.config.ts`, which runs on every build.
+
+- **The Sanity dataset must stay Private.** A dataset is public on creation,
+  and a public one answers unauthenticated GROQ queries — while the project id
+  and dataset name sit in every `cdn.sanity.io` image URL on the site. The
+  Studio mirror copies form submissions (names, phone numbers, CV links) into
+  that dataset, so public + mirror = a public export of every lead and
+  applicant, routing around every policy in `supabase/schema.sql`.
+  `supabase/functions/_shared/sanity.ts` refuses to mirror into a public
+  dataset and `scripts/check-dataset.mjs` fails the build if data is already
+  exposed. Do not weaken either to make something pass.
 - **`supabase/schema.sql`** — RLS and the column grants are the only thing
   protecting form data. Read that file's header before changing a policy.
 
