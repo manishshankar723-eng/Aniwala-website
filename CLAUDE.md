@@ -54,6 +54,27 @@ server. Do not work around a failing check — they are load bearing:
 - **`supabase/schema.sql`** — RLS and the column grants are the only thing
   protecting form data. Read that file's header before changing a policy.
 
+- **Anything untrusted that reaches an EMAIL is an output boundary too.**
+  `supabase/functions/notify` and `schedule` build HTML out of values a stranger
+  typed into a public form: a commenter's `post_slug`, an applicant's
+  `portfolio_url`. Every interpolation goes through `esc()` and every URL
+  through `safeUrl()`, both in `_shared/util.ts` — `safeUrl` returns null for
+  anything that is not plain http(s). Escaping alone is not enough: it stops a
+  value breaking out of its attribute and says nothing about where the link
+  goes. The moderation email is the one that matters most, because it is read
+  by the person about to press Approve.
+
+- **A media or embed URL from the CMS is checked in CODE, not only by the CSP.**
+  `findUnsafeHref` in `src/config/urls.ts` walks keys ending in `href` — that is
+  every link on a CMS-built page and no media field at all. So `isSafeMediaSrc`
+  guards the hero video, and the host pattern in `src/lib/pieces.ts` guards
+  which origin a Cloudflare Stream iframe may load. Match the SUBDOMAIN there,
+  never the suffix: `[^/]*cloudflarestream.com` also accepts
+  `evilcloudflarestream.com` and — a backslash being a slash inside a URL
+  authority — `attacker.example\x.cloudflarestream.com`, which a browser
+  resolves to `attacker.example`. The CSP refuses both. It is the backstop, not
+  the check.
+
 ## The Studio
 
 `studio/` is a separate npm package (Sanity v6, React 19, Node ≥ 22.12). The

@@ -13,7 +13,9 @@
     "migrate": "node --env-file=../.env scripts/migrate.mjs",
     "check": "node scripts/check-schema.mjs",
     "seed:copy": "node --env-file=../.env scripts/seed-copy.mjs",
-  "seed:tools": "node --env-file=../.env scripts/seed-tools.mjs"
+  "seed:tools": "node --env-file=../.env scripts/seed-tools.mjs",
+    "seed:pieces": "node --env-file=../.env scripts/seed-pieces.mjs",
+    "publish:drafts": "node --env-file=../.env scripts/publish-drafts.mjs"
   },
   "engines": {
     "node": ">=22.12"
@@ -30,9 +32,18 @@
     "js-yaml.safeLoad(), and safeLoad was REMOVED in 4.0. Overriding to ^4 would turn a",
     "moderate-severity advisory into a hard TypeError on whatever path reads a config file.",
     "Verified: 3.15.2 still exports safeLoad, and npm already resolves it elsewhere in this",
-    "tree (via gray-matter) without the advisory firing. Do not 'upgrade' this pin to ^4."
+    "tree (via gray-matter) without the advisory firing. Do not 'upgrade' this pin to ^4.",
+    "",
+    "adm-zip is pinned to ^0.6.1 for GHSA-vwc7-r8mq-g2x9 (extraction follows destination",
+    "symlinks, so a crafted archive can overwrite arbitrary files). It arrives twice, both",
+    "times at 0.6.0 and both times under @sanity/cli - via @sanity/runtime-cli, and via",
+    "@sanity/workbench-cli -> @module-federation/vite -> dts-plugin. npm audit's own fix is",
+    "`sanity@6.1.0`, a DOWNGRADE out of 6.12; 0.6.1 is a patch on the version already",
+    "installed, so no API moves. CLI/build-time only: nothing unpacks an archive in the",
+    "deployed Studio bundle and nothing in the website touches it at all."
   ],
   "overrides": {
+    "adm-zip": "^0.6.1",
     "js-yaml": "^3.15.2",
     "smol-toml": "^1.6.1",
     "uuid": "^11.1.1"

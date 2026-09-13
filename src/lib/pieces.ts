@@ -33,6 +33,8 @@ export interface Piece {
   /** Whether the tile offers an unmute button. */
   sound: boolean;
   caseStudy?: string;
+  /** `cover` crops to the tile; `contain` fits the whole picture inside it. */
+  fit: 'cover' | 'contain';
   wide?: boolean;
 }
 
@@ -82,7 +84,31 @@ export function resolveVideo(value: string | undefined): PieceVideo | undefined 
   const id = v.match(/[0-9a-f]{32}/i)?.[0];
   if (!id) return undefined;
 
-  const host = v.match(/^https:\/\/([^/]*cloudflarestream\.com)\//i)?.[1];
+  /*
+   * THE SUBDOMAIN IS MATCHED, NOT MERELY THE SUFFIX, and the difference is the
+   * whole value of keeping the origin.
+   *
+   * `[^/]*cloudflarestream\.com` was a suffix test, and a suffix test on a
+   * hostname accepts two things it was never meant to:
+   *
+   *   https://evilcloudflarestream.com/<id>/iframe
+   *     A domain anybody can register this afternoon. There is no dot before
+   *     `cloudflarestream.com`, so it is not a subdomain of anything.
+   *
+   *   https://attacker.example\x.cloudflarestream.com/<id>/iframe
+   *     `[^/]` admits a backslash, and a backslash is a SLASH inside the
+   *     authority of a special scheme — so the browser resolves the host to
+   *     `attacker.example` while this regex reads the string as ending in
+   *     `cloudflarestream.com`.
+   *
+   * Both are refused by `frame-src https://*.cloudflarestream.com` in
+   * public/.htaccess, which is why neither was ever a live hole. That is ONE
+   * layer, and this is the argument `config/urls.ts` already makes about
+   * SAFE_HREF: the CSP is the backstop, not the check. An unrecognised value
+   * falls through to `iframe.videodelivery.net`, which is a working embed
+   * rather than a dead frame.
+   */
+  const host = v.match(/^https:\/\/((?:[a-z0-9-]+\.)?cloudflarestream\.com)\//i)?.[1];
   return { kind: 'stream', src: `https://${host ?? 'iframe.videodelivery.net'}/${id}/iframe` };
 }
 
@@ -101,10 +127,29 @@ const flatten = (entry: CollectionEntry<'pieces'>): Piece => {
     tint: entry.data.tint,
     video: resolveVideo(entry.data.video),
     sound: entry.data.sound,
-    image: cover?.asset ? imageUrl(cover, 1200) : undefined,
-    srcset: cover?.asset ? imageSrcSet(cover, [480, 768, 1200, 1800]) : undefined,
+    /*
+     * QUALITY 92, not the 80 every other image on the site gets.
+     *
+     * A portfolio tile is the one picture here that IS the product — a client
+     * is looking at it to judge whether the work is good. Everywhere else an
+     * image supports the words and 80 is invisible; on a 3D render with smooth
+     * gradients it is where banding starts to show. `auto('format')` still
+     * serves AVIF/WebP, so the cost of the extra fidelity is small.
+     */
+    image: cover?.asset ? imageUrl(cover, 2400, 92) : undefined,
+    /*
+     * UP TO 2400, because a WIDE tile spans the full row: about 1400 CSS px on
+     * a large monitor, which is 2800 device pixels at 2x. The old ladder
+     * stopped at 1800 and the top rung was never requested anyway — nothing
+     * rendered this srcset, so every tile loaded the single 1200px `src` and
+     * stretched it. That is what "compressed" looked like.
+     */
+    srcset: cover?.asset
+      ? imageSrcSet(cover, [480, 768, 1200, 1800, 2400], 92)
+      : undefined,
     imageAlt: cover?.alt,
     caseStudy: entry.data.caseStudy,
+    fit: entry.data.fit,
     wide: entry.data.wide,
   };
 };

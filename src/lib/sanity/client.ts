@@ -150,9 +150,13 @@ export function imageUrl(source: SanityImage, width: number, quality = 80): stri
 }
 
 /** A `srcset` across the widths the layouts actually use. */
-export function imageSrcSet(source: SanityImage, widths = [480, 768, 1200, 1800]): string {
+export function imageSrcSet(
+  source: SanityImage,
+  widths = [480, 768, 1200, 1800],
+  quality = 80
+): string {
   if (!builder || !source?.asset) return '';
-  return widths.map((w) => `${imageUrl(source, w)} ${w}w`).join(', ');
+  return widths.map((w) => `${imageUrl(source, w, quality)} ${w}w`).join(', ');
 }
 
 /**

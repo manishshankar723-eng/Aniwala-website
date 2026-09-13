@@ -38,6 +38,7 @@ import {
   safeEqual,
   sendMail,
   esc,
+  safeUrl,
   recipientFor,
   layout,
   row,
@@ -204,7 +205,7 @@ Deno.serve(async (req) => {
              Nothing is in anyone's calendar until you say so.
            </p>
            <p style="margin:0">
-             ${button(url('confirm', c.exp, c.token), 'Confirm &amp; send invite', '#14161d', '#e4c24c')}
+             ${button(url('confirm', c.exp, c.token), 'Confirm & send invite', '#14161d', '#e4c24c')}
              ${BUTTON_GAP}
              ${button(url('decline', d.exp, d.token), 'Cannot make it', '#f5f5f3', '#16171b')}
            </p>`;
@@ -296,10 +297,25 @@ Deno.serve(async (req) => {
         ? (record.desired_role as string) || 'an unlisted role'
         : (record.role_title as string) || 'a role';
 
-      const link = (url: unknown, label: string) =>
-        url
-          ? `<a href="${esc(String(url))}" style="color:#8a6a10">${label}</a>`
-          : '';
+      /*
+       * SCHEME-CHECKED, and escaping was never a substitute for it.
+       *
+       * Both of these are typed by a stranger into a public form and land as
+       * clickable links in the careers inbox. `esc()` stops them breaking out
+       * of the attribute and says nothing about where they point, so a
+       * `javascript:` or `data:` portfolio link was a well-formed href that
+       * the site's own `SAFE_HREF` would have refused anywhere else.
+       *
+       * `safeUrl` returns null for anything that is not plain http(s), which
+       * renders as no link at all — visible, harmless, and obvious enough that
+       * whoever is reading the application will say so.
+       */
+      const link = (url: unknown, label: string) => {
+        const href = safeUrl(url);
+        return href ? `<a href="${esc(href)}" style="color:#8a6a10">${label}</a>` : '';
+      };
+      const portfolioLink = link(record.portfolio_url, 'Open the portfolio / reel');
+      const cvLink = link(record.cv_url, 'Open the CV');
 
       mail = {
         to: careers ? [careers] : recipientFor(null),
@@ -323,9 +339,9 @@ Deno.serve(async (req) => {
            </table>
 
            <p style="margin:20px 0 0;font-size:15px">
-             ${link(record.portfolio_url, 'Open the portfolio / reel')}
-             ${record.cv_url ? ' &middot; ' : ''}
-             ${link(record.cv_url, 'Open the CV')}
+             ${portfolioLink}
+             ${portfolioLink && cvLink ? ' &middot; ' : ''}
+             ${cvLink}
            </p>
 
            ${
@@ -375,7 +391,18 @@ Deno.serve(async (req) => {
       const approve = modUrl('approve', a.exp, a.token);
       const reject = modUrl('reject', r.exp, r.token);
 
-      const postUrl = `${siteUrl}/blog/${record.post_slug}/`;
+      /*
+       * ENCODED HERE, ESCAPED AT THE POINT OF USE, and it was neither.
+       *
+       * `post_slug` is whatever the comment form said it was: free text,
+       * capped at 200 characters by a CHECK constraint and checked for nothing
+       * else by the column grants, the `submit` allowlist or this function.
+       * Written raw into an href it could close the attribute and repoint
+       * "Read the post" wherever it liked — a phishing link inside the one
+       * email whose other two buttons publish or delete, read by the one
+       * person about to press one of them.
+       */
+      const postUrl = `${siteUrl}/blog/${encodeURIComponent(String(record.post_slug ?? ''))}/`;
 
       mail = {
         to: recipientFor(null),
@@ -396,13 +423,13 @@ Deno.serve(async (req) => {
              Nothing is public until you approve it.
            </p>
            <p style="margin:0">
-             ${button(approve, 'Approve &amp; publish', '#14161d', '#e4c24c')}
+             ${button(approve, 'Approve & publish', '#14161d', '#e4c24c')}
              ${BUTTON_GAP}
-             ${button(reject, 'Reject &amp; delete', '#f5f5f3', '#16171b')}
+             ${button(reject, 'Reject & delete', '#f5f5f3', '#16171b')}
            </p>
 
            <p style="margin:24px 0 0;font-size:13px;color:#83879a">
-             <a href="${postUrl}" style="color:#8a6a10">Read the post</a> &middot;
+             <a href="${esc(postUrl)}" style="color:#8a6a10">Read the post</a> &middot;
              Reply to this email to answer the commenter directly.
            </p>`
         ),

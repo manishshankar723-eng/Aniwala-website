@@ -16,6 +16,7 @@
  */
 import { defineType, defineField, defineArrayMember } from 'sanity';
 import { seoFields } from './seoFields';
+import { R2VideoInput } from '../components/R2VideoInput';
 
 export default defineType({
   name: 'workCategory',
@@ -114,6 +115,48 @@ export default defineType({
         }),
       ],
     }),
+    /**
+     * The discipline's own loop, in BOTH places its picture already appears.
+     *
+     * The tile on the portfolio grid, and the band behind the heading on its
+     * own page. One upload, two places — which is not a shortcut, it is the
+     * rule `image` already follows: `toArtwork(w.image)` in WorkGridBlock and
+     * `heroArtwork(category.image)` on the discipline page read the same
+     * field. A second "tile video" field would be a second answer to a
+     * question this one already answers, and the two would disagree the first
+     * time somebody edited one.
+     *
+     * DIRECT FILE ONLY, unlike the field on a piece, and the difference is not
+     * an oversight. A piece tile may be a Cloudflare Stream embed because a
+     * tile can carry a player; this plays as the BACKGROUND of the page band,
+     * behind the heading, and an iframe cannot be a background — it would
+     * render Stream's own player chrome across the top of the page.
+     *
+     * The Tile image above stays the poster, so the band shows a still from
+     * the first paint rather than an empty wash while the video opens. Without
+     * an image this renders nothing at all rather than a black bar.
+     */
+    defineField({
+      name: 'video',
+      title: 'Video',
+      type: 'string',
+      group: 'main',
+      components: { input: R2VideoInput },
+      description:
+        'Optional. A silent loop that plays in this discipline\u2019s tile on the portfolio grid AND behind the heading on its own page. Drop an .mp4 or .webm here, or run `node --env-file=.env scripts/upload-r2.mjs <file> video/pieces/<name>.mp4` and paste the URL. Needs the Tile image above, which becomes its poster. Muted always \u2014 browsers do not autoplay sound.',
+      validation: (Rule) =>
+        Rule.custom((v: string | undefined) => {
+          if (!v) return true;
+          const s = v.trim();
+          if (/youtube\.com|youtu\.be|vimeo\.com/i.test(s))
+            return 'That is a YouTube or Vimeo page, which cannot be played as a silent background loop.';
+          if (/cloudflarestream\.com|videodelivery\.net/i.test(s) || /^[0-9a-f]{32}$/i.test(s))
+            return 'A Stream embed cannot be a page background. Use a direct .mp4 or .webm URL here.';
+          if (/^(https?:\/\/|\/)/i.test(s) && /\.(mp4|webm)(\?|#|$)/i.test(s)) return true;
+          return 'Use a direct .mp4 or .webm URL.';
+        }),
+    }),
+
     defineField({
       name: 'services',
       title: 'Hired as',

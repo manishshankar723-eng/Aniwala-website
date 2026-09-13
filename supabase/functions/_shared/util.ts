@@ -213,6 +213,40 @@ export function esc(value: unknown): string {
     .replace(/'/g, '&#39;');
 }
 
+/**
+ * A URL from outside, refused unless it is plainly http(s).
+ *
+ * ONE definition, for the same reason the CORS allow-list below is one: this
+ * lived in `schedule` and `notify` needed the identical rule, and two copies
+ * of a security check are two chances for one of them to go quietly stale.
+ *
+ * Two callers, two different strangers, one rule:
+ *
+ *   - `schedule` takes a joining link typed by whoever holds the confirmation
+ *     link, and sends it to clients over the studio's own name.
+ *   - `notify` takes `portfolio_url` and `cv_url` straight out of a public job
+ *     application and renders them as clickable links in the careers inbox.
+ *
+ * `esc()` above makes either safe as an attribute VALUE — neither can break
+ * out of the quotes. It says nothing about where the link GOES, and
+ * `javascript:` and `data:` are perfectly well-formed attribute values.
+ *
+ * Anything that is not plain http(s) is DROPPED rather than corrected. A
+ * silently rewritten link is worse than a missing one, because a missing one
+ * is noticed.
+ */
+export function safeUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 500) return null;
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? trimmed : null;
+  } catch {
+    return null;
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Recipient routing                                                   */
 /* ------------------------------------------------------------------ */
@@ -337,8 +371,13 @@ export function row(label: string, value: unknown): string {
  * appearance, so a client that strips `<style>` loses only the stacking.
  */
 export function button(href: string, label: string, bg: string, fg: string): string {
+  /* BOTH arguments are escaped. The href always was; `label` was not, on the
+     reasoning that every call site passes a literal — which is true, and is
+     the kind of thing that stays true until it does not. Labels are written
+     here as plain text (`&`, not `&amp;`), because this now does the
+     escaping. */
   return `<a class="btn" href="${esc(href)}" style="display:inline-block;padding:12px 22px;border-radius:6px;
-      background:${bg};color:${fg};font-size:14px;font-weight:600;text-decoration:none">${label}</a>`;
+      background:${bg};color:${fg};font-size:14px;font-weight:600;text-decoration:none">${esc(label)}</a>`;
 }
 
 /** The gap between two side-by-side buttons, collapsed on a phone. */

@@ -49,6 +49,49 @@ portfolio that shows no animation.
   portfolio bar until a code fix this week; they are linked now, so an empty
   gallery is the remaining half of the problem.
 
+  **Where the pictures and videos actually live**, because the two are easy to
+  confuse and only one of them is the work:
+
+  - **Portfolio disciplines** (Character Design, VFX, ...) is the *category*.
+    It has one **Tile image** - the picture on its tile on the homepage grid
+    and the portfolio index. It is on the same Content tab, below Blurb,
+    Intro and Tint, so it is under the fold rather than missing. All six
+    already have one.
+  - **Portfolio pieces** is the *work*, and it is a separate collection in the
+    left sidebar. A piece has **Image** and **Video**, and a piece is what
+    appears in a discipline's gallery. Setting its **Category** to Character
+    Design is what files it under
+    `/portfolio/character-design/`.
+
+  So: an empty gallery is not a missing image on the discipline. It is that no
+  piece points at it yet.
+
+  On a piece, **Image is still wanted even when there is a video** - it is the
+  poster, and the only thing on screen until the player has a frame. A video
+  with no image falls back to flat tint.
+
+  Video takes a direct `.mp4`/`.webm` URL or a Cloudflare Stream id. **Not a
+  YouTube or Vimeo link** - the field refuses one, because neither can play as
+  a silent background loop.
+
+  **Uploading the video itself.** Drop the file on the Video field in the
+  Studio and it uploads straight to Cloudflare R2 - it never goes into Sanity,
+  which does not transcode and charges for storage either way.
+
+  The other route is a terminal, and it is the better one when the file is
+  large or has an audio track nothing will ever play:
+
+  ```bash
+  node --env-file=.env scripts/upload-r2.mjs clip.mp4 video/pieces/kite.mp4
+  ```
+
+  It strips the dead audio (a browser cannot), prints the public URL, and
+  checks the URL actually serves. Paste what it prints into the Video field.
+
+  If the drop zone fails, the likeliest cause is the bucket's CORS policy
+  rather than anything in the CMS - see *Video -> If the drop zone refuses an
+  upload* in README.md.
+
 ---
 
 ## Second — code is built and idle

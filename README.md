@@ -34,7 +34,10 @@ Two ways in, one way out.
 
 **A code change** — push to `main`.
 **A content change** — hit Publish in the Studio at
-<https://aniwala.com/admin> (which redirects to `aniwala.sanity.studio`).
+<https://aniwala.com/admin>. That redirects to `aniwala.sanity.studio`, which
+Sanity now redirects onward to `https://www.sanity.io/@<org>/studio/<id>` —
+hosted Studios moved. The bookmark still works; the origin the browser ends up
+on is different, which matters for one thing only, and it is under *Video*.
 
 Either one triggers the same GitHub Actions workflow: it type-checks, builds,
 checks every internal link, and only then `rsync`s `dist/` over SSH into
@@ -54,6 +57,41 @@ static and would carry on serving the previous build. If an editor says
 
 Hostinger runs PHP, not Node — it only ever receives finished HTML.
 Never point the workflow at a Node runtime; there isn't one on this plan.
+
+### Going live on aniwala.com
+
+The site currently serves from **staging.aniwala.com**. `aniwala.com` is still
+the old WordPress install, so everything below is the list of things that are
+correct for staging today and silently wrong the moment the Astro build
+replaces it.
+
+- **`SITE_URL` on the Edge Functions.** It is the origin `submit`, `moderate`
+  and `schedule` will accept, *and* it builds the Approve/Reject and
+  Confirm/Decline links in every notification email. Left on staging after
+  cutover, every form on the live site gets `{"error":"Forbidden"}` and every
+  email button points at the wrong host. Either move it, or name both while the
+  transition is in flight:
+  ```bash
+  supabase secrets set SITE_URL=https://aniwala.com --project-ref <ref>
+  supabase secrets set EXTRA_ORIGINS=https://staging.aniwala.com --project-ref <ref>
+  ```
+- **Turnstile's hostname list**, at dash.cloudflare.com. Separate from
+  everything above, and a missing host is error `110200`: the widget renders
+  nothing, issues no token, and the form asks the visitor to complete a check
+  that is not on the page.
+- **`TURNSTILE_SITE_KEY` in the GitHub Actions secrets**, not only in `.env`. A
+  production build without it falls back to posting directly to PostgREST under
+  the anon key — which is a closed door once the cutover in section 7 of
+  `supabase/schema.sql` has been run.
+- **The CSP travels with the build.** `public/.htaccess` is copied into `dist/`,
+  so every header under *Headers* below starts applying the moment `dist/`
+  reaches `public_html`. Confirm them against the live host afterwards; on
+  WordPress none of them are in effect.
+- **The staging safety net stops applying.** `.htaccess` sets
+  `X-Robots-Tag: noindex, nofollow` on every hostname that is not
+  `aniwala.com`, which is what keeps staging out of the index. On the canonical
+  host it is never sent — so the live site becomes indexable by that change
+  alone. That is the intent; just know it is the switch.
 
 ## One-time setup
 
@@ -214,6 +252,33 @@ Private:
 To close it properly: confirm `SANITY_READ_TOKEN` is a GitHub Actions secret
 (a private dataset is what makes the build need it), then sanity.io/manage →
 API → Datasets → **Private**, then confirm CMS images still render.
+
+### Two boundaries the build does not cover
+
+Neither of these is `content.config.ts`, so nothing fails a build when one is
+wrong.
+
+**Email is an output boundary.** `notify` and `schedule` assemble HTML from
+values a stranger typed into a public form. Every interpolation goes through
+`esc()` and every URL through `safeUrl()`, both in
+`supabase/functions/_shared/util.ts`; `safeUrl` returns null for anything that
+is not plain http(s), so a `javascript:` portfolio link renders as no link at
+all. Escaping alone was never enough — it stops a value breaking out of its
+attribute and says nothing about where the link points. The moderation email
+is the one that matters most: it is read by the person about to press Approve,
+so a link in it that goes somewhere unexpected is worth more to an attacker
+than one on the public site.
+
+**A media or embed URL is checked in code, not only by the CSP.**
+`findUnsafeHref` walks keys ending in `href` — every link on a CMS-built page,
+and no media field. So `isSafeMediaSrc` in `src/config/urls.ts` guards the hero
+video, and the host pattern in `src/lib/pieces.ts` guards which origin a
+Cloudflare Stream iframe may load from. Match the **subdomain** there, never
+the suffix: `[^/]*cloudflarestream\.com` also accepts
+`evilcloudflarestream.com`, and — because a backslash is a slash inside a URL
+authority — `attacker.example\x.cloudflarestream.com`, which a browser resolves
+to `attacker.example`. The CSP refuses both, which is why neither was ever a
+live hole. It is the backstop, not the check.
 
 ### What the build refuses to ship
 
@@ -548,8 +613,9 @@ video is the one asset heavy enough that where it lives is a decision rather
 than a detail, and Sanity charges storage and asset bandwidth for something it
 does not transcode.
 
-Two places take one: the homepage hero block, and a portfolio piece. Both use
-the same field, which accepts either
+Three places take one: the homepage hero block, a portfolio piece, and a
+portfolio discipline. All three use the same field and the same drop zone,
+which accepts either
 
 - **a direct `.mp4`/`.webm` URL** — R2, or any host serving one. Renders in a
   native `<video>`. This is what the drop zone produces.
@@ -559,6 +625,19 @@ the same field, which accepts either
 
 The site works out which it got. There is deliberately no "what kind is this"
 dropdown to get wrong.
+
+**A DISCIPLINE TAKES THE FIRST KIND ONLY**, and the Studio refuses the second
+with a message saying why. Its video is the background of the page band, behind
+the heading — and a Stream embed is an iframe carrying Stream's own player, so
+it cannot be a background without drawing that player's chrome across the top of
+the page. A piece tile has no such problem, because a tile *is* somewhere a
+player can live.
+
+A discipline's video also **requires its Tile image**, which becomes the poster.
+Without one the band is an empty wash until the first frame decodes, which on a
+phone is most of what a visitor sees — so the video renders not at all rather
+than as a black bar, and the missing still is obvious in the Studio instead of
+only on a slow connection.
 
 On a piece, the image stays the **poster**, so a tile shows a frame of the work
 from first paint rather than a black box. A piece with a video and no image
@@ -599,6 +678,47 @@ The script prints the public URL and then `HEAD`s it — a `200` from the upload
 only proves the object landed, and public read is a **separate bucket setting**.
 Re-using a key overwrites the object, so uploading over `video/home-hero.mp4`
 swaps the hero with no Studio edit at all.
+
+#### If the drop zone refuses an upload
+
+**Check the origin before assuming it.** The Studio's address bar now reads
+`https://www.sanity.io/@<org>/studio/<id>` — Sanity moved hosted Studios behind
+a dashboard — but the Studio itself is served in a **frame** from the old
+`https://aniwala.sanity.studio`, and it is the frame that makes the upload
+request. So the origin `sign-upload` sees is still `aniwala.sanity.studio`,
+which is on its list. Reading the address bar and concluding otherwise is the
+easy mistake here; it was made once already.
+
+To see it for certain: DevTools → Console → set the context dropdown (next to
+the filter box) to the Studio's frame rather than `top`, and type
+`location.origin`.
+
+If that value is ever *not* on the list, every upload is refused before the
+session token is read — and because the refusal carries
+`Access-Control-Allow-Origin: null` the browser blocks the response too, so
+what an editor sees is a failed request rather than the word "Forbidden". It
+reads as R2 being down.
+
+That list is `ALLOWED_ORIGINS` in `supabase/functions/sign-upload/index.ts`. It
+holds `aniwala.sanity.studio` and `localhost:3333` unconditionally, and appends
+anything named in the `STUDIO_ORIGINS` secret — so if Sanity moves the frame
+too, it is one command rather than a code change:
+
+```bash
+supabase secrets set STUDIO_ORIGINS=https://the-new-origin --project-ref <ref>
+supabase functions deploy sign-upload --no-verify-jwt --project-ref <ref>
+```
+
+Comma-separate for more than one. Unset, the behaviour is exactly what it
+always was. Never `*`, and never `*.sanity.io` or `*.sanity.studio`: that would
+trust every studio anyone can deploy on the platform, which is most of what
+this list exists to prevent.
+
+**When the origin is fine and an upload still fails**, the causes in order of
+likelihood are the bucket's CORS policy (`scripts/r2-cors.mjs` — a missing one
+fails at the preflight and reports a bare network error), then the function's
+`R2_*` secrets, then the editor's Sanity role: a viewer is a valid identity and
+is deliberately refused.
 
 #### How the drop zone works, and why it is not a `file` field
 
@@ -956,10 +1076,29 @@ as well**, or it will be silently dropped.
 3. Put the site key in `.env` **and** in the GitHub Actions repository secrets.
    Setting it in only one place is the failure nobody notices: the widget
    appears locally while the live site quietly keeps taking the fallback path.
-4. Deploy the site, then **submit a real form on aniwala.com and confirm it
-   arrives.**
+4. Deploy the site, then **submit a real form on the host that is actually
+   serving it and confirm it arrives.** That is `staging.aniwala.com` today —
+   `aniwala.com` is still the old WordPress install, so a test there proves
+   nothing about this.
 5. Only once that works, run the cutover in section 7 of `supabase/schema.sql`
    to remove anon's INSERT grants. Doing it earlier breaks every live form.
+
+   Verify it landed, and that the comments **SELECT** grant survived — a bare
+   `revoke all` here would take it with everything else and the blog thread
+   would stop rendering:
+
+   ```sql
+   select table_name, privilege_type, count(*) as cols
+   from information_schema.column_privileges
+   where grantee = 'anon' and table_schema = 'public'
+   group by 1,2 order by 1,2;
+   ```
+
+   Before the cutover that is four rows (enquiries INSERT 12, comments INSERT 4,
+   comments SELECT 5, applications INSERT 15). Afterwards it should be one:
+   `comments | SELECT | 5`. These are **column** grants, so they do not appear
+   in `role_table_grants` at all — that view answers empty and looks alarming.
+   To roll back, re-run section 4 of the schema.
 
 The CSP already names `challenges.cloudflare.com` in both `script-src` and
 `frame-src`. The widget renders in an iframe, so it needs both — with only the
@@ -1278,6 +1417,87 @@ arrives without the buttons.
 Because Supabase is not connected. `Comments.astro` renders a plain fallback
 panel for visitors, and under `astro dev` it adds a short note saying exactly
 which two steps are missing. That note never ships in a production build.
+
+### Adding portfolio tiles
+
+**One tile is one `piece` document.** There is no grid editor, and there is no
+cap: six tiles is six documents, twelve is twelve. The gallery on
+`/portfolio/<discipline>/` is `piecesIn(slug)` — a plain filter over every
+piece, with no slice anywhere in it.
+
+What each tile decides for itself:
+
+- **Image, video, or both.** A video plays over the image, which becomes its
+  poster. Image only is a still tile. They mix freely in one grid.
+- **Wide tile**, which spans the full row. The grid is two columns on desktop,
+  so wide / narrow / narrow is the rhythm most studio galleries use. The
+  schema's "about one in four" is a description string, not a rule.
+- **Position**, which orders them. Leave gaps — 10, 20, 30 — so one can be
+  slotted in later without renumbering the rest.
+
+By hand: **Portfolio pieces → `+`**, then set **Category** (this is what files
+it under a discipline — a piece without one renders nowhere), Image, and the
+Credits & display tab. Build the first one properly, then use **Duplicate** in
+the document's `⋯` menu for the rest.
+
+To stamp out the scaffolding instead, from `studio/`:
+
+```bash
+node --env-file=../.env scripts/seed-pieces.mjs --category=character-design
+node --env-file=../.env scripts/seed-pieces.mjs --category=vfx --count=12
+node --env-file=../.env scripts/seed-pieces.mjs --category=animation --wide=1,5,9
+node --env-file=../.env scripts/seed-pieces.mjs --category=vfx --dry-run
+```
+
+It creates empty tiles with Category, Kind, Client, Year, Position and the
+wide/narrow pattern already set, leaving one job per tile: drop the artwork in
+and press Publish.
+
+**Everything it makes is a Sanity draft.** A production build reads with
+`perspective: 'published'`, so none of them can reach staging or the live site
+however long they sit there — they become real when a person publishes them.
+It uses `createIfNotExists`, so a second run skips what is already there rather
+than wiping an image somebody had already uploaded.
+
+### Publishing a lot of things at once
+
+Publish is per-document by design — it is the moment a thing becomes public, and
+Sanity makes you say so each time. Two ways round it when that is thirty tiles
+rather than one page.
+
+**Releases**, in the Studio's top bar, is the native one and the better choice
+when the point is *coordination*: add documents to a release, then publish the
+whole release as one action, optionally at a chosen time. A gallery, a case
+study and the blog post announcing it can go live together rather than in
+whatever order somebody clicked.
+
+**The script** is for the other case — many things that are simply finished and
+want no ceremony. From `studio/`:
+
+```bash
+node --env-file=../.env scripts/publish-drafts.mjs --type=piece --dry-run
+node --env-file=../.env scripts/publish-drafts.mjs --type=piece --require-image
+node --env-file=../.env scripts/publish-drafts.mjs --type=piece --category=vfx
+```
+
+**`--require-image` is the flag that matters.** Seeding a gallery creates tiles
+with placeholder titles and no artwork; a draft like that costs nothing, and
+published it is a live page reading "Animation 3" over a flat tint. With the
+flag, only the tiles somebody has actually finished go live, and running it
+again next week picks up whatever was finished since.
+
+`--dry-run` prints the plan and writes nothing. Start there — a typo in
+`--category` is much easier to notice before the write than after.
+
+It publishes in **one transaction**: a run lands completely or not at all,
+because a half-published gallery is worse than an unpublished one — it looks
+finished.
+
+> The client is created with `perspective: 'raw'`, and without it the script
+> silently reports "No drafts match". The default perspective on this API
+> version excludes drafts entirely — the same trap documented at length in
+> `src/lib/sanity/client.ts`. Anything new that goes looking for drafts needs
+> the same setting.
 
 ### Adding a case study
 

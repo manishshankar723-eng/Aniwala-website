@@ -20,6 +20,9 @@ export interface WorkCategory {
   tint: string;
   /** Tile picture, or undefined — the tile falls back to `tint`. */
   image?: SanityImage;
+  /** Hero loop for the discipline page. Direct .mp4/.webm; needs `image` as
+      its poster. Undefined leaves the band as a still. */
+  video?: string;
   order: number;
   /** Service slugs. Already dereferenced by the loader. */
   services: string[];

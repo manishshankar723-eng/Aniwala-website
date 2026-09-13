@@ -100,7 +100,7 @@ export default defineConfig({
        * alphabetically, so the two lists an editor opens every week are not
        * sitting underneath the one they open twice a year.
        */
-      structure: (S) =>
+      structure: (S, context) =>
         S.list()
           .title('Content')
           .items([
@@ -159,13 +159,65 @@ export default defineConfig({
                   .title('Open roles')
                   .defaultOrdering([{ field: 'posted', direction: 'desc' }])
               ),
+            /*
+             * FILED BY DISCIPLINE, not one flat list.
+             *
+             * Position is per-discipline — every gallery starts again at 10 —
+             * so one list of every piece sorted by Position interleaves them:
+             * "10. Character Design 1", "10. Kite", "10. Motion Graphics 1",
+             * then all the 20s. Six galleries shuffled into each other, which
+             * is unreadable at six pieces each and worse at twelve.
+             *
+             * The disciplines are FETCHED rather than listed here, for the same
+             * reason the filter chips on the portfolio grid are derived: a
+             * seventh discipline should appear in this menu because somebody
+             * created one, not because somebody also remembered to edit the
+             * Studio.
+             */
             S.listItem()
               .title('Portfolio pieces')
               .schemaType('piece')
-              .child(
-                S.documentTypeList('piece')
-                  .title('Portfolio pieces')
-                  .defaultOrdering([{ field: 'order', direction: 'asc' }])
+              .child(() =>
+                context
+                  .getClient({ apiVersion: '2026-01-01' })
+                  .fetch<Array<{ _id: string; title: string; slug: string }>>(
+                    `*[_type == "workCategory" && !(_id in path("drafts.**"))]
+                       | order(order){ _id, title, "slug": slug.current }`
+                  )
+                  .then((disciplines) =>
+                    S.list()
+                      .title('Portfolio pieces')
+                      .items([
+                        /* The old flat list, kept: it is still the right view
+                           for "where is that piece called X", and it is the one
+                           that carries the + button for a new piece. */
+                        S.listItem()
+                          .title('All pieces')
+                          .id('pieces-all')
+                          .schemaType('piece')
+                          .child(
+                            S.documentTypeList('piece')
+                              .title('All pieces')
+                              .defaultOrdering([{ field: 'order', direction: 'asc' }])
+                          ),
+                        S.divider(),
+                        ...disciplines.map((d) =>
+                          S.listItem()
+                            .title(d.title)
+                            .id(`pieces-${d.slug}`)
+                            .child(
+                              S.documentList()
+                                .title(d.title)
+                                .id(`pieces-${d.slug}-list`)
+                                /* Pinned, like every other GROQ call here. */
+                                .apiVersion('2026-01-01')
+                                .filter('_type == "piece" && category._ref == $id')
+                                .params({ id: d._id })
+                                .defaultOrdering([{ field: 'order', direction: 'asc' }])
+                            )
+                        ),
+                      ])
+                  )
               ),
             S.listItem()
               .title('Services')

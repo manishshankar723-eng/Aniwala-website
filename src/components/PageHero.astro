@@ -44,15 +44,60 @@ interface Props {
    * whoever last dragged a file in.
    */
   image?: { src: string; srcset: string; alt: string };
+  /**
+   * A silent loop behind the band, over `image`, which stays as its poster.
+   *
+   * DIRECT FILE ONLY. A Cloudflare Stream embed is an iframe carrying its own
+   * player, and a player cannot be a background — see the field note in
+   * `studio/schemas/workCategory.ts`.
+   */
+  video?: string;
 }
 
 import { getUiCopy } from '../lib/studio';
 import { ldJson } from '../lib/copy';
 import { displayWidth } from '../config/displayMetrics';
+import { isSafeMediaSrc } from '../config/urls';
 
 const ui = await getUiCopy();
 
-const { eyebrow, title, lead, crumbs = [], meta = [], image } = Astro.props;
+const { eyebrow, title, lead, crumbs = [], meta = [], image, video: rawVideo } = Astro.props;
+
+/**
+ * The loop, refused unless it points somewhere a video may live, and only
+ * alongside a picture.
+ *
+ * The scheme check is the same boundary `VideoHero` applies, for the same
+ * reason: this arrives from a CMS string, and `findUnsafeHref` only walks keys
+ * ending in `href`. See `isSafeMediaSrc` in config/urls.ts.
+ *
+ * REQUIRING THE IMAGE is the other half. The picture is this video's poster,
+ * so without one the band is an empty wash until the first frame decodes —
+ * which on a phone is the whole of what a visitor sees. A video with no still
+ * behind it renders nothing rather than a black bar, and the missing poster is
+ * then obvious in the Studio rather than only on a slow connection.
+ */
+const video = image && isSafeMediaSrc(rawVideo) ? rawVideo!.trim() : undefined;
+
+/**
+ * Honour "reduce motion".
+ *
+ * Lifted from `VideoHero`, which carries the long version of the argument:
+ * `autoplay` has already fired by the time a media query could apply, so CSS
+ * alone cannot stop it. Pausing leaves the poster showing — the same picture,
+ * holding still. Inline and unbundled so it runs before the first frame paints.
+ */
+const REDUCED_MOTION_SCRIPT = `(() => {
+  const q = matchMedia('(prefers-reduced-motion: reduce)');
+  const v = document.currentScript.closest('.page-hero').querySelector('video.page-hero-video');
+  const apply = () => {
+    if (!v) return;
+    if (q.matches) { v.pause(); v.removeAttribute('autoplay'); }
+    else { v.play().catch(() => {}); }
+  };
+  apply();
+  q.addEventListener('change', apply);
+})();`;
 
 /**
  * How wide this headline is at 1em, so CSS can pick a size that fits it on
@@ -111,6 +156,25 @@ const crumbSchema =
       />
     )
   }
+  {
+    /* Over the picture, under the wash. The wash is what keeps the heading
+       readable over whatever gets uploaded, and it has to stay on top of both. */
+    video && (
+      <video
+        class="page-hero-video"
+        src={video}
+        poster={image!.src}
+        autoplay
+        muted
+        loop
+        playsinline
+        preload="metadata"
+        aria-hidden="true"
+        tabindex="-1"
+      />
+    )
+  }
+  {video && <script is:inline set:html={REDUCED_MOTION_SCRIPT} />}
   <div class="page-hero-wash" aria-hidden="true"></div>
 
   {crumbSchema && (
@@ -254,7 +318,8 @@ const crumbSchema =
   /* Sits beneath the wash, which is what keeps the heading legible over an
      arbitrary upload. Dimmed for the same reason — a hero still is background,
      not the subject. */
-  .page-hero-img {
+  .page-hero-img,
+  .page-hero-video {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -262,6 +327,14 @@ const crumbSchema =
     object-fit: cover;
     opacity: 0.38;
     z-index: -1;
+  }
+
+  /* Belt and braces with the script above: the script pauses the video, this
+     takes it off the page entirely so the still underneath is what shows. */
+  @media (prefers-reduced-motion: reduce) {
+    .page-hero-video {
+      display: none;
+    }
   }
 
   /* Light mode: the same tint at full strength turns the type unreadable, and

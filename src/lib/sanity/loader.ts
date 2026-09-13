@@ -444,7 +444,7 @@ export const sanityPieces = (): Loader =>
     hasBody: false,
     projection: `
       _id, slug, title, "category": category->slug.current, blurb, image, video, sound, kind,
-      client, year, tools, caseStudy, tint, wide, order
+      client, year, tools, caseStudy, tint, fit, wide, order
     `,
     toData: (doc, isDraft) => ({
       title: doc.title,
@@ -459,6 +459,10 @@ export const sanityPieces = (): Loader =>
       tools: doc.tools ?? [],
       ...(doc.caseStudy ? { caseStudy: doc.caseStudy } : {}),
       tint: doc.tint ?? '210 70% 22%',
+      /* Anything unrecognised falls back to the shipped behaviour rather than
+         reaching the template as an arbitrary string — `object-fit` takes a
+         keyword, and a CMS value is not one until it has been checked. */
+      fit: doc.fit === 'contain' ? 'contain' : 'cover',
       wide: doc.wide ?? false,
       order: doc.order ?? 50,
       draft: isDraft,
@@ -788,7 +792,7 @@ export const sanityWorkCategories = (): Loader =>
     type: 'workCategory',
     hasBody: false,
     projection: `
-      _id, slug, title, shortName, blurb, intro, tint, image, order,
+      _id, slug, title, shortName, blurb, intro, tint, image, video, order,
       "services": services[]->slug.current, seoTitle, seoDescription, ogImage, noindex, canonicalUrl
     `,
     toData: (doc, isDraft) => ({
@@ -800,6 +804,7 @@ export const sanityWorkCategories = (): Loader =>
       /* Optional. Omitted rather than null — see the note on the service
          hero above. */
       ...(doc.image ? { image: doc.image } : {}),
+      ...(doc.video ? { video: doc.video } : {}),
       order: doc.order ?? 50,
       services: (doc.services ?? []).filter(Boolean),
       ...(doc.seoTitle ? { seoTitle: doc.seoTitle } : {}),

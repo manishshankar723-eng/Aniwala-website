@@ -215,6 +215,38 @@ export default defineType({
       description: 'Shown when there is no image. An HSL triple like "210 70% 22%".',
       initialValue: '210 70% 22%',
     }),
+    /**
+     * Crop to the tile, or show the whole picture.
+     *
+     * Every tile is the same box, so a picture that is not that shape has to
+     * give somewhere. `cover` fills the box and cuts the overflow — right for
+     * a render framed with room around the subject, and the default because it
+     * is what makes a grid read as a grid.
+     *
+     * `contain` fits the whole image inside the box and lets the tint show
+     * around it. Right for a character sheet, a turnaround or a line-up, where
+     * the thing being judged is the WHOLE image and a crop through it loses
+     * the point of the piece.
+     *
+     * The hotspot tool is the third answer and often the best one: it keeps
+     * `cover` and tells the crop what it may not cut.
+     */
+    defineField({
+      name: 'fit',
+      title: 'How the image sits',
+      type: 'string',
+      group: 'meta',
+      options: {
+        list: [
+          { title: 'Fill the tile, cropping the edges', value: 'cover' },
+          { title: 'Show the whole image', value: 'contain' },
+        ],
+        layout: 'radio',
+      },
+      description:
+        'Fill is right for most renders. Choose "show the whole image" for a character sheet or turnaround, where cropping through it loses the point \u2014 the tint fills whatever is left around it.',
+      initialValue: 'cover',
+    }),
     defineField({
       name: 'wide',
       title: 'Wide tile',

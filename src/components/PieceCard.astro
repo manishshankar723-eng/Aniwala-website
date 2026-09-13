@@ -30,7 +30,21 @@ interface Props {
 const ui = await getUiCopy();
 
 const { piece, showCategory = true } = Astro.props;
-const { title, blurb, kind, client, year, tools, tint, video, sound, image, imageAlt } = piece;
+const { title, blurb, kind, client, year, tools, tint, video, sound, image, imageAlt, srcset } =
+  piece;
+
+/*
+ * WHICH WIDTH THE BROWSER SHOULD PICK.
+ *
+ * Without `sizes` a browser assumes a srcset image fills the viewport and
+ * takes the largest rung, which wastes bytes on a narrow tile; without
+ * `srcset` at all — which is what this was — it takes the single `src` and
+ * stretches it, which is the opposite problem and the one that was visible.
+ *
+ * A wide tile spans the row. A narrow one is half of it above 900px, where the
+ * gallery goes to two columns, and the full width below.
+ */
+const sizes = piece.wide ? '100vw' : '(min-width: 900px) 50vw, 100vw';
 
 /* Only a native <video> can be unmuted from here. Stream's player owns its own
    controls, so a toggle outside the iframe would have nothing to talk to. */
@@ -46,7 +60,7 @@ const isStudioProject = kind === 'Studio project';
 ---
 
 <article
-  class:list={['piece', piece.wide && 'piece--wide']}
+  class:list={['piece', piece.wide && 'piece--wide', piece.fit === 'contain' && 'piece--contain']}
   style={`--tint:${tint}`}
   data-reveal
 >
@@ -62,7 +76,15 @@ const isStudioProject = kind === 'Studio project';
     */}
     <span class="piece-art" aria-hidden="true"></span>
     {image && (
-      <img class="piece-img" src={image} alt={imageAlt} loading="lazy" decoding="async" />
+      <img
+        class="piece-img"
+        src={image}
+        srcset={srcset}
+        sizes={sizes}
+        alt={imageAlt}
+        loading="lazy"
+        decoding="async"
+      />
     )}
     {
       video?.kind === 'file' && (
@@ -316,6 +338,28 @@ const isStudioProject = kind === 'Studio project';
     /* Decorative motion, not a control surface: the tile is not a link and
        the player has no chrome, so nothing here should take a tab stop. */
     pointer-events: none;
+  }
+
+  /*
+   * SHOW THE WHOLE PICTURE.
+   *
+   * `cover` is the default and fills the tile, cutting whatever does not fit —
+   * which is right for a render with room around the subject and wrong for a
+   * character sheet, where the crop goes straight through the thing being
+   * judged. `contain` fits the image inside the box instead and lets the tint
+   * show around it.
+   *
+   * The video gets the same treatment, so a tile that has both does not crop
+   * one and letterbox the other.
+   *
+   * `object-position: center` is explicit rather than inherited: with
+   * `contain` the spare space is split evenly, which is the only arrangement
+   * that looks deliberate when the tiles either side are filled.
+   */
+  .piece--contain .piece-img,
+  .piece--contain .piece-video {
+    object-fit: contain;
+    object-position: center;
   }
 
   .piece-img {

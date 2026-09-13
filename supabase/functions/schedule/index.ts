@@ -56,6 +56,7 @@ import {
   layout,
   row,
   esc,
+  safeUrl,
   button,
   parseGuests,
   MAX_GUESTS,
@@ -107,27 +108,6 @@ const json = (status: number, body: Reply, origin: string | null) =>
     }),
   });
 
-
-/**
- * The joining link, refused unless it is one.
- *
- * This string is written by whoever holds the confirmation link and then goes
- * out to clients over the studio's own name, so `javascript:` and `data:` are
- * not merely untidy here. Anything that is not plain http(s) is dropped rather
- * than corrected — a silently rewritten meeting link is worse than a missing
- * one, because a missing one is noticed.
- */
-function safeUrl(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  if (!trimmed || trimmed.length > 500) return null;
-  try {
-    const url = new URL(trimmed);
-    return url.protocol === 'https:' || url.protocol === 'http:' ? trimmed : null;
-  } catch {
-    return null;
-  }
-}
 
 Deno.serve(async (req) => {
   const origin = allowedOrigin(req);

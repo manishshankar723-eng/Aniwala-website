@@ -1,6 +1,7 @@
 ---
 import { getUiCopy } from '../lib/studio';
 import { inlineHtml } from '../lib/copy';
+import { isSafeMediaSrc } from '../config/urls';
 
 const ui = await getUiCopy();
 
@@ -27,7 +28,22 @@ interface Props {
   sound?: boolean;
 }
 
-const { eyebrow, headline, sub, src, poster, sound = false } = Astro.props;
+const { eyebrow, headline, sub, src: rawSrc, poster, sound = false } = Astro.props;
+
+/**
+ * The background loop, refused unless it points somewhere a video may live.
+ *
+ * `src` arrives from the `videoUrl` field on a hero block, which is inside the
+ * `.passthrough()` block array — so unlike every href on the site it passed
+ * through no schema on the way here. See `isSafeMediaSrc` in config/urls.ts
+ * for why that gap existed and why the CSP alone was not the answer.
+ *
+ * A refused value degrades to the POSTER, which is exactly what `resolveVideo`
+ * in lib/pieces.ts does with a malformed piece video: show the still rather
+ * than an empty player. Visible, harmless, and obvious enough that whoever
+ * pasted it will report it.
+ */
+const src = isSafeMediaSrc(rawSrc) ? rawSrc!.trim() : undefined;
 
 /* Nothing to unmute without a video. */
 const offerSound = sound && Boolean(src);
@@ -141,17 +157,26 @@ const REDUCED_MOTION_SCRIPT = `(() => {
         <slot />
         {offerSound && (
           /*
-            Beside the call to action rather than floating in a corner: it is
-            a thing a visitor may choose to press, so it belongs where the
-            other choice already is, in reading order.
+            HIDDEN UNTIL THE SOUND IS ACTUALLY ON. Whether the hero has audio
+            is an editorial decision and it lives in the Studio; putting a
+            control for it on the page as well says "here is a setting" to
+            every visitor, on a hero whose job is to say one thing.
+
+            It appears only once audio is playing, and then it is the way to
+            stop it. That part is not decoration: audio a visitor cannot
+            silence is what makes people close the tab, and WCAG 1.4.2 asks
+            for a way to stop anything that plays for more than three seconds.
+
+            Beside the call to action rather than in a corner, so when it does
+            appear it is where the other choice already is.
           */
-          <button class="hero-sound" type="button" data-hero-sound aria-pressed="false">
+          <button class="hero-sound" type="button" data-hero-sound aria-pressed="false" hidden>
             <svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor">
               <path d="M8 2.5 4.8 5.2H2.4v5.6h2.4L8 13.5V2.5Z" />
               <path class="hero-sound-off" d="M10.4 6.1 12 7.7l1.6-1.6.9.9L12.9 8.6l1.6 1.6-.9.9L12 9.5l-1.6 1.6-.9-.9 1.6-1.6-1.6-1.6.9-.9Z" />
               <path class="hero-sound-on" d="M10.6 5.6a3.4 3.4 0 0 1 0 4.8l-.9-.9a2.1 2.1 0 0 0 0-3l.9-.9Zm1.8-1.8a6 6 0 0 1 0 8.4l-.9-.9a4.7 4.7 0 0 0 0-6.6l.9-.9Z" />
             </svg>
-            <span class="hero-sound-label">Sound on</span>
+            <span class="hero-sound-label">Mute</span>
           </button>
         )}
       </div>
@@ -184,15 +209,21 @@ const REDUCED_MOTION_SCRIPT = `(() => {
           whole screen, and a showreel that shouts is the thing people reach
           for the tab close on.
         */}
-        const btn = document.querySelector('.hero-sound[data-hero-sound]');
+        const btn = document.querySelector<HTMLButtonElement>('.hero-sound[data-hero-sound]');
         const video = document.querySelector('video.hero-video') as HTMLVideoElement | null;
 
         if (video) {
           const label = btn?.querySelector('.hero-sound-label');
 
           const show = (on: boolean) => {
-            btn?.setAttribute('aria-pressed', String(on));
-            if (label) label.textContent = on ? 'Sound off' : 'Sound on';
+            if (btn) {
+              /* Revealed the first time sound starts and left in place after
+                 that. Taking it away again when muted would strand anybody
+                 who pressed it by accident. */
+              btn.hidden = false;
+              btn.setAttribute('aria-pressed', String(on));
+            }
+            if (label) label.textContent = on ? 'Mute' : 'Sound on';
           };
 
           const unmute = () => {

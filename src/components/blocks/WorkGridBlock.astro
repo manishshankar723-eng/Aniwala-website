@@ -15,6 +15,7 @@
  */
 import SectionHead from './SectionHead.astro';
 import { getWorkCategories, categoryHref } from '../../lib/workCategories';
+import { isSafeMediaSrc } from '../../config/urls';
 import { getServices } from '../../lib/services';
 import { toArtwork } from '../../lib/artwork';
 
@@ -47,11 +48,25 @@ const serviceTitle = new Map((await getServices()).map((s) => [s.slug, s.title])
 
 /* Sized once per category here rather than inside the template, where the
    guard and the two attributes that use it would each rebuild the same URLs. */
-const tiles = (await getWorkCategories()).map((w) => ({
-  ...w,
-  art: toArtwork(w.image),
-  kicker: w.services.map((slug) => serviceTitle.get(slug)).find(Boolean),
-}));
+const tiles = (await getWorkCategories()).map((w) => {
+  const art = toArtwork(w.image);
+  return {
+    ...w,
+    art,
+    /*
+     * The same field that plays behind the discipline's own page band plays
+     * here, in its tile. ONE upload, both places — exactly as `image` already
+     * works, which is the whole reason this is not a second field.
+     *
+     * Gated on the picture for the same reason as the band: the still is this
+     * video's poster, so without one the tile is a bare tint until the first
+     * frame decodes. Scheme-checked because it is a CMS string reaching a
+     * `src` — see `isSafeMediaSrc` in config/urls.ts.
+     */
+    loop: art && isSafeMediaSrc(w.video) ? w.video!.trim() : undefined,
+    kicker: w.services.map((slug) => serviceTitle.get(slug)).find(Boolean),
+  };
+});
 
 /*
  * The filter's options are DERIVED from the tiles, not from the full service
@@ -124,6 +139,25 @@ const filters = block.showFilter
                 alt=""
                 loading="lazy"
                 decoding="async"
+              />
+            )}
+            {w.loop && (
+              /*
+                Over the still, which stays as the poster. Muted and
+                playsinline are not preferences: without both, iOS declines to
+                autoplay and paints its own play button over the tile, turning
+                a wall of moving work into a grid of paused videos.
+              */
+              <video
+                class="work-video"
+                src={w.loop}
+                poster={w.art!.src}
+                autoplay
+                muted
+                loop
+                playsinline
+                preload="metadata"
+                tabindex="-1"
               />
             )}
           </span>
@@ -265,12 +299,21 @@ const filters = block.showFilter
   /* Sits on the tint. `object-fit: cover` plus the tile's own aspect ratio
      means a portrait upload crops rather than letterboxes; Sanity's hotspot
      decides which part survives. */
-  .work-img {
+  .work-img,
+  .work-video {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+
+  /* A tile that cannot move still shows its still — the same picture, holding
+     still, which is the whole of what the setting asks for here. */
+  @media (prefers-reduced-motion: reduce) {
+    .work-video {
+      display: none;
+    }
   }
 
   .work-tile::after {

@@ -481,6 +481,8 @@ const pieces = defineCollection({
     /** Slug of a case study, when one has been written. */
     caseStudy: z.string().optional(),
     tint: z.string().default('210 70% 22%'),
+    /* Two keywords and nothing else — this reaches `object-fit`. */
+    fit: z.enum(['cover', 'contain']).default('cover'),
     wide: z.boolean().default(false),
     order: z.number().int().default(50),
     draft: z.boolean().default(false),
@@ -969,6 +971,11 @@ const workCategories = defineCollection({
     /* The tile picture. Optional, on the discipline for the same reason the
        service hero is on the service — see there. */
     image: sanityImage.optional(),
+    /* The hero loop. A bare string, checked for shape where it is rendered
+       rather than here: `isSafeMediaSrc` in config/urls.ts is the boundary,
+       and a discipline with a malformed one should lose its video, not fail
+       the build for every other page. */
+    video: z.string().optional(),
     order: z.number().int().default(50),
     services: z.array(z.string()).default([]),
     ...seoOverrides,

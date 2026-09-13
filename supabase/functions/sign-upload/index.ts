@@ -45,9 +45,45 @@ const EXT: Record<string, string> = { 'video/mp4': 'mp4', 'video/webm': 'webm' }
    a video should be. The editor decides that. */
 const MAX_BYTES = 1024 * 1024 * 1024;
 
-/* Only the deployed Studio and a local one. Not `*`: an open CORS policy here
-   would let any page ask an editor's browser to mint upload URLs. */
-const ALLOWED_ORIGINS = new Set(['https://aniwala.sanity.studio', 'http://localhost:3333']);
+/*
+ * Only a Studio. Not `*`: an open CORS policy here would let any page ask an
+ * editor's browser to mint upload URLs.
+ *
+ * WHY THERE IS AN ENV VAR ON THE END OF IT.
+ *
+ * Sanity moves where a hosted Studio lives, and did:
+ * `https://aniwala.sanity.studio` now 302-redirects to
+ * `https://www.sanity.io/@<org>/studio/<id>`. When the origin an editor's
+ * browser actually sends stops being the one hardcoded here, every upload is
+ * refused before the token is even read — and because the refusal carries
+ * `Access-Control-Allow-Origin: null`, the browser blocks the response too, so
+ * what the editor sees is a network error, not a 403. It reads as R2 being
+ * down.
+ *
+ * Hardcoding the replacement would fix it until the next time, and the address
+ * is not something this repo controls. So it is settable:
+ *
+ *   supabase secrets set STUDIO_ORIGINS=https://www.sanity.io --project-ref <ref>
+ *
+ * A LIST, comma-separated, and never a wildcard — the same decision, for the
+ * same reason, as EXTRA_ORIGINS in _shared/util.ts. `*.sanity.io` or
+ * `*.sanity.studio` would trust every studio anyone can deploy on the platform,
+ * which is most of what this list exists to prevent.
+ *
+ * UNSET, THIS IS BYTE-FOR-BYTE WHAT IT ALWAYS WAS. Nothing is trusted by
+ * default that was not trusted before; the deployment gets to name the Studio
+ * it actually serves from.
+ *
+ * To find the value: open the Studio, DevTools console, `location.origin`.
+ */
+const ALLOWED_ORIGINS = new Set([
+  'https://aniwala.sanity.studio',
+  'http://localhost:3333',
+  ...(Deno.env.get('STUDIO_ORIGINS') ?? '')
+    .split(',')
+    .map((o) => o.trim().replace(/\/+$/, ''))
+    .filter(Boolean),
+]);
 
 const cors = (origin: string | null) => ({
   'Access-Control-Allow-Origin': origin && ALLOWED_ORIGINS.has(origin) ? origin : 'null',

@@ -58,6 +58,32 @@ export const UNSAFE_HREF_MESSAGE =
   'Use a path starting with / , a #fragment, a full http(s) URL, or a mailto:/tel: address.';
 
 /**
+ * What a MEDIA source is allowed to point at.
+ *
+ * The href list above is the wrong shape for one: `mailto:` and `#` are
+ * meaningless on a `<video>`, and a media URL has no click to protect. What it
+ * has instead is an origin, and the CSP's `media-src` names exactly three.
+ *
+ * WHY IT STILL NEEDS CHECKING HERE. `videoUrl` on a hero block reaches a `src`
+ * attribute straight from the CMS. The block arrays are validated as
+ * `.passthrough()` — what a section may CONTAIN cannot be pinned down field by
+ * field without freezing the page builder — and the walk that survives that,
+ * `findUnsafeHref` below, matches keys ending in `href`. `videoUrl` does not,
+ * so nothing checked it at all: it was the only CMS string on the site
+ * reaching an attribute with no validation of its own, with the CSP as the
+ * single layer underneath. Same argument as SAFE_HREF above: the CSP is the
+ * backstop, not the check.
+ *
+ * `\/(?!\/)` for the same reason SAFE_HREF uses it — `//evil.com/x.mp4` reads
+ * as a path and is an absolute URL on another origin.
+ */
+export const SAFE_MEDIA_SRC = /^(https?:\/\/|\/(?!\/))/i;
+
+/** Whether a value is safe to put in a media `src`. Blank counts as unset. */
+export const isSafeMediaSrc = (value: unknown): boolean =>
+  typeof value === 'string' && SAFE_MEDIA_SRC.test(value.trim());
+
+/**
  * The first unsafe href anywhere inside a value, as a dotted path, or null.
  *
  * For the block arrays on CMS-built pages, which are validated as
