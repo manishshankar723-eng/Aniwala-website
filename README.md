@@ -643,6 +643,28 @@ On a piece, the image stays the **poster**, so a tile shows a frame of the work
 from first paint rather than a black box. A piece with a video and no image
 falls back to flat tint.
 
+#### Tile controls
+
+A piece tile with a **direct video** carries pause, sound and full screen,
+bottom-right. They fade in on hover or focus, and are always visible on a touch
+screen, where there is no hover to reveal them with.
+
+- **Pause** is driven off the video's own `play`/`pause` events rather than off
+  its own click, so it still reads correctly when something else stopped the
+  video — "reduce motion" pausing it on load, a background tab, a stalled range
+  request.
+- **Sound** appears only when *Has sound worth hearing* is ticked, because
+  `upload-r2.mjs` strips the audio track by default and a control that provably
+  does nothing is worse than no control.
+- **Full screen** takes the VIDEO, not the tile: the tile carries a scrim and a
+  title over the picture, and taking those along would put a caption across
+  somebody's showreel. Going full screen unmutes, where there is audio — asking
+  for the whole screen is asking for the whole thing.
+
+**A Stream tile gets none of them**, and cannot. It is an iframe carrying
+Cloudflare's own player; a button outside it has nothing to talk to, and
+reaching in is cross-origin and refused. The player inside has its own controls.
+
 #### Sound
 
 **Every player is muted, always.** No browser autoplays audio on a video nobody

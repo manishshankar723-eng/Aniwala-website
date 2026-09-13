@@ -73,6 +73,21 @@ const SPAN_CLASS = {
    controls, so a toggle outside the iframe would have nothing to talk to. */
 const canUnmute = sound && video?.kind === 'file';
 
+/*
+ * Controls exist for a NATIVE video and nothing else.
+ *
+ * A Stream tile is an iframe carrying Cloudflare's own player: a pause button
+ * outside it has nothing to talk to, and the player inside already has its
+ * own. Reaching into it is not merely awkward, it is cross-origin and simply
+ * refused.
+ *
+ * MUTE STAYS BEHIND THE `sound` FIELD, unlike the other two. `upload-r2.mjs`
+ * strips the audio track by default, so on most of these there is nothing to
+ * unmute — offering a control that provably does nothing is worse than not
+ * offering it. Pause and fullscreen always work.
+ */
+const hasPlayer = video?.kind === 'file';
+
 const category = await categoryBySlug(piece.category);
 
 /* Same rule the case study cards follow: a self-directed piece must never be
@@ -140,21 +155,49 @@ const isStudioProject = kind === 'Studio project';
       )
     }
     {
-      canUnmute && (
+      hasPlayer && (
         /*
-          Starts muted because it has to: no browser autoplays audio on a
-          video nobody has touched, and there is no flag that changes it. So
-          the tile plays silently and offers the sound rather than imposing
-          it — which is also the kinder default on a page holding several.
+          Pause, sound and fullscreen, in that order — the order of how likely
+          somebody is to want them on a gallery of silent loops.
+
+          Outside `.piece-inner`, so these are never inside whatever the tile's
+          body might become; a button nested in a link is a click with two
+          meanings. Shown on hover and on focus, and always on a touch screen,
+          where there is no hover to reveal them with.
         */
-        <button class="piece-sound" type="button" data-sound aria-pressed="false">
-          <span class="visually-hidden">Play sound</span>
-          <svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor">
-            <path d="M8 2.5 4.8 5.2H2.4v5.6h2.4L8 13.5V2.5Z" />
-            <path class="piece-sound-off" d="M10.4 6.1 12 7.7l1.6-1.6.9.9L12.9 8.6l1.6 1.6-.9.9L12 9.5l-1.6 1.6-.9-.9 1.6-1.6-1.6-1.6.9-.9Z" />
-            <path class="piece-sound-on" d="M10.6 5.6a3.4 3.4 0 0 1 0 4.8l-.9-.9a2.1 2.1 0 0 0 0-3l.9-.9Zm1.8-1.8a6 6 0 0 1 0 8.4l-.9-.9a4.7 4.7 0 0 0 0-6.6l.9-.9Z" />
-          </svg>
-        </button>
+        <div class="piece-controls">
+          <button class="piece-ctrl" type="button" data-play aria-pressed="true">
+            <span class="visually-hidden">Pause</span>
+            <svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor">
+              <path class="piece-ctrl-pause" d="M5 3h2.2v10H5zM8.8 3H11v10H8.8z" />
+              <path class="piece-ctrl-play" d="M5 3.2 12.5 8 5 12.8z" />
+            </svg>
+          </button>
+
+          {canUnmute && (
+            /*
+              Starts muted because it has to: no browser autoplays audio on a
+              video nobody has touched, and there is no flag that changes it. So
+              the tile plays silently and offers the sound rather than imposing
+              it — which is also the kinder default on a page holding several.
+            */
+            <button class="piece-ctrl piece-sound" type="button" data-sound aria-pressed="false">
+              <span class="visually-hidden">Play sound</span>
+              <svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor">
+                <path d="M8 2.5 4.8 5.2H2.4v5.6h2.4L8 13.5V2.5Z" />
+                <path class="piece-sound-off" d="M10.4 6.1 12 7.7l1.6-1.6.9.9L12.9 8.6l1.6 1.6-.9.9L12 9.5l-1.6 1.6-.9-.9 1.6-1.6-1.6-1.6.9-.9Z" />
+                <path class="piece-sound-on" d="M10.6 5.6a3.4 3.4 0 0 1 0 4.8l-.9-.9a2.1 2.1 0 0 0 0-3l.9-.9Zm1.8-1.8a6 6 0 0 1 0 8.4l-.9-.9a4.7 4.7 0 0 0 0-6.6l.9-.9Z" />
+              </svg>
+            </button>
+          )}
+
+          <button class="piece-ctrl" type="button" data-fullscreen>
+            <span class="visually-hidden">Full screen</span>
+            <svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor">
+              <path d="M2 2h5v1.6H3.6V7H2V2Zm7 0h5v5h-1.6V3.6H9V2ZM2 9h1.6v3.4H7V14H2V9Zm10.4 0H14v5H9v-1.6h3.4V9Z" />
+            </svg>
+          </button>
+        </div>
       )
     }
     {
@@ -211,42 +254,112 @@ const isStudioProject = kind === 'Studio project';
 </article>
 
 {
-  canUnmute && (
+  hasPlayer && (
     <script>
       /*
         One listener per button, scoped to its own card. Delegating from the
         document would be fewer listeners and would also mean a gallery of
         forty tiles shares one handler that has to work out which video it
         meant — the bug where every tile unmutes at once.
-
-        The button is the only thing that ever unmutes: nothing here starts
-        audio on its own, so a visitor is never surprised by sound.
       */
-      for (const btn of document.querySelectorAll('.piece-sound[data-sound]')) {
-        const card = btn.closest('.piece');
-        const video = card?.querySelector('video');
+      for (const card of document.querySelectorAll('.piece')) {
+        const video = card.querySelector<HTMLVideoElement>('video.piece-video');
         if (!video) continue;
 
-        btn.addEventListener('click', () => {
-          const wantSound = (video as HTMLVideoElement).muted;
+        const setLabel = (btn: Element | null, text: string) => {
+          const label = btn?.querySelector('.visually-hidden');
+          if (label) label.textContent = text;
+        };
 
-          /* Silence every OTHER tile first. Two videos talking over each
-             other is not a state anybody chose, and it is the obvious way
-             to arrive at it on a page of them. */
-          if (wantSound) {
-            for (const other of document.querySelectorAll<HTMLVideoElement>('.piece video')) {
-              if (other !== video) other.muted = true;
-            }
-            for (const otherBtn of document.querySelectorAll('.piece-sound[data-sound]')) {
-              if (otherBtn !== btn) otherBtn.setAttribute('aria-pressed', 'false');
-            }
-          }
+        /* ---------- pause / play ---------- */
+        const playBtn = card.querySelector('[data-play]');
+        if (playBtn) {
+          playBtn.addEventListener('click', () => {
+            if (video.paused) video.play().catch(() => {});
+            else video.pause();
+          });
+          /*
+            Driven off the VIDEO's own events, not off the click. The video can
+            stop for reasons no button knows about — "reduce motion" pausing it
+            on load, a background tab, the stall at the end of a range request —
+            and a button whose state is only ever set by its own click ends up
+            saying Pause over a still frame.
+          */
+          const sync = () => {
+            playBtn.setAttribute('aria-pressed', String(!video.paused));
+            setLabel(playBtn, video.paused ? 'Play' : 'Pause');
+          };
+          video.addEventListener('play', sync);
+          video.addEventListener('pause', sync);
+          sync();
+        }
 
-          (video as HTMLVideoElement).muted = !wantSound;
-          btn.setAttribute('aria-pressed', String(wantSound));
-          const label = btn.querySelector('.visually-hidden');
-          if (label) label.textContent = wantSound ? 'Mute' : 'Play sound';
-        });
+        /* ---------- sound ---------- */
+        const soundBtn = card.querySelector('[data-sound]');
+        if (soundBtn) {
+          soundBtn.addEventListener('click', () => {
+            const wantSound = video.muted;
+
+            /* Silence every OTHER tile first. Two videos talking over each
+               other is not a state anybody chose, and it is the obvious way
+               to arrive at it on a page of them. */
+            if (wantSound) {
+              for (const other of document.querySelectorAll<HTMLVideoElement>('.piece video')) {
+                if (other !== video) other.muted = true;
+              }
+              for (const otherBtn of document.querySelectorAll('[data-sound]')) {
+                if (otherBtn !== soundBtn) {
+                  otherBtn.setAttribute('aria-pressed', 'false');
+                  const l = otherBtn.querySelector('.visually-hidden');
+                  if (l) l.textContent = 'Play sound';
+                }
+              }
+            }
+
+            video.muted = !wantSound;
+            soundBtn.setAttribute('aria-pressed', String(wantSound));
+            setLabel(soundBtn, wantSound ? 'Mute' : 'Play sound');
+          });
+        }
+
+        /* ---------- full screen ---------- */
+        const fsBtn = card.querySelector('[data-fullscreen]');
+        if (fsBtn) {
+          fsBtn.addEventListener('click', () => {
+            /*
+              The VIDEO goes fullscreen, not the tile: the tile carries a scrim
+              and a title over the picture, and taking those with it would put
+              a caption across somebody's showreel.
+
+              `webkitEnterFullscreen` is iPhone's, where the standard API is
+              not on elements at all — without it this button does nothing on
+              the one platform most likely to press it.
+            */
+            const el = video as HTMLVideoElement & {
+              webkitEnterFullscreen?: () => void;
+            };
+            if (document.fullscreenElement) {
+              document.exitFullscreen().catch(() => {});
+            } else if (el.requestFullscreen) {
+              el.requestFullscreen().catch(() => {});
+            } else if (el.webkitEnterFullscreen) {
+              el.webkitEnterFullscreen();
+            }
+          });
+        }
+
+        /*
+          Fullscreen is the one place the muted-by-default rule stops making
+          sense: somebody who has asked for the whole screen has asked for the
+          whole thing. Only where there is audio to unmute — see `hasPlayer`.
+        */
+        if (soundBtn) {
+          document.addEventListener('fullscreenchange', () => {
+            if (document.fullscreenElement === video && video.muted) {
+              (soundBtn as HTMLElement).click();
+            }
+          });
+        }
       }
     </script>
   )
@@ -312,11 +425,41 @@ const isStudioProject = kind === 'Studio project';
      Always visible rather than revealed on hover: a control a visitor cannot
      see is a control they do not know they have, and on a touch screen there
      is no hover to reveal it with. */
-  .piece-sound {
+  /*
+   * The cluster, bottom-right. Hidden until the tile is hovered or something
+   * inside it takes focus — a wall of silent loops should read as work, not as
+   * a bank of video players — but ALWAYS visible where there is no hover to
+   * reveal them with, which is every touch screen.
+   */
+  .piece-controls {
     position: absolute;
     right: 1rem;
     bottom: 1rem;
     z-index: 1;
+    display: flex;
+    gap: 0.5rem;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .piece:hover .piece-controls,
+  .piece-controls:focus-within {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .piece-controls {
+      opacity: 1;
+    }
+  }
+  /* The setting asks for less motion, not for fewer controls: without hover
+     these would never appear at all. */
+  @media (prefers-reduced-motion: reduce) {
+    .piece-controls {
+      opacity: 1;
+      transition: none;
+    }
+  }
+
+  .piece-ctrl {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -332,17 +475,27 @@ const isStudioProject = kind === 'Studio project';
       background-color 0.2s ease,
       border-color 0.2s ease;
   }
-  .piece-sound:hover,
-  .piece-sound:focus-visible {
+  .piece-ctrl:hover,
+  .piece-ctrl:focus-visible {
     background: rgb(0 0 0 / 0.8);
     border-color: rgb(255 255 255 / 0.5);
   }
-  .piece-sound svg {
+  .piece-ctrl svg {
     width: 1rem;
     height: 1rem;
   }
   /* The icon states the ACTION, not the status: muted shows a speaker with a
      cross (press to hear), unmuted shows waves (press to silence). */
+  /* Pause bars while playing, play triangle while paused. */
+  .piece-ctrl .piece-ctrl-play {
+    display: none;
+  }
+  .piece-ctrl[aria-pressed='false'] .piece-ctrl-pause {
+    display: none;
+  }
+  .piece-ctrl[aria-pressed='false'] .piece-ctrl-play {
+    display: inline;
+  }
   .piece-sound .piece-sound-on {
     display: none;
   }
