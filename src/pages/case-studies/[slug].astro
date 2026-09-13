@@ -13,7 +13,7 @@ import {
 } from '../../lib/caseStudies';
 import { getUiCopy } from '../../lib/studio';
 import { heroArtwork } from '../../lib/artwork';
-import { shareCard } from '../../lib/sanity/client';
+import { shareCard, ogImageUrl } from '../../lib/sanity/client';
 import { ldJson } from '../../lib/copy';
 
 export async function getStaticPaths() {
@@ -62,6 +62,15 @@ const caseSchema = {
   creator: { '@type': 'Organization', name: ui.siteName, url: 'https://aniwala.com/' },
   genre: sector,
   keywords: tools.join(', '),
+  /* The record said what the work was and never said where it lives. `url` is
+     what lets a consumer treat this as a thing with a page rather than a
+     description floating in a document. */
+  url: new URL(`/case-studies/${study.id}/`, Astro.site).href,
+  /* Same rule as the blog: the real cover or nothing. A case study for an
+     animation studio with no image attached is the weakest possible version
+     of this record, and the fix is a cover in the CMS, not a placeholder
+     here. */
+  ...(cover?.asset ? { image: [ogImageUrl(cover)] } : {}),
 };
 ---
 

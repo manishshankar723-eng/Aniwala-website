@@ -118,18 +118,28 @@ async function isEditor(token: string, projectId: string): Promise<boolean> {
   }
 }
 
-/** A key that is safe in a URL and cannot climb out of the prefix. */
-function safeKey(prefix: string, filename: string, contentType: string): string {
+/**
+ * A key that is safe in a URL, cannot climb out of the prefix, and is THE SAME
+ * for the same bytes.
+ *
+ * The suffix is a content hash, not a random string, and that is the whole
+ * design. With a random suffix, dropping the same file twice produced two
+ * identical objects under two names: a bucket filling with copies, and no way
+ * to tell which one a piece was pointing at. Keyed by content, the second
+ * upload resolves to the object that is already there.
+ *
+ * It still keeps the property the random suffix was for. Two DIFFERENT videos
+ * that happen to share a filename hash differently, so neither can silently
+ * replace the other.
+ */
+function safeKey(prefix: string, filename: string, contentType: string, hash: string): string {
   const base = (filename.replace(/\.[^.]+$/, '') || 'video')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 60);
 
-  /* A random suffix, so re-uploading under the same name never silently
-     replaces a video another piece is still pointing at. */
-  const salt = crypto.randomUUID().slice(0, 8);
-  return `${prefix}/${base || 'video'}-${salt}.${EXT[contentType]}`;
+  return `${prefix}/${base || 'video'}-${hash.slice(0, 16)}.${EXT[contentType]}`;
 }
 
 Deno.serve(async (req) => {
@@ -157,7 +167,13 @@ Deno.serve(async (req) => {
     return json({ error: 'Sign in to the Studio to upload.' }, 401, origin);
   }
 
-  let body: { filename?: string; contentType?: string; size?: number; prefix?: string };
+  let body: {
+    filename?: string;
+    contentType?: string;
+    size?: number;
+    prefix?: string;
+    hash?: string;
+  };
   try {
     body = await req.json();
   } catch {
@@ -172,13 +188,21 @@ Deno.serve(async (req) => {
     return json({ error: 'That file is over 1GB.' }, 400, origin);
   }
 
+  /* Hex, and exactly the length of a SHA-256. Validated rather than trusted:
+     this becomes part of a key, and a caller-supplied string reaching the path
+     unchecked is how an upload lands somewhere it should not. */
+  const hash = String(body.hash ?? '');
+  if (!/^[0-9a-f]{64}$/i.test(hash)) {
+    return json({ error: 'Missing or malformed file hash.' }, 400, origin);
+  }
+
   /* The prefix is chosen here from a fixed set, never taken from the request:
      a caller-supplied path is how an upload ends up overwriting something it
      was never meant to reach. */
   const prefix = body.prefix === 'hero' ? 'video/hero' : 'video/pieces';
-  const key = safeKey(prefix, String(body.filename ?? ''), contentType);
+  const key = safeKey(prefix, String(body.filename ?? ''), contentType, hash);
 
-  /* ---- Presign a PUT (SigV4, query-string form) ------------------------
+  /* ---- Presign (SigV4, query-string form) ------------------------------
      Query-string rather than header signing, because the browser cannot add
      an Authorization header to a cross-origin PUT without it becoming part of
      the preflight. Everything the signature covers has to travel in the URL. */
@@ -188,50 +212,71 @@ Deno.serve(async (req) => {
     .map(encodeURIComponent)
     .join('/');
 
-  const amzDate = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
-  const dateStamp = amzDate.slice(0, 8);
-  const scope = `${dateStamp}/auto/s3/aws4_request`;
+  async function presign(method: string, expires: number): Promise<string> {
+    const amzDate = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
+    const dateStamp = amzDate.slice(0, 8);
+    const scope = `${dateStamp}/auto/s3/aws4_request`;
 
-  /* Ten minutes. Long enough for a large upload to start, short enough that a
-     URL found in a log is worthless by the time anyone reads it. */
-  const query = new URLSearchParams({
-    'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
-    'X-Amz-Credential': `${ACCESS_KEY}/${scope}`,
-    'X-Amz-Date': amzDate,
-    'X-Amz-Expires': '600',
-    'X-Amz-SignedHeaders': 'host',
-  });
-  query.sort();
+    const query = new URLSearchParams({
+      'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
+      'X-Amz-Credential': `${ACCESS_KEY}/${scope}`,
+      'X-Amz-Date': amzDate,
+      'X-Amz-Expires': String(expires),
+      'X-Amz-SignedHeaders': 'host',
+    });
+    query.sort();
 
-  const canonicalRequest = [
-    'PUT',
-    canonicalUri,
-    query.toString(),
-    `host:${host}\n`,
-    'host',
-    /* The body is not known at signing time and R2 accepts this sentinel for
-       presigned PUTs. The URL is scoped to one key and expires either way. */
-    'UNSIGNED-PAYLOAD',
-  ].join('\n');
+    const canonicalRequest = [
+      method,
+      canonicalUri,
+      query.toString(),
+      `host:${host}\n`,
+      'host',
+      /* The body is not known at signing time and R2 accepts this sentinel for
+         presigned requests. The URL is scoped to one key and expires anyway. */
+      'UNSIGNED-PAYLOAD',
+    ].join('\n');
 
-  const stringToSign = [
-    'AWS4-HMAC-SHA256',
-    amzDate,
-    scope,
-    await sha256(canonicalRequest),
-  ].join('\n');
+    const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, await sha256(canonicalRequest)].join(
+      '\n'
+    );
 
-  const kDate = await hmac(enc.encode(`AWS4${SECRET}`), dateStamp);
-  const kRegion = await hmac(kDate, 'auto');
-  const kService = await hmac(kRegion, 's3');
-  const kSigning = await hmac(kService, 'aws4_request');
-  const signature = hex(await hmac(kSigning, stringToSign));
+    const kDate = await hmac(enc.encode(`AWS4${SECRET}`), dateStamp);
+    const kRegion = await hmac(kDate, 'auto');
+    const kService = await hmac(kRegion, 's3');
+    const kSigning = await hmac(kService, 'aws4_request');
+    const signature = hex(await hmac(kSigning, stringToSign));
+
+    return `https://${host}${canonicalUri}?${query.toString()}&X-Amz-Signature=${signature}`;
+  }
+
+  const publicUrl = `${PUBLIC_BASE.replace(/\/+$/, '')}/${key}`;
+
+  /*
+   * Is it already there?
+   *
+   * The key is a content hash, so an object sitting at it IS this file — same
+   * bytes, already uploaded. Saying so lets the browser skip the transfer
+   * entirely, which on a re-drop of a large video is the difference between a
+   * minute of waiting and none. It is also what stops the bucket collecting
+   * copies of one video under several names.
+   */
+  try {
+    const head = await fetch(await presign('HEAD', 60), { method: 'HEAD' });
+    if (head.ok) return json({ publicUrl, contentType, exists: true }, 200, origin);
+  } catch {
+    /* A failed existence check is not a reason to refuse the upload. Fall
+       through and send it again — a duplicate is better than a dead end. */
+  }
 
   return json(
     {
-      uploadUrl: `https://${host}${canonicalUri}?${query.toString()}&X-Amz-Signature=${signature}`,
-      publicUrl: `${PUBLIC_BASE.replace(/\/+$/, '')}/${key}`,
+      /* Ten minutes. Long enough for a large upload to start, short enough
+         that a URL found in a log is worthless by the time anyone reads it. */
+      uploadUrl: await presign('PUT', 600),
+      publicUrl,
       contentType,
+      exists: false,
     },
     200,
     origin

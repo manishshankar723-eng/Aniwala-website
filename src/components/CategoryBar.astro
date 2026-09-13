@@ -47,14 +47,15 @@ const isUnfiltered = Astro.url.pathname === '/blog/';
   {
     categories.map(({ title: c, slug }) => {
       const n = counts[c] ?? 0;
-      return n === 0 ? (
-        <span class="chip chip--filter is-empty" aria-disabled="true">
-          {c} <span class="chip-n">0</span>
-        </span>
-      ) : (
+      /* An empty category still links — same reasoning as the discipline bar,
+         where rendering the empty ones as <span> stranded three real pages on
+         one inbound link each. Every category here has posts today, so this
+         changes nothing visible; it stops the same bug appearing the first
+         time somebody adds a category before writing for it. */
+      return (
         <a
           href={active === c ? '/blog/' : `/blog/category/${slug}/`}
-          class:list={['chip chip--filter', active === c && 'is-active']}
+          class:list={['chip chip--filter', active === c && 'is-active', n === 0 && 'is-empty']}
           aria-current={active === c ? 'page' : undefined}
           title={active === c ? ui.barClearFilter : undefined}
         >

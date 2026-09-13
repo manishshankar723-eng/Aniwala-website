@@ -193,6 +193,28 @@ export const heroBlock = defineType({
      * https — Bunny, Cloudflare R2, Mux, or `public/` in the site repo — and
      * paste the address. Swapping hosts later is a change to this one field.
      */
+    /**
+     * Whether the hero offers its sound.
+     *
+     * IT DOES NOT MEAN "AUTOPLAY WITH SOUND". No browser permits that, so the
+     * hero starts muted whatever this says; the flag decides whether a visitor
+     * is given a button to unmute it.
+     *
+     * Off suits a background loop, which is what a hero usually is — decoration
+     * behind a headline, and a headline that can start talking is a strange
+     * thing to build. On suits a hero that is really a showreel, where the
+     * sound is part of the work rather than an accident of the file.
+     */
+    defineField({
+      name: 'sound',
+      title: 'Play with sound',
+      type: 'boolean',
+      description:
+        'The audio comes on by itself, as soon as the visitor clicks, scrolls or presses a key — a browser will not allow it any earlier than that, on any site. A button beside the call to action lets them turn it off again. Leave off for a silent background loop.',
+      initialValue: false,
+      hidden: ({ parent }) => parent?.variant !== 'video',
+    }),
+
     defineField({
       name: 'videoUrl',
       title: 'Background video',

@@ -55,6 +55,58 @@ function sessionToken(projectId: string, configured?: string): string | undefine
   }
 }
 
+/**
+ * SHA-256 of the whole file.
+ *
+ * The server turns this into the object key, so the same video dropped twice
+ * lands on the same key instead of a second copy under a new name. Hashing a
+ * large file costs a second or two of reading it; uploading a duplicate of it
+ * costs the whole transfer.
+ */
+async function fileHash(file: File): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Does this MP4 carry an audio track?
+ *
+ * Read out of the container rather than by playing the file: an <audio>-based
+ * check needs playback to have started, and the browser APIs for it disagree
+ * across engines. An MP4 declares each track with an `hdlr` box whose handler
+ * type is `soun` for audio, which is four bytes to look for and needs no
+ * decoding.
+ *
+ * Both ends are scanned because `moov` sits at the front of a faststart file
+ * and at the back of one straight out of an editor.
+ *
+ * Returns undefined when it cannot tell (a webm, say) — the caller treats that
+ * as "say nothing" rather than guessing.
+ */
+async function hasAudioTrack(file: File): Promise<boolean | undefined> {
+  if (file.type !== 'video/mp4') return undefined;
+
+  const CHUNK = 2 * 1024 * 1024;
+  const chunks = [await file.slice(0, Math.min(CHUNK, file.size)).arrayBuffer()];
+  if (file.size > CHUNK) chunks.push(await file.slice(file.size - CHUNK).arrayBuffer());
+
+  for (const chunk of chunks) {
+    const b = new Uint8Array(chunk);
+    for (let i = 0; i + 16 < b.length; i++) {
+      // 'hdlr'
+      if (b[i] === 0x68 && b[i + 1] === 0x64 && b[i + 2] === 0x6c && b[i + 3] === 0x72) {
+        for (let j = i + 4; j < i + 16; j++) {
+          // 'soun'
+          if (b[j] === 0x73 && b[j + 1] === 0x6f && b[j + 2] === 0x75 && b[j + 3] === 0x6e) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
+
 export function R2VideoInput(props: StringInputProps) {
   const { value, onChange, elementProps } = props;
   const client = useClient({ apiVersion: '2024-10-01' });
@@ -63,10 +115,14 @@ export function R2VideoInput(props: StringInputProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
   const upload = useCallback(
     async (file: File) => {
       setError(null);
+      setWarning(null);
+      setStatus(null);
 
       const token = sessionToken(projectId, configuredToken);
       if (!token) {
@@ -76,6 +132,22 @@ export function R2VideoInput(props: StringInputProps) {
 
       setProgress(0);
       try {
+        setStatus('Reading the file');
+        const [hash, audio] = await Promise.all([fileHash(file), hasAudioTrack(file)]);
+
+        /*
+         * Said, not fixed. Removing a track means rewriting the container and
+         * a browser has no ffmpeg, so the honest thing is to name the cost and
+         * the one command that removes it. Every player on this site is muted,
+         * so this audio is bytes nobody can ever hear.
+         */
+        if (audio) {
+          setWarning(
+            'This file has an audio track. Nothing on the site plays it, so it is dead weight — ' +
+              'upload with scripts/upload-r2.mjs to strip it.'
+          );
+        }
+
         const signed = await fetch(SIGN_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -83,6 +155,7 @@ export function R2VideoInput(props: StringInputProps) {
             filename: file.name,
             contentType: file.type,
             size: file.size,
+            hash,
           }),
         });
 
@@ -91,7 +164,16 @@ export function R2VideoInput(props: StringInputProps) {
           throw new Error(body.error ?? `Could not start the upload (${signed.status}).`);
         }
 
-        const { uploadUrl, publicUrl, contentType } = await signed.json();
+        const { uploadUrl, publicUrl, contentType, exists } = await signed.json();
+
+        /* Already in the bucket, byte for byte. Nothing to send. */
+        if (exists) {
+          onChange(set(publicUrl));
+          setStatus('Already uploaded — reused the file already in the bucket.');
+          return;
+        }
+
+        setStatus(null);
 
         /*
          * XHR rather than fetch, and only for this: fetch cannot report
@@ -161,7 +243,7 @@ export function R2VideoInput(props: StringInputProps) {
       <Card
         padding={3}
         radius={2}
-        tone={error ? 'critical' : 'transparent'}
+        tone={error ? 'critical' : warning ? 'caution' : 'transparent'}
         border
         onDragOver={(e: React.DragEvent) => e.preventDefault()}
         onDrop={(e: React.DragEvent) => {
@@ -174,10 +256,11 @@ export function R2VideoInput(props: StringInputProps) {
           <Box flex={1}>
             <Text size={1} muted>
               {busy
-                ? `Uploading to R2 — ${progress}%`
-                : error
-                  ? error
-                  : 'Drop an .mp4 or .webm here. It goes to Cloudflare R2, not Sanity.'}
+                ? (status ?? `Uploading to R2 — ${progress}%`)
+                : (error ??
+                  warning ??
+                  status ??
+                  'Drop an .mp4 or .webm here. It goes to Cloudflare R2, not Sanity.')}
             </Text>
           </Box>
           <Button

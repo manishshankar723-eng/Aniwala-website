@@ -268,6 +268,24 @@ export interface ContactDetails {
   legalName: string;
   addressLines: string[];
   country: string;
+  /**
+   * The same address, apart, for structured data.
+   *
+   * `addressLines` is what the footer prints; these are what a search engine
+   * reads. Any of them may be blank — `SiteSchema` drops what is empty, so an
+   * unfilled field produces less markup rather than a wrong `PostalAddress`.
+   */
+  phone: string;
+  streetAddress: string;
+  locality: string;
+  region: string;
+  postalCode: string;
+  /** Both or neither — `geo` is meaningless with one half. */
+  latitude?: number;
+  longitude?: number;
+  /** Schema.org shorthand, e.g. 'Mo-Fr 10:00-19:00'. */
+  openingHours: string[];
+  areaServed: string[];
   /** Every social, including ones with no URL yet. */
   socials: Social[];
   /** Only those with a real URL — what the live site should show. */
@@ -296,6 +314,13 @@ const EMPTY_CONTACT: ContactDetails = {
   legalName: '',
   addressLines: [],
   country: '',
+  phone: '',
+  streetAddress: '',
+  locality: '',
+  region: '',
+  postalCode: '',
+  openingHours: [],
+  areaServed: [],
   socials: [],
   publishedSocials: [],
   profileSocials: [],
@@ -307,7 +332,23 @@ export async function getContactDetails(): Promise<ContactDetails> {
   if (!entry || (entry.data.draft && !previewMode))
     return missingSingleton('contactDetails', 'contactDetails', EMPTY_CONTACT);
 
-  const { email, careersEmail, legalName, addressLines, country, socials } = entry.data;
+  const {
+    email,
+    careersEmail,
+    legalName,
+    addressLines,
+    country,
+    phone,
+    streetAddress,
+    locality,
+    region,
+    postalCode,
+    latitude,
+    longitude,
+    openingHours,
+    areaServed,
+    socials,
+  } = entry.data;
 
   return {
     email,
@@ -315,6 +356,18 @@ export async function getContactDetails(): Promise<ContactDetails> {
     legalName,
     addressLines,
     country,
+    phone,
+    /* The printed address is the fallback, so a record with no structured
+       street line still produces a `streetAddress` rather than a
+       `PostalAddress` with a city and nothing to put in it. */
+    streetAddress: streetAddress || addressLines.join(', '),
+    locality,
+    region,
+    postalCode,
+    latitude,
+    longitude,
+    openingHours,
+    areaServed,
     socials: socials as Social[],
     /* An account that does not exist yet is left blank in the Studio, and a
        blank one is dropped rather than rendered as a link to nowhere. Kept

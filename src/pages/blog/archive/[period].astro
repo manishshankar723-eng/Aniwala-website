@@ -53,11 +53,33 @@ const art = await heroArtwork();
 const count = plural(posts.length, ui.postCountOne, ui.postCountMany);
 ---
 
+{/*
+  Hidden from search, but crawled through.
+
+  Sixteen tag pages and six monthly archives is 22 URLs for 7 posts, each
+  carrying 111-174 words of its own and most of them listing a single
+  article. That is not a page anybody should land on from Google, and a
+  crawler spending its budget on 22 of them instead of the posts is the
+  mechanism behind "Crawled - currently not indexed".
+
+  `follow`, though, not `nofollow`: these bars are a real route from the blog
+  index to the articles, and cutting the links would de-index the listing and
+  strand the posts. See `follow` in layouts/Base.astro.
+
+  The four CATEGORY pages deliberately do NOT get this. They have written
+  intros, they group several posts each, and they are linked from every page
+  on the blog - they are section pages, not machine-generated permutations.
+
+  This also takes them out of the sitemap for free: the filter in
+  astro.config.mjs reads `noindex` off the built HTML rather than a list.
+*/}
 <Base
   title={`${label} — ${ui.crumbBlog} — ${ui.siteName}`}
   description={fill(ui.archiveDescription, { name: label })}
   canonical={`/blog/archive/${period}/`}
   hero="page"
+  noindex
+  follow
 >
   <main id="main">
     <PageHero

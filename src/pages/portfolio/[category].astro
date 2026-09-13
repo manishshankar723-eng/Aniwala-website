@@ -46,13 +46,18 @@ const allOwn = pieces.length > 0 && ownCount === pieces.length;
 const ui = await getUiCopy();
 const art = await heroArtwork(category.image);
 const words = { name: category.shortName, title: category.title };
+
+/* The explicit override first, then the discipline's own tile — the same
+   fallback the services page makes, and for the same reason: without it a
+   discipline with artwork still shares the studio's generic card. */
+const ogImage = shareCard(category.ogImage, category.image);
 ---
 
 <Base
   title={category.seoTitle ?? `${category.title} — ${ui.crumbPortfolio} — ${ui.siteName}`}
   description={category.seoDescription ?? category.intro}
   canonical={category.canonicalUrl ?? `/portfolio/${category.slug}/`}
-  ogImage={shareCard(category.ogImage)}
+  ogImage={ogImage}
   noindex={category.noindex}
   hero="page"
 >

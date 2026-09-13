@@ -35,7 +35,22 @@
 import { getContactDetails, getUiCopy, getBrand } from '../lib/studio';
 import { ldJson } from '../lib/copy';
 
-const { legalName, email, addressLines, country, profileSocials } = await getContactDetails();
+const {
+  legalName,
+  email,
+  addressLines,
+  country,
+  profileSocials,
+  phone,
+  streetAddress,
+  locality,
+  region,
+  postalCode,
+  latitude,
+  longitude,
+  openingHours,
+  areaServed,
+} = await getContactDetails();
 const ui = await getUiCopy();
 const brand = await getBrand();
 
@@ -65,8 +80,53 @@ const logo = brand.icon?.png512 ?? new URL('/icon-512.png', site).href;
  */
 const sameAs = profileSocials.map((s) => s.href);
 
+/**
+ * Organization, or ProfessionalService — decided by whether there is an
+ * address worth putting on a map.
+ *
+ * `ProfessionalService` is a subtype of `LocalBusiness`, which is a subtype
+ * of `Organization`, so everything below it keeps working either way. What it
+ * adds is the local-pack vocabulary: a split address, a phone number,
+ * coordinates, opening hours and an area served. A studio with a street
+ * address in Wakad that describes itself only as an `Organization` is opting
+ * out of local results it already qualifies for.
+ *
+ * BUT IT IS CONDITIONAL, and that is the point of the ternary. A
+ * `LocalBusiness` is a claim that there is a place a customer could walk
+ * into, and the only field that actually pins one down is the CITY — a
+ * street line without one is an address in no particular town. So the upgrade
+ * happens when `locality` is filled in and not before: an empty CMS field
+ * produces the plain `Organization` this always emitted, rather than a local
+ * business that cannot be located.
+ */
+const isLocal = Boolean(locality);
+
+/**
+ * The address, in parts.
+ *
+ * Every line is conditional, because a PostalAddress is read as a set of
+ * facts rather than as a block of text: a `postalCode` of "" is not "no
+ * postcode", it is an assertion that the postcode is the empty string.
+ */
+const address = {
+  '@type': 'PostalAddress',
+  ...(streetAddress ? { streetAddress } : {}),
+  ...(locality ? { addressLocality: locality } : {}),
+  ...(region ? { addressRegion: region } : {}),
+  ...(postalCode ? { postalCode } : {}),
+  addressCountry: country,
+};
+
+/* Both halves or neither. A `geo` carrying only a latitude is a point on a
+   line rather than a place, and consumers differ on whether they ignore it
+   or place it at zero — which is in the Atlantic. */
+const geo =
+  typeof latitude === 'number' && typeof longitude === 'number'
+    ? { '@type': 'GeoCoordinates', latitude, longitude }
+    : undefined;
+
 const organisation = {
-  '@type': 'Organization',
+  '@type': isLocal ? 'ProfessionalService' : 'Organization',
   '@id': `${site}#organization`,
   name: ui.siteName,
   /* The trading name, when it differs from the display name — a search engine
@@ -75,18 +135,34 @@ const organisation = {
   url: site,
   logo: { '@type': 'ImageObject', url: logo },
   ...(email ? { email } : {}),
+  ...(phone ? { telephone: phone } : {}),
   ...(sameAs.length ? { sameAs } : {}),
-  ...(addressLines.length
-    ? {
-        address: {
-          '@type': 'PostalAddress',
-          streetAddress: addressLines.join(', '),
-          addressCountry: country,
-        },
-      }
+  ...(addressLines.length || locality ? { address } : {}),
+  ...(geo ? { geo } : {}),
+  /* Only on a local business. `openingHours` and `areaServed` are
+     LocalBusiness vocabulary; hanging them off a bare Organization is markup
+     a consumer is entitled to ignore. */
+  ...(isLocal && openingHours.length ? { openingHours } : {}),
+  ...(isLocal && areaServed.length
+    ? { areaServed: areaServed.map((name) => ({ '@type': 'Place', name })) }
     : {}),
 };
 
+/**
+ * NO `SearchAction` HERE, DELIBERATELY — this has been suggested twice.
+ *
+ * A `SearchAction` states that a query can be handed to a URL on this site
+ * and will come back as a page of results. This site's search is an OVERLAY:
+ * `Search.astro` fetches /search.json and filters it in the browser. There is
+ * no /search?q= route, so the `target` would name a URL that 404s — markup
+ * asserting a capability the site does not have.
+ *
+ * It would also buy nothing if it were true. Google retired the sitelinks
+ * searchbox rich result in November 2023, which was the only thing that ever
+ * consumed this property.
+ *
+ * If a real results ROUTE is ever built, add it here and not before.
+ */
 const website = {
   '@type': 'WebSite',
   '@id': `${site}#website`,

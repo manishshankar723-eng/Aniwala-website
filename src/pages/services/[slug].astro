@@ -2,7 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import PageHero from '../../components/PageHero.astro';
 import { heroArtwork } from '../../lib/artwork';
-import { getFaqs, getUiCopy } from '../../lib/studio';
+import { getFaqs, getUiCopy, getContactDetails } from '../../lib/studio';
 import { shareCard } from '../../lib/sanity/client';
 import { fill, ldJson } from '../../lib/copy';
 import Faq from '../../components/Faq.astro';
@@ -38,6 +38,22 @@ const ui = await getUiCopy();
    disciplines, because the service carries its own article and short name. */
 const words = { article: service.article, name: service.shortName };
 
+/* One list, on the contact record, shared by all six services — see
+   `areaServed` below. */
+const { areaServed } = await getContactDetails();
+
+/**
+ * The sharing card: the explicit override first, then the page's own hero.
+ *
+ * `shareCard` takes sources in order and returns the first that has an image,
+ * which is how the blog and case studies fall back to their covers. This page
+ * was only ever handed `ogImage` — so a service with a perfectly good hero
+ * picture uploaded still shared the studio's generic card, and getting the
+ * picture already on the page required setting it a SECOND time, on an SEO
+ * field most editors never open.
+ */
+const ogImage = shareCard(service.ogImage, service.hero);
+
 const serviceSchema = {
   '@context': 'https://schema.org',
   '@type': 'Service',
@@ -49,7 +65,23 @@ const serviceSchema = {
     name: ui.siteName,
     url: 'https://aniwala.com/',
   },
-  areaServed: 'Worldwide',
+  /*
+   * WHERE THE WORK COMES FROM, read from Contact details rather than asserted.
+   *
+   * This said `'Worldwide'` on all six services. That is a defensible claim
+   * for a remote studio and a directly counterproductive one for a studio
+   * trying to appear in local results — it tells a search engine the service
+   * has no particular place, at the same time as the organisation record is
+   * trying to say it is in Pune. Two halves of the same site arguing.
+   *
+   * So it reads the studio's own list now. Fill in "Areas served" and every
+   * service inherits it; leave it empty and the previous claim stands
+   * unchanged, which is what keeps this a safe change to make before anyone
+   * has filled the field in.
+   */
+  areaServed: areaServed.length
+    ? areaServed.map((name) => ({ '@type': 'Place', name }))
+    : 'Worldwide',
   hasOfferCatalog: {
     '@type': 'OfferCatalog',
     name: `${service.title} services`,
@@ -76,7 +108,7 @@ const faqs = await getFaqs(`service:${service.slug}`);
   title={service.seoTitle ?? `${service.title} — ${ui.siteName}`}
   description={service.seoDescription ?? service.tagline}
   canonical={service.canonicalUrl ?? `/services/${service.slug}/`}
-  ogImage={shareCard(service.ogImage)}
+  ogImage={ogImage}
   noindex={service.noindex}
   hero="page"
 >

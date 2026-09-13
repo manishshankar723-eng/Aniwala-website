@@ -40,19 +40,29 @@ const total = Object.values(counts).reduce((n, c) => n + c, 0);
       const isActive = active === c.slug;
 
       /*
-        An empty discipline still renders, as a plain non-link. Hiding it
-        would make the row change shape as pieces get published, and would
-        hide a craft we genuinely offer just because the gallery for it is
-        not filled in yet. The category page itself still exists and says so.
+        An empty discipline still renders, AND STILL LINKS. It used to render
+        as a plain <span>, on the reasoning that there is nothing to show yet
+        — but the category page is not a gallery, it is a page about a craft
+        we offer, with its own intro copy, its own hero and its own entry in
+        the sitemap. Making it unreachable from here did not hide an empty
+        gallery; it stranded a real page.
+
+        The damage was measurable. With three disciplines unpublished, this
+        bar dropped /portfolio/character-design/, /portfolio/concept-art/ and
+        /portfolio/motion-graphics/ to exactly ONE inbound internal link each
+        on the whole site — the homepage grid, which links all six — while
+        the three with pieces had seven. The portfolio index did not link to
+        half its own children, and neither did any sibling category page.
+
+        So the count is still shown, `is-empty` still dims it, and the link is
+        still a link. A visitor who clicks one gets a page that explains the
+        discipline and says the gallery is coming, which is a better answer
+        than a chip that does not respond to a click.
       */
-      return n === 0 && !isActive ? (
-        <span class="chip chip--filter is-empty" aria-disabled="true">
-          {c.title} <span class="chip-n">0</span>
-        </span>
-      ) : (
+      return (
         <a
           href={isActive ? '/portfolio/' : categoryHref(c.slug)}
-          class:list={['chip chip--filter', isActive && 'is-active']}
+          class:list={['chip chip--filter', isActive && 'is-active', n === 0 && 'is-empty']}
           aria-current={isActive ? 'page' : undefined}
           title={isActive ? ui.barClearFilter : undefined}
         >

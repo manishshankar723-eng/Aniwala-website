@@ -37,6 +37,23 @@ interface Props {
    */
   noindex?: boolean;
   /**
+   * On a hidden page, still let a crawler follow the links on it.
+   *
+   * `noindex, nofollow` is right for /admin, /moderate, /schedule and the
+   * 404: nothing on them is a page we want found, and the second half costs
+   * nothing.
+   *
+   * It is wrong for a taxonomy page. A tag or archive listing is thin enough
+   * that it should not compete in search — 111 to 174 words of its own, most
+   * of it naming a single post — but it is also a genuine route between the
+   * blog index and the articles. `nofollow` there would de-index the page AND
+   * cut the only path some posts have, which is the opposite of the point.
+   * `noindex, follow` drops the listing and keeps the road.
+   *
+   * Never applied to a preview build, which should not be crawled at all.
+   */
+  follow?: boolean;
+  /**
    * Social-card image. Absolute URL.
    *
    * Defaults to the studio's generic card. Blog posts and case studies pass
@@ -241,6 +258,7 @@ const {
   canonical = Astro.url.pathname,
   hero,
   noindex = false,
+  follow = false,
   ogImage: ogImageProp,
   ogImageAlt,
   ogType = 'website',
@@ -258,6 +276,11 @@ const {
  * ever adds to it, never removes.
  */
 const hideFromSearch = noindex || previewMode;
+
+/* A preview build is `nofollow` whatever the page asked for — see above. The
+   sitemap filter in astro.config.mjs matches on `content="noindex`, so it
+   keeps dropping these pages either way. */
+const robots = follow && !previewMode ? 'noindex, follow' : 'noindex, nofollow';
 
 const announce = await getAnnouncement();
 
@@ -278,7 +301,15 @@ const ogImage = ogImageProp ?? new URL('/og-default.jpg', Astro.site).href;
   the markup also means it is right before any script runs, and right for a
   visitor with JavaScript disabled.
 */}
-<html lang="en" data-announce={announce.enabled ? undefined : 'off'}>
+{/*
+  `en-IN`, not `en`.
+
+  The site already said `en-IN` in two places — `og:locale` and the WebSite
+  node's `inLanguage` — and `en` here, which is three declarations and two
+  answers. This is the one a browser, a screen reader and a translation
+  prompt actually read, so it is the one that had to agree with the others.
+*/}
+<html lang="en-IN" data-announce={announce.enabled ? undefined : 'off'}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -321,6 +352,21 @@ const ogImage = ogImageProp ?? new URL('/og-default.jpg', Astro.site).href;
       )
     }
     <link rel="manifest" href="/site.webmanifest" />
+
+    {/*
+      Feed autodiscovery.
+
+      Sitewide rather than only on /blog/, which is the convention every
+      reader app expects: somebody who pastes aniwala.com into their reader
+      should get the writing, not "no feed found". One tag, on every page, and
+      it is the only way a feed gets found without being handed over by hand.
+    */}
+    <link
+      rel="alternate"
+      type="application/rss+xml"
+      title={`${ui.siteName} — ${ui.crumbBlog}`}
+      href="/blog/rss.xml"
+    />
     {/*
       Paints the browser chrome to match the page on Android and on iOS
       Safari's address bar. Two values so a visitor in light mode does not get
@@ -396,7 +442,7 @@ const ogImage = ogImageProp ?? new URL('/og-default.jpg', Astro.site).href;
 
     <title>{title}</title>
     <meta name="description" content={description} />
-    {hideFromSearch ? <meta name="robots" content="noindex, nofollow" /> : <link rel="canonical" href={canonicalURL} />}
+    {hideFromSearch ? <meta name="robots" content={robots} /> : <link rel="canonical" href={canonicalURL} />}
 
     <meta property="og:type" content={ogType} />
     {ogType === 'article' && publishedTime && (

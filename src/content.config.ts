@@ -605,6 +605,36 @@ const contactDetails = defineCollection({
     legalName: z.string().min(1),
     addressLines: z.array(z.string()).default([]),
     country: z.string().default('India'),
+    /* The machine-readable half of the address — see the note on the Studio
+       schema for why this is entered rather than parsed out of the lines
+       above. Every one is optional: `SiteSchema` omits whatever is blank, so
+       a half-filled record produces less structured data rather than wrong
+       structured data. */
+    phone: z.string().default(''),
+    streetAddress: z.string().default(''),
+    locality: z.string().default(''),
+    region: z.string().default(''),
+    postalCode: z.string().default(''),
+    /* Validated as a real coordinate rather than "a number". A latitude of
+       411057 — the postcode, pasted into the wrong box — is the mistake this
+       catches, and it would otherwise put the studio in the sea. */
+    latitude: z.number().min(-90).max(90).optional(),
+    longitude: z.number().min(-180).max(180).optional(),
+    /* Schema.org's own shorthand, e.g. 'Mo-Fr 10:00-19:00'. Checked here as
+       well as in the Studio because Studio validation is UI-only — see the
+       note at the top of this file. A line Google cannot parse is dropped
+       along with the rest of the block, so a typo costs the whole record. */
+    openingHours: z
+      .array(
+        z
+          .string()
+          .regex(
+            /^(Mo|Tu|We|Th|Fr|Sa|Su)(-(Mo|Tu|We|Th|Fr|Sa|Su))?( \d{2}:\d{2}-\d{2}:\d{2})$/,
+            "Use e.g. 'Mo-Fr 10:00-19:00' — days are Mo Tu We Th Fr Sa Su, times 24-hour."
+          )
+      )
+      .default([]),
+    areaServed: z.array(z.string()).default([]),
     socials: z
       .array(
         z.object({

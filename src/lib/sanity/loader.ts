@@ -564,13 +564,27 @@ export const sanityContactDetails = (): Loader =>
     type: 'contactDetails',
     hasBody: false,
     idFrom: () => 'contactDetails',
-    projection: `_id, email, careersEmail, legalName, addressLines, country, socials`,
+    projection: `_id, email, careersEmail, legalName, addressLines, country, socials,
+      phone, streetAddress, locality, region, postalCode, latitude, longitude,
+      openingHours, areaServed`,
     toData: (doc, isDraft) => ({
       email: doc.email,
       careersEmail: doc.careersEmail,
       legalName: doc.legalName ?? '',
       addressLines: doc.addressLines ?? [],
       country: doc.country ?? 'India',
+      phone: doc.phone ?? '',
+      streetAddress: doc.streetAddress ?? '',
+      locality: doc.locality ?? '',
+      region: doc.region ?? '',
+      postalCode: doc.postalCode ?? '',
+      /* `?? undefined` rather than `?? 0`: zero is a real coordinate (it is
+         in the Gulf of Guinea) and the schema treats "absent" as the signal
+         to publish no `geo` at all. */
+      latitude: doc.latitude ?? undefined,
+      longitude: doc.longitude ?? undefined,
+      openingHours: doc.openingHours ?? [],
+      areaServed: doc.areaServed ?? [],
       socials: (doc.socials ?? []).map((s: Record<string, unknown>) => ({
         icon: s.icon,
         label: s.label,

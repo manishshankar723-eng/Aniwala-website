@@ -7,7 +7,7 @@ import BlogSidebar from '../../components/BlogSidebar.astro';
 import Comments from '../../components/Comments.astro';
 import CtaBand from '../../components/CtaBand.astro';
 import Footer from '../../components/Footer.astro';
-import { imageUrl, imageSrcSet, shareCard } from '../../lib/sanity/client';
+import { imageUrl, imageSrcSet, shareCard, ogImageUrl } from '../../lib/sanity/client';
 import { getUiCopy } from '../../lib/studio';
 import { heroArtwork } from '../../lib/artwork';
 import { ldJson } from '../../lib/copy';
@@ -72,7 +72,30 @@ const articleSchema = {
   description,
   datePublished: isoDate(pubDate),
   dateModified: isoDate(updatedDate ?? pubDate),
-  author: { '@type': 'Organization', name: byline },
+  /*
+   * A PERSON when the post names one, the studio when it does not.
+   *
+   * This was `Organization` unconditionally, which meant a post bylined to a
+   * named animator still told a search engine the studio wrote it. That
+   * throws away the only author signal the site has: for craft and technical
+   * writing, a named human with a track record is the thing that separates a
+   * studio blog from content marketing, and `Person` is where that is
+   * expressed. `author` is blank on most posts today and blank means "the
+   * studio", so the Organization branch stays and stays correct.
+   */
+  author: author
+    ? { '@type': 'Person', name: author }
+    : { '@type': 'Organization', name: byline },
+  /*
+   * The cover, when there is one.
+   *
+   * Google's Article guidance asks for `image` and it is the field that
+   * decides whether a result can carry a thumbnail at all. Omitted rather
+   * than defaulted to the studio's social card: the same generic image on
+   * seven articles is not seven article images, and a wrong `image` is worse
+   * than an absent one.
+   */
+  ...(cover?.asset ? { image: [ogImageUrl(cover)] } : {}),
   publisher: {
     '@type': 'Organization',
     name: ui.siteName,
