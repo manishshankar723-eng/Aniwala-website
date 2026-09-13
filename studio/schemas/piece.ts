@@ -134,6 +134,30 @@ export default defineType({
         }),
     }),
 
+    /**
+     * Does this piece have sound worth hearing?
+     *
+     * IT DOES NOT MEAN "AUTOPLAY WITH SOUND". No browser permits that — a
+     * video that has not been interacted with is muted or it does not play at
+     * all, and there is no flag, policy or workaround that changes it. So this
+     * decides whether the tile offers an unmute BUTTON, which a visitor may
+     * then press.
+     *
+     * Off is the right default and not just a safe one: a wall of tiles that
+     * could each start talking is a worse gallery, and an audio track nothing
+     * ever plays is bytes every visitor downloads for nothing — which is why
+     * `scripts/upload-r2.mjs` strips it unless told otherwise.
+     */
+    defineField({
+      name: 'sound',
+      title: 'Has sound worth hearing',
+      type: 'boolean',
+      group: 'meta',
+      description:
+        'Adds an unmute button to the tile. Leave off for silent work — the video still plays, it just never offers audio. Nothing autoplays with sound; browsers do not allow it.',
+      initialValue: false,
+    }),
+
     defineField({
       name: 'kind',
       title: 'Kind',

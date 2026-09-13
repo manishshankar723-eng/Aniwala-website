@@ -30,6 +30,8 @@ export interface Piece {
   imageAlt?: string;
   /** How to play this piece's video, or undefined for a still. */
   video?: PieceVideo;
+  /** Whether the tile offers an unmute button. */
+  sound: boolean;
   caseStudy?: string;
   wide?: boolean;
 }
@@ -98,6 +100,7 @@ const flatten = (entry: CollectionEntry<'pieces'>): Piece => {
     tools: entry.data.tools,
     tint: entry.data.tint,
     video: resolveVideo(entry.data.video),
+    sound: entry.data.sound,
     image: cover?.asset ? imageUrl(cover, 1200) : undefined,
     srcset: cover?.asset ? imageSrcSet(cover, [480, 768, 1200, 1800]) : undefined,
     imageAlt: cover?.alt,

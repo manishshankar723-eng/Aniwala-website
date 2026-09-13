@@ -127,7 +127,7 @@ scripts/
 ├── check-links.mjs      Fails CI on a broken link, missing asset or scripted href
 ├── check-dataset.mjs    Fails CI if the dataset answers a stranger's query
 ├── build-preview.mjs    A build that shows unpublished drafts
-├── upload-r2.mjs        Puts a file in the R2 bucket, prints its public URL
+├── upload-r2.mjs        Puts a file in the R2 bucket. Strips audio unless told not to
 ├── r2-cors.mjs          The bucket's CORS policy, so the Studio may upload
 ├── generate-icons.mjs   Favicon/apple-touch/PWA PNGs from the mark
 └── generate-og-image.mjs  The social card. Run by hand, output committed
@@ -564,12 +564,34 @@ On a piece, the image stays the **poster**, so a tile shows a frame of the work
 from first paint rather than a black box. A piece with a video and no image
 falls back to flat tint.
 
+#### Sound
+
+**Every player is muted, always.** No browser autoplays audio on a video nobody
+has interacted with — there is no flag, policy or workaround that changes that,
+so a design that depends on it does not work anywhere.
+
+What a piece can do is *offer* sound. Tick **Has sound worth hearing** and the
+tile gets an unmute button; press it and that video unmutes, and any other one
+already playing goes quiet — two tiles talking over each other is not a state
+anybody chose. The hero has no such control by design: a background loop behind
+a headline that can start talking is not a thing to build.
+
+That makes the toggle the answer to a second question too. A silent video's
+audio track is bytes every visitor downloads and nobody can ever hear, so
+`upload-r2.mjs` **strips it by default** — `-c:v copy`, so the video is not
+re-encoded and there is no generation loss. Pass `--keep-audio` for a piece
+that has some.
+
+The Studio's drop zone cannot do that: stripping a track means rewriting the
+container, and a browser has no ffmpeg. **A file dropped into the Studio keeps
+whatever it arrived with.** If the bytes matter, upload it with the script.
+
 #### Uploading
 
 In the Studio, drop the file on the video field. Or from a terminal:
 
 ```bash
-node --env-file=.env scripts/upload-r2.mjs <file> [key]
+node --env-file=.env scripts/upload-r2.mjs <file> [key] [--keep-audio]
 node --env-file=.env scripts/upload-r2.mjs clip.mp4 video/home-hero.mp4
 ```
 

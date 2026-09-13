@@ -1,7 +1,7 @@
 /**
  * Put a file in the R2 bucket and print its public URL.
  *
- *   node --env-file=.env scripts/upload-r2.mjs <file> [key]
+ *   node --env-file=.env scripts/upload-r2.mjs <file> [key] [--keep-audio]
  *   node --env-file=.env scripts/upload-r2.mjs dist/video/home-hero.mp4 video/home-hero.mp4
  *
  * WHY THIS SIGNS THE REQUEST BY HAND rather than using @aws-sdk/client-s3.
@@ -20,10 +20,13 @@
  * stored on the hero block; these credentials only ever run on a laptop.
  */
 import { createHash, createHmac } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { readFile, unlink } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 
-const [, , filePath, keyArg] = process.argv;
+const KEEP_AUDIO = process.argv.includes('--keep-audio');
+const [, , filePath, keyArg] = process.argv.filter((a) => !a.startsWith('--'));
 
 if (!filePath) {
   console.error('Usage: node --env-file=.env scripts/upload-r2.mjs <file> [key]');
@@ -65,7 +68,54 @@ const TYPES = {
   '.svg': 'image/svg+xml',
 };
 
-const body = await readFile(filePath);
+/**
+ * Drop the audio track, unless asked not to.
+ *
+ * Every player on this site is muted. A hero loop has no controls at all, and
+ * a portfolio tile only offers sound when the piece is marked as having some.
+ * So an audio track on a silent video is bytes every visitor downloads and
+ * nobody can ever hear.
+ *
+ * `-c:v copy` is what makes this cheap and safe: the video is not re-encoded,
+ * so there is no generation loss and no wait. It rewrites the container
+ * without the audio stream and changes nothing else.
+ *
+ * Needs ffmpeg. Without it the file uploads untouched and says so — failing an
+ * upload over an optimisation would be the wrong trade.
+ */
+async function stripAudio(source) {
+  if (KEEP_AUDIO) return { file: source, note: 'audio kept (--keep-audio)' };
+  if (!/\.(mp4|webm|mov|m4v)$/i.test(source)) return { file: source };
+
+  let hasAudio;
+  try {
+    hasAudio = Boolean(
+      execFileSync(
+        'ffprobe',
+        ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=p=0', source],
+        { encoding: 'utf8' }
+      ).trim()
+    );
+  } catch {
+    return { file: source, note: 'ffmpeg not found, uploading as-is' };
+  }
+  if (!hasAudio) return { file: source, note: 'no audio track' };
+
+  const out = path.join(os.tmpdir(), `r2-silent-${Date.now()}${path.extname(source)}`);
+  try {
+    execFileSync(
+      'ffmpeg',
+      ['-y', '-v', 'error', '-i', source, '-an', '-c:v', 'copy', '-movflags', '+faststart', out],
+      { stdio: 'ignore' }
+    );
+    return { file: out, temp: true, note: 'audio stripped' };
+  } catch {
+    return { file: source, note: 'could not strip audio, uploading as-is' };
+  }
+}
+
+const stripped = await stripAudio(filePath);
+const body = await readFile(stripped.file);
 const key = (keyArg ?? path.basename(filePath)).replace(/^\/+/, '');
 const ext = path.extname(key).toLowerCase();
 const contentType = TYPES[ext] ?? 'application/octet-stream';
@@ -121,7 +171,7 @@ const signature = createHmac('sha256', signingKey).update(stringToSign).digest('
 
 const mb = (body.length / 1024 / 1024).toFixed(2);
 console.log(`\n  ${filePath}`);
-console.log(`  ${mb} MB, ${contentType}`);
+console.log(`  ${mb} MB, ${contentType}${stripped.note ? `  (${stripped.note})` : ''}`);
 console.log(`  -> ${BUCKET}/${key}\n`);
 
 const response = await fetch(`https://${host}${canonicalUri}`, {
@@ -143,6 +193,8 @@ if (!response.ok) {
   console.error('');
   process.exit(1);
 }
+
+if (stripped.temp) await unlink(stripped.file).catch(() => {});
 
 const url = `${PUBLIC_BASE.replace(/\/+$/, '')}/${key}`;
 console.log(`  Uploaded.\n  ${url}\n`);

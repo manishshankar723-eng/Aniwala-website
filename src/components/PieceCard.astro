@@ -30,7 +30,11 @@ interface Props {
 const ui = await getUiCopy();
 
 const { piece, showCategory = true } = Astro.props;
-const { title, blurb, kind, client, year, tools, tint, video, image, imageAlt } = piece;
+const { title, blurb, kind, client, year, tools, tint, video, sound, image, imageAlt } = piece;
+
+/* Only a native <video> can be unmuted from here. Stream's player owns its own
+   controls, so a toggle outside the iframe would have nothing to talk to. */
+const canUnmute = sound && video?.kind === 'file';
 
 const category = await categoryBySlug(piece.category);
 
@@ -80,9 +84,27 @@ const isStudioProject = kind === 'Studio project';
           loop
           playsinline
           preload="metadata"
-          aria-hidden="true"
+          aria-hidden={canUnmute ? undefined : 'true'}
           tabindex="-1"
         />
+      )
+    }
+    {
+      canUnmute && (
+        /*
+          Starts muted because it has to: no browser autoplays audio on a
+          video nobody has touched, and there is no flag that changes it. So
+          the tile plays silently and offers the sound rather than imposing
+          it — which is also the kinder default on a page holding several.
+        */
+        <button class="piece-sound" type="button" data-sound aria-pressed="false">
+          <span class="visually-hidden">Play sound</span>
+          <svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor">
+            <path d="M8 2.5 4.8 5.2H2.4v5.6h2.4L8 13.5V2.5Z" />
+            <path class="piece-sound-off" d="M10.4 6.1 12 7.7l1.6-1.6.9.9L12.9 8.6l1.6 1.6-.9.9L12 9.5l-1.6 1.6-.9-.9 1.6-1.6-1.6-1.6.9-.9Z" />
+            <path class="piece-sound-on" d="M10.6 5.6a3.4 3.4 0 0 1 0 4.8l-.9-.9a2.1 2.1 0 0 0 0-3l.9-.9Zm1.8-1.8a6 6 0 0 1 0 8.4l-.9-.9a4.7 4.7 0 0 0 0-6.6l.9-.9Z" />
+          </svg>
+        </button>
       )
     }
     {
@@ -137,6 +159,48 @@ const isStudioProject = kind === 'Studio project';
     </span>
   </div>
 </article>
+
+{
+  canUnmute && (
+    <script>
+      /*
+        One listener per button, scoped to its own card. Delegating from the
+        document would be fewer listeners and would also mean a gallery of
+        forty tiles shares one handler that has to work out which video it
+        meant — the bug where every tile unmutes at once.
+
+        The button is the only thing that ever unmutes: nothing here starts
+        audio on its own, so a visitor is never surprised by sound.
+      */
+      for (const btn of document.querySelectorAll('.piece-sound[data-sound]')) {
+        const card = btn.closest('.piece');
+        const video = card?.querySelector('video');
+        if (!video) continue;
+
+        btn.addEventListener('click', () => {
+          const wantSound = (video as HTMLVideoElement).muted;
+
+          /* Silence every OTHER tile first. Two videos talking over each
+             other is not a state anybody chose, and it is the obvious way
+             to arrive at it on a page of them. */
+          if (wantSound) {
+            for (const other of document.querySelectorAll<HTMLVideoElement>('.piece video')) {
+              if (other !== video) other.muted = true;
+            }
+            for (const otherBtn of document.querySelectorAll('.piece-sound[data-sound]')) {
+              if (otherBtn !== btn) otherBtn.setAttribute('aria-pressed', 'false');
+            }
+          }
+
+          (video as HTMLVideoElement).muted = !wantSound;
+          btn.setAttribute('aria-pressed', String(wantSound));
+          const label = btn.querySelector('.visually-hidden');
+          if (label) label.textContent = wantSound ? 'Mute' : 'Play sound';
+        });
+      }
+    </script>
+  )
+}
 
 <style>
   .piece {
@@ -194,6 +258,51 @@ const isStudioProject = kind === 'Studio project';
       linear-gradient(160deg, hsl(var(--tint) / 0.55), #0b0c10 75%);
     transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
   }
+  /* Bottom-RIGHT, opposite the title block, so it never lands on the words.
+     Always visible rather than revealed on hover: a control a visitor cannot
+     see is a control they do not know they have, and on a touch screen there
+     is no hover to reveal it with. */
+  .piece-sound {
+    position: absolute;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    border: 1px solid rgb(255 255 255 / 0.25);
+    background: rgb(0 0 0 / 0.55);
+    color: #f4f4f2;
+    cursor: pointer;
+    backdrop-filter: blur(6px);
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease;
+  }
+  .piece-sound:hover,
+  .piece-sound:focus-visible {
+    background: rgb(0 0 0 / 0.8);
+    border-color: rgb(255 255 255 / 0.5);
+  }
+  .piece-sound svg {
+    width: 1rem;
+    height: 1rem;
+  }
+  /* The icon states the ACTION, not the status: muted shows a speaker with a
+     cross (press to hear), unmuted shows waves (press to silence). */
+  .piece-sound .piece-sound-on {
+    display: none;
+  }
+  .piece-sound[aria-pressed='true'] .piece-sound-off {
+    display: none;
+  }
+  .piece-sound[aria-pressed='true'] .piece-sound-on {
+    display: inline;
+  }
+
   /* The player, over the poster — native <video> or Stream's iframe, same box
      either way, so the card does not care which it got. */
   .piece-video {
