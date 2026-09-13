@@ -645,25 +645,40 @@ falls back to flat tint.
 
 #### Tile controls
 
-A piece tile with a **direct video** carries pause, sound and full screen,
-bottom-right. They fade in on hover or focus, and are always visible on a touch
-screen, where there is no hover to reveal them with.
+A piece tile with a **direct video** carries the browser's own control bar:
+play, scrub, volume, full screen, picture-in-picture. Deliberately native
+rather than bespoke — it is the same bar the visitor gets in full screen and on
+every other site, already understood and already keyboard-accessible.
 
-- **Pause** is driven off the video's own `play`/`pause` events rather than off
-  its own click, so it still reads correctly when something else stopped the
-  video — "reduce motion" pausing it on load, a background tab, a stalled range
-  request.
-- **Sound** appears only when *Has sound worth hearing* is ticked, because
-  `upload-r2.mjs` strips the audio track by default and a control that provably
-  does nothing is worse than no control.
-- **Full screen** takes the VIDEO, not the tile: the tile carries a scrim and a
-  title over the picture, and taking those along would put a caption across
-  somebody's showreel. Going full screen unmutes, where there is audio — asking
-  for the whole screen is asking for the whole thing.
+It replaced a custom cluster of three buttons whose volume only appeared when
+an editor had ticked *Has sound worth hearing*, which meant most tiles offered
+no way to hear anything at all.
 
-**A Stream tile gets none of them**, and cannot. It is an iframe carrying
-Cloudflare's own player; a button outside it has nothing to talk to, and
-reaching in is cross-origin and refused. The player inside has its own controls.
+Two things make it work, and both were bugs before they were fixed:
+
+- **`.piece-inner` gives up its pointer events.** It fills the tile and sits
+  over the video, so with it in the way the bar rendered perfectly and ignored
+  every click. Everything in that overlay — scrim, badge, title — is
+  decoration, so the layer takes no pointer events and the video takes them
+  back. The scrim still *paints* over the video, which is wanted: white
+  controls read better on a darkened strip than on a bright frame.
+- **`.piece-video` drops `pointer-events: none` in full screen**, for exactly
+  the same reason one layer up, and switches to `object-fit: contain` — `cover`
+  crops to the tile's shape, which is right on a grid and wrong on a screen
+  somebody has just asked to fill with the whole frame.
+
+`.piece--player .piece-body` carries bottom padding so the title is not sitting
+under the bar. The bar is only drawn on hover, so that gap is empty most of the
+time — the cheaper of the two mistakes.
+
+**A Stream tile is untouched.** It is an iframe carrying Cloudflare's own
+player; a control outside it has nothing to talk to, and reaching in is
+cross-origin and refused. The player inside has its own.
+
+The **`Has sound worth hearing`** field no longer gates anything: the native bar
+always has a volume control, so whether there is audio is a question about the
+file. `upload-r2.mjs` still strips the track by default, which is why most of
+these are silent.
 
 #### Sound
 
