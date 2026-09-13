@@ -12,10 +12,19 @@
  * different amounts of information about the same six things. The grid needs a
  * label and a blurb; the rows need the tagline and the offering names. Reading
  * each from where it lives beats duplicating either.
+ *
+ * THE PICTURE IS A THIRD READ, joined on below. The nav stays the source of
+ * WHICH services appear and in what order — that invariant is the whole reason
+ * the grid reads it — but a nav child is only a label, an href and a blurb, so
+ * the art has to come off the `service` document the href points at. That is
+ * the same `hero` an editor sets under Images → Service heroes and the same one
+ * the service's own page band uses: one upload, both places, exactly as
+ * `workCategory.image` already works for the discipline tiles.
  */
 import SectionHead from './SectionHead.astro';
 import { getNavigation } from '../../lib/studio';
 import { getServices } from '../../lib/services';
+import { toArtwork } from '../../lib/artwork';
 
 interface Props {
   block: {
@@ -36,6 +45,36 @@ const rows = block.layout === 'rows';
 const { items: nav } = await getNavigation();
 const navServices = nav.find((i) => i.children.length > 0)?.children ?? [];
 const services = await getServices();
+
+/*
+ * Matched on the PATH the href resolves to, not on a slug parsed out of it.
+ *
+ * `href` is a free string an editor types, checked only against the scheme
+ * allowlist — so it arrives with or without a trailing slash, and may be an
+ * absolute URL or a link somewhere else entirely. Normalising both sides to
+ * `/services/<slug>` and looking the whole thing up means anything that is not
+ * a service page simply misses the map and renders on its tint, rather than a
+ * regex confidently pulling "contact" out of `/contact/` and finding nothing.
+ *
+ * Sized once here rather than inside the template, where `src` and `srcset`
+ * would each rebuild the same URLs.
+ */
+const path = (href: string) => href.split(/[?#]/)[0].replace(/\/+$/, '');
+const byPath = new Map(services.map((s) => [`/services/${s.slug}`, s]));
+
+/* A nav child pointing at no service still needs a colour to sit on, and the
+   tint is what every other tile on the site falls back to. Neutral rather than
+   branded: this is the "we could not find it" case, not a design choice. */
+const DEFAULT_TINT = '220 14% 20%';
+
+const tiles = navServices.map((child) => {
+  const service = byPath.get(path(child.href));
+  return {
+    ...child,
+    tint: service?.tint ?? DEFAULT_TINT,
+    art: toArtwork(service?.hero),
+  };
+});
 ---
 
 <section class="section" class:list={[!rows && 'section--bordered']} id={block.anchor ?? (rows ? 'disciplines' : 'services')}>
@@ -70,22 +109,52 @@ const services = await getServices();
       </ol>
     ) : (
       <div class="service-grid">
-        {navServices.map((s) => (
-          <a href={s.href} class="service" data-reveal>
-            <h3 class="service-name">{s.label}</h3>
-            <p class="service-blurb">{s.blurb}</p>
-            <span class="service-arrow" aria-hidden="true">
-              &rarr;
+        {tiles.map((s) => (
+          <a href={s.href} class="service" style={`--tint:${s.tint}`} data-reveal>
+            {/*
+              The tint gradient stays UNDERNEATH the image rather than being
+              replaced by it, so the tile holds its colour while the picture
+              loads and still looks deliberate on a service that has none.
+
+              `aria-hidden` and an empty alt: the tile's own name and blurb sit
+              directly over this, so announcing the picture as well would make
+              a screen reader read every tile twice.
+            */}
+            <span class="service-media" aria-hidden="true">
+              {s.art && (
+                <img
+                  class="service-img"
+                  src={s.art.src}
+                  srcset={s.art.srcset}
+                  sizes="(min-width: 1100px) 33vw, (min-width: 700px) 50vw, 100vw"
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                />
+              )}
+            </span>
+            <span class="service-body">
+              <h3 class="service-name">{s.label}</h3>
+              <p class="service-blurb">{s.blurb}</p>
+              <span class="service-arrow" aria-hidden="true">
+                &rarr;
+              </span>
             </span>
           </a>
         ))}
         {/* Optional. Filled in, the grid ends with a way to ask for work
-            none of the six disciplines names; left blank, it just ends. */}
+            none of the six disciplines names; left blank, it just ends.
+
+            No media span: this one is a question, not a discipline, and there
+            is no document behind it to take a picture from. It reads as a band
+            in the page's own colours under the wall of art. */}
         {block.ctaTitle && block.ctaHref && (
           <a href={block.ctaHref} class="service service--cta" data-reveal>
-            <h3 class="service-name">{block.ctaTitle}</h3>
-            <p class="service-blurb">{block.ctaBody}</p>
-            <span class="service-arrow" aria-hidden="true">&rarr;</span>
+            <span class="service-body">
+              <h3 class="service-name">{block.ctaTitle}</h3>
+              <p class="service-blurb">{block.ctaBody}</p>
+              <span class="service-arrow" aria-hidden="true">&rarr;</span>
+            </span>
           </a>
         )}
       </div>
@@ -96,103 +165,195 @@ const services = await getServices();
 <style>
   /* --- Grid ------------------------------------------------------------- */
   /*
-    Wrapping flex rather than a fixed-column grid, and that is load bearing.
-    The hairlines are the container's background showing through a 1px gap,
-    so a grid cell with no tile in it is not empty space — it is a solid slab
-    of `--color-line`. The tile count comes from the CMS, so any count that
-    is not a multiple of the column count paints one. Flex lines only ever
-    contain real tiles, and `flex-grow` spreads a short last line across the
-    full width, so the panel cannot have a hole in it at any count.
+    Separated tiles on a real grid, matching the discipline tiles in
+    `WorkGridBlock` — which is the point: both sections are a wall of the
+    studio's own art with a name on it, and they sat on the same page looking
+    like two different websites.
+
+    This replaced a flex panel whose tiles were divided by hairlines — the
+    container's background showing through a 1px gap. That construction had to
+    be flex, because a grid cell with no tile in it was not empty space but a
+    solid slab of `--color-line`, and the tile count comes from the CMS. With
+    the tiles now separated by a real gap there is no panel behind them, so a
+    short last row is simply space and `grid` is free to be used for what it
+    is better at: columns that line up.
+
+    Both column counts divide six exactly, so the six disciplines come out
+    square either way — two across gives three rows, three across gives two.
   */
   .service-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1px;
-    background: var(--color-line);
-    border: 1px solid var(--color-line);
-    border-radius: 0.75rem;
-    overflow: hidden;
-  }
-
-  .service {
-    /* Basis stays a hair under an even share so N always fit on one line:
-       3 × (33.333% − 1px) + 2px of gap lands just inside 100%. */
-    flex: 1 1 100%;
-    min-width: 0;
-    background: var(--color-ground);
-    padding: 2rem 1.75rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-    text-decoration: none;
-    color: inherit;
-    transition: background-color 0.25s ease;
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: 1fr;
   }
   @media (min-width: 700px) {
-    .service {
-      flex-basis: calc(50% - 1px);
+    .service-grid {
+      grid-template-columns: repeat(2, 1fr);
     }
   }
   @media (min-width: 1100px) {
-    .service {
-      flex-basis: calc(33.333% - 1px);
+    .service-grid {
+      grid-template-columns: repeat(3, 1fr);
     }
   }
-  .service:hover {
-    background: var(--color-surface);
+
+  .service {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    /*
+     * PROPORTIONAL, not a fixed height — a fixed one turns a tile in a
+     * three-column grid on a wide monitor into a letterbox slot that crops
+     * the picture to a strip. The floor keeps a narrow tile tall enough for
+     * the name and blurb to sit in.
+     *
+     * `width: 100%` is load bearing with that floor. `min-height` wins over
+     * the ratio, and a ratio box whose height is forced then derives its WIDTH
+     * from it — which on a phone makes every tile wider than its column and
+     * scrolls the whole page sideways.
+     */
+    aspect-ratio: 16 / 10;
+    min-height: 16rem;
+    width: 100%;
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
   }
+
+  /* The colour placeholder: visible on a service with no hero filed against
+     it, and behind one while it loads. */
+  .service-media {
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    background:
+      radial-gradient(ellipse 90% 70% at 30% 20%, hsl(var(--tint) / 0.85), transparent 70%),
+      linear-gradient(160deg, hsl(var(--tint) / 0.55), #0b0c10 75%);
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  /* Sits on the tint. `cover` plus the tile's own ratio means a portrait
+     upload crops rather than letterboxes; Sanity's hotspot — which the hero
+     field enables — decides which part survives. */
+  .service-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .service:hover .service-media {
+    transform: scale(1.06);
+  }
+
+  /* The scrim is what makes white type legible over art we do not control.
+     A pseudo-element between the picture and the text in the stacking order,
+     rather than a wash over everything. */
+  .service::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(to top, rgb(0 0 0 / 0.8), rgb(0 0 0 / 0.25) 55%, transparent 82%);
+  }
+
+  .service-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  /*
+    Pinned light-on-dark from here down, and NOT following the theme tokens:
+    this type sits on a photograph, which is dark in both themes. A tile with
+    no picture is the dark tint gradient above, so the rule holds there too.
+  */
   .service-name {
     font-family: var(--font-display);
-    font-size: calc(1.3rem * var(--type-heading-scale, 1));
-    font-weight: calc(700 + var(--type-heading-weight, 0));
+    font-size: calc(1.35rem * var(--type-heading-scale, 1));
+    font-weight: calc(750 + var(--type-heading-weight, 0));
     font-stretch: 108%;
-    letter-spacing: calc(-0.01em + var(--type-heading-track, 0em));
+    letter-spacing: calc(-0.015em + var(--type-heading-track, 0em));
+    line-height: 1.2;
     margin: 0;
+    color: #f4f4f2;
+    transition: color 0.2s ease;
   }
+  .service:hover .service-name {
+    color: var(--color-accent-on-dark);
+  }
+  /*
+    Always visible, unlike the discipline tiles, which hold their blurb back
+    until hover. A portfolio tile is scanned and its picture does the selling;
+    this grid is the menu of what the studio can be hired for, and the blurb is
+    the only place a visitor is told what a discipline covers. Hiding it on a
+    phone — where there is no hover — would be hiding it from most of them.
+  */
   .service-blurb {
     margin: 0;
-    font-size: calc(0.93rem * var(--type-body-scale, 1));
-    line-height: 1.55;
-    color: var(--color-ink-muted);
+    max-width: 42ch;
+    font-size: calc(0.9rem * var(--type-body-scale, 1));
+    line-height: 1.5;
+    color: rgb(255 255 255 / 0.78);
   }
   .service-arrow {
-    margin-top: auto;
-    padding-top: 1.25rem;
+    margin-top: 0.35rem;
     font-size: calc(1.2rem * var(--type-heading-scale, 1));
-    color: var(--color-accent);
+    color: var(--color-accent-on-dark);
     display: inline-block;
     transition: transform 0.25s ease;
   }
   .service:hover .service-arrow {
     transform: translateX(4px);
   }
+
   /*
-    The closing tile takes a line of its own and reads as a band rather than
-    a stretched card — a heading, the line of copy beside it and the arrow on
-    the far right. Claiming the whole line is what stops it from being the
-    lone tile on a half-empty row, whatever number of services precedes it.
+    The closing tile takes a row of its own and reads as a band rather than a
+    stretched card — a heading, the line of copy beside it and the arrow on the
+    far right. Claiming the whole row is what stops it from being the lone tile
+    on a half-empty one, whatever number of services precedes it.
+
+    It is the one tile with no art, so it drops out of the light-on-dark rule
+    above and back onto the theme's own colours.
   */
-  /* Qualified so it outranks the per-breakpoint `flex-basis` on `.service`
-     no matter which rule the bundler emits last. */
   .service-grid .service--cta {
-    flex-basis: 100%;
+    grid-column: 1 / -1;
+    aspect-ratio: auto;
+    min-height: 0;
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    padding: 1.6rem 1.75rem;
+    transition: background-color 0.25s ease;
   }
-  .service--cta .service-name {
+  .service--cta::after {
+    display: none;
+  }
+  .service--cta:hover {
+    background: var(--color-ground);
+  }
+  .service--cta .service-name,
+  .service--cta:hover .service-name,
+  .service--cta .service-arrow {
     color: var(--color-accent);
   }
+  .service--cta .service-blurb {
+    color: var(--color-ink-muted);
+  }
   @media (min-width: 700px) {
-    .service--cta {
+    .service--cta .service-body {
       flex-direction: row;
       align-items: baseline;
       gap: 0.4rem 1.75rem;
-      padding-block: 1.6rem;
     }
     .service--cta .service-blurb {
       flex: 1 1 auto;
+      max-width: none;
     }
     .service--cta .service-arrow {
       margin: 0;
-      padding-top: 0;
       align-self: center;
     }
   }
