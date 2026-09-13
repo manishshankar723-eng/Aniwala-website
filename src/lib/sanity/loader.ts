@@ -792,7 +792,7 @@ export const sanityWorkCategories = (): Loader =>
     type: 'workCategory',
     hasBody: false,
     projection: `
-      _id, slug, title, shortName, blurb, intro, tint, image, video, order,
+      _id, slug, title, shortName, blurb, intro, tint, image, video, columns, order,
       "services": services[]->slug.current, seoTitle, seoDescription, ogImage, noindex, canonicalUrl
     `,
     toData: (doc, isDraft) => ({
@@ -805,6 +805,10 @@ export const sanityWorkCategories = (): Loader =>
          hero above. */
       ...(doc.image ? { image: doc.image } : {}),
       ...(doc.video ? { video: doc.video } : {}),
+      /* Two unless the document says three. Anything else — a stale value, a
+         number typed past the Studio — lands on the shipped layout rather than
+         reaching `grid-template-columns` as an arbitrary integer. */
+      columns: doc.columns === 3 ? 3 : 2,
       order: doc.order ?? 50,
       services: (doc.services ?? []).filter(Boolean),
       ...(doc.seoTitle ? { seoTitle: doc.seoTitle } : {}),

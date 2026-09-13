@@ -98,9 +98,9 @@ const ogImage = shareCard(category.ogImage, category.image);
 
             <h2 class="visually-hidden">{fill(ui.portfolioWorkHeading, words)}</h2>
 
-            <div class="grid">
+            <div class="grid" style={`--cols:${category.columns}`}>
               {pieces.map((piece) => (
-                <PieceCard piece={piece} showCategory={false} />
+                <PieceCard piece={piece} showCategory={false} columns={category.columns} />
               ))}
             </div>
           </>
@@ -170,9 +170,27 @@ const ogImage = shareCard(category.ogImage, category.image);
     looked like before. A flex line holds only real pieces and grows them to
     fill it, so one piece is a full-width still and two split the row.
   */
+  /*
+   * A GRID, not a wrapping flex row, and the change is what makes `wide` mean
+   * something at three columns.
+   *
+   * PieceCard already carries `grid-column: span 2` for the portfolio index,
+   * which laid these out as a grid while this page laid them out as flex —
+   * each parent ignoring the property meant for the other, with `flex-basis:
+   * 100%` standing in here. That worked while this was always two columns,
+   * because two columns and a full row are the same thing. At three they are
+   * not, and a wide tile spanning the whole line leaves a hole beside it.
+   *
+   * As a grid, one rule covers both: a wide tile takes two columns, which is
+   * the full row at `--cols: 2` and two thirds of it at 3.
+   *
+   * `minmax(0, 1fr)`, never a bare `1fr`: a grid track's default minimum is
+   * `auto`, so one long unbroken word in a title can push a column wider than
+   * its share and squeeze the others.
+   */
   .grid {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 1fr;
     gap: 1rem;
   }
   /* `:global`, and it is not optional. Astro scopes every element in a
@@ -181,12 +199,22 @@ const ogImage = shareCard(category.ogImage, category.image);
      component's id, not this page's. The rule matched nothing and every
      piece sat at its intrinsic width. */
   .grid > :global(*) {
-    flex: 1 1 100%;
     min-width: 0;
   }
+  /*
+   * Two below 1200px WHATEVER the discipline asks for. Three columns on a
+   * laptop puts every tile under 350px, which is too small to judge a render
+   * on — and judging the render is the only thing this page is for. The
+   * setting takes effect where there is room for it.
+   */
   @media (min-width: 900px) {
-    .grid > :global(*) {
-      flex-basis: calc(50% - 0.5rem);
+    .grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 1200px) {
+    .grid {
+      grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
     }
   }
 

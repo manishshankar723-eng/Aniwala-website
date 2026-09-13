@@ -976,6 +976,8 @@ const workCategories = defineCollection({
        and a discipline with a malformed one should lose its video, not fail
        the build for every other page. */
     video: z.string().optional(),
+    /* Two values, and nothing else: this reaches `grid-template-columns`. */
+    columns: z.union([z.literal(2), z.literal(3)]).default(2),
     order: z.number().int().default(50),
     services: z.array(z.string()).default([]),
     ...seoOverrides,

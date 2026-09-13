@@ -25,11 +25,20 @@ interface Props {
   piece: Piece;
   /** Hide the discipline chip on pages that are already one discipline. */
   showCategory?: boolean;
+  /**
+   * How many columns the grid this sits in uses at its widest.
+   *
+   * Only `sizes` needs it — the tile does not lay itself out. Passing it is
+   * what stops a three-column gallery asking for half-width images and a
+   * two-column one asking for thirds; the first wastes bytes, the second is
+   * the blurry one.
+   */
+  columns?: 2 | 3;
 }
 
 const ui = await getUiCopy();
 
-const { piece, showCategory = true } = Astro.props;
+const { piece, showCategory = true, columns = 2 } = Astro.props;
 const { title, blurb, kind, client, year, tools, tint, video, sound, image, imageAlt, srcset } =
   piece;
 
@@ -44,7 +53,19 @@ const { title, blurb, kind, client, year, tools, tint, video, sound, image, imag
  * A wide tile spans the row. A narrow one is half of it above 900px, where the
  * gallery goes to two columns, and the full width below.
  */
-const sizes = piece.wide ? '100vw' : '(min-width: 900px) 50vw, 100vw';
+/*
+ * The grid is one column below 900px, two up to 1200px, and `columns` above
+ * that. A wide tile spans two of those columns — the whole row at two, two
+ * thirds at three. Written widest-first, which is the order a browser reads.
+ */
+const sizes =
+  columns === 3
+    ? piece.wide
+      ? '(min-width: 1200px) 67vw, 100vw'
+      : '(min-width: 1200px) 33vw, (min-width: 900px) 50vw, 100vw'
+    : piece.wide
+      ? '100vw'
+      : '(min-width: 900px) 50vw, 100vw';
 
 /* Only a native <video> can be unmuted from here. Stream's player owns its own
    controls, so a toggle outside the iframe would have nothing to talk to. */

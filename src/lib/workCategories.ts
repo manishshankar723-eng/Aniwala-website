@@ -23,6 +23,8 @@ export interface WorkCategory {
   /** Hero loop for the discipline page. Direct .mp4/.webm; needs `image` as
       its poster. Undefined leaves the band as a still. */
   video?: string;
+  /** Tiles per row on a wide screen. Narrower ones step down regardless. */
+  columns: 2 | 3;
   order: number;
   /** Service slugs. Already dereferenced by the loader. */
   services: string[];
