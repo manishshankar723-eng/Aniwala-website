@@ -98,9 +98,9 @@ const ogImage = shareCard(category.ogImage, category.image);
 
             <h2 class="visually-hidden">{fill(ui.portfolioWorkHeading, words)}</h2>
 
-            <div class="grid" style={`--cols:${category.columns}`}>
+            <div class="grid">
               {pieces.map((piece) => (
-                <PieceCard piece={piece} showCategory={false} columns={category.columns} />
+                <PieceCard piece={piece} showCategory={false} />
               ))}
             </div>
           </>
@@ -171,22 +171,19 @@ const ogImage = shareCard(category.ogImage, category.image);
     fill it, so one piece is a full-width still and two split the row.
   */
   /*
-   * A GRID, not a wrapping flex row, and the change is what makes `wide` mean
-   * something at three columns.
+   * SIX COLUMNS, because three and two have to live in the same grid.
    *
-   * PieceCard already carries `grid-column: span 2` for the portfolio index,
-   * which laid these out as a grid while this page laid them out as flex —
-   * each parent ignoring the property meant for the other, with `flex-basis:
-   * 100%` standing in here. That worked while this was always two columns,
-   * because two columns and a full row are the same thing. At three they are
-   * not, and a wide tile spanning the whole line leaves a hole beside it.
+   * A tile used to be wide or not, which is two widths — so a gallery could be
+   * rows of three or rows of two and never both: at three columns a "wide"
+   * tile takes two and the row still has three slots. Six divides by both, so
+   * a third is two columns, a half is three, and a row is whatever adds up.
    *
-   * As a grid, one rule covers both: a wide tile takes two columns, which is
-   * the full row at `--cols: 2` and two thirds of it at 3.
+   * Nothing forces a row to add up. One that does not leaves a gap at the end,
+   * which is visible and fixable — better than a layout engine silently
+   * reflowing somebody's composition.
    *
-   * `minmax(0, 1fr)`, never a bare `1fr`: a grid track's default minimum is
-   * `auto`, so one long unbroken word in a title can push a column wider than
-   * its share and squeeze the others.
+   * `minmax(0, 1fr)`, never a bare `1fr`: a track's default minimum is `auto`,
+   * so one long unbroken word in a title can push a column past its share.
    */
   .grid {
     display: grid;
@@ -196,25 +193,48 @@ const ogImage = shareCard(category.ogImage, category.image);
   /* `:global`, and it is not optional. Astro scopes every element in a
      selector to the file it is written in, so a bare `.grid > *` compiles to
      `> *[data-astro-cid-thispage]` — and a PieceCard's root carries its OWN
-     component's id, not this page's. The rule matched nothing and every
-     piece sat at its intrinsic width. */
+     component's id, not this page's. */
   .grid > :global(*) {
     min-width: 0;
   }
+
   /*
-   * Two below 1200px WHATEVER the discipline asks for. Three columns on a
-   * laptop puts every tile under 350px, which is too small to judge a render
-   * on — and judging the render is the only thing this page is for. The
-   * setting takes effect where there is room for it.
+   * BETWEEN 900 AND 1200 EVERYTHING COLLAPSES TO HALVES AND FULLS. Three
+   * across on a laptop puts a tile under 350px, which is too small to judge a
+   * render on — and judging the render is the only thing this page is for. The
+   * composition is a wide-screen idea; narrower screens get the legible
+   * version of it.
+   *
+   * These beat `.piece--wide` from PieceCard on specificity (0,2,0 against
+   * 0,1,0), which is what lets that class keep meaning what it means on the
+   * portfolio index without meaning it here.
    */
   @media (min-width: 900px) {
     .grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+    .grid > :global(.piece--span-third),
+    .grid > :global(.piece--span-half) {
+      grid-column: span 3;
+    }
+    .grid > :global(.piece--span-two-thirds),
+    .grid > :global(.piece--span-full) {
+      grid-column: span 6;
     }
   }
+
   @media (min-width: 1200px) {
-    .grid {
-      grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+    .grid > :global(.piece--span-third) {
+      grid-column: span 2;
+    }
+    .grid > :global(.piece--span-half) {
+      grid-column: span 3;
+    }
+    .grid > :global(.piece--span-two-thirds) {
+      grid-column: span 4;
+    }
+    .grid > :global(.piece--span-full) {
+      grid-column: span 6;
     }
   }
 

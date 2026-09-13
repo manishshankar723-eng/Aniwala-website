@@ -247,14 +247,45 @@ export default defineType({
         'Fill is right for most renders. Choose "show the whole image" for a character sheet or turnaround, where cropping through it loses the point \u2014 the tint fills whatever is left around it.',
       initialValue: 'cover',
     }),
+    /**
+     * HOW WIDE THIS TILE IS, in sixths of the row.
+     *
+     * This replaced a `wide` boolean, and the reason is arithmetic. A boolean
+     * gives two widths, so a grid can be rows of three or rows of two but
+     * never both: with three columns a "wide" tile takes two of them and the
+     * row still has three slots. Composing a row of three, then a row of two,
+     * then three again needs a base that divides by both — six.
+     *
+     *   Third       2/6   three across
+     *   Half        3/6   two across
+     *   Two thirds  4/6   pairs with a third beside it
+     *   Full        6/6   the whole row
+     *
+     * A row is whatever adds up to six. Three thirds, two halves, a two-thirds
+     * and a third. Nothing enforces that they add up — a row that does not
+     * simply leaves a gap, which is visible and fixable rather than refused.
+     *
+     * Documents written before this field fall back to their old `wide` value:
+     * full where it was set, half where it was not, which is exactly what they
+     * rendered as. No migration.
+     */
     defineField({
-      name: 'wide',
-      title: 'Wide tile',
-      type: 'boolean',
+      name: 'span',
+      title: 'Tile width',
+      type: 'string',
       group: 'meta',
+      options: {
+        list: [
+          { title: 'Third — three across', value: 'third' },
+          { title: 'Half — two across', value: 'half' },
+          { title: 'Two thirds', value: 'twoThirds' },
+          { title: 'Full width', value: 'full' },
+        ],
+        layout: 'radio',
+      },
       description:
-        'Spans two columns. Use sparingly — about one in four, or the grid stops reading as a grid.',
-      initialValue: false,
+        'How much of the row this tile takes on a wide screen. A row is whatever adds up to a full width: three thirds, two halves, or a two-thirds beside a third. Narrower screens simplify to two across and then one.',
+      initialValue: 'half',
     }),
     defineField({
       name: 'order',

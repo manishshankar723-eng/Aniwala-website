@@ -29,7 +29,8 @@
  *
  *   node --env-file=../.env scripts/seed-pieces.mjs --category=character-design
  *   node --env-file=../.env scripts/seed-pieces.mjs --category=vfx --count=12
- *   node --env-file=../.env scripts/seed-pieces.mjs --category=animation --wide=1,5,9
+ *   node --env-file=../.env scripts/seed-pieces.mjs --category=animation --span=third,third,third
+ *   node --env-file=../.env scripts/seed-pieces.mjs --category=vfx --count=10 --span=third,third,third,half,half
  *   node --env-file=../.env scripts/seed-pieces.mjs --category=vfx --dry-run
  *
  * FLAGS
@@ -37,10 +38,13 @@
  *   --count=<n>        how many tiles. Default 6. No ceiling — the grid is a
  *                      filter over every piece in the category, with no slice
  *                      anywhere in it (see `piecesIn` in src/lib/pieces.ts).
- *   --wide=<1,4>       which tiles span the full row, 1-based. Default `1,4`,
- *                      which gives the wide / narrow / narrow rhythm most
- *                      studio galleries use. Pass `--wide=` for none, or list
- *                      every index for all of them. Nothing enforces a ratio.
+ *   --span=<pattern>   tile widths, repeated across the run. Default `half`.
+ *                      Comma-separated from: third, half, twoThirds, full.
+ *                      A row is whatever adds up to a full width, so
+ *                      `--span=third,third,third` is rows of three,
+ *                      `--span=half,half` rows of two, and
+ *                      `--span=third,third,third,half,half` alternates
+ *                      three then two.
  *   --start=<n>        Position of the first tile. Default 10.
  *   --step=<n>         gap between Positions. Default 10, so one can be slotted
  *                      in later without renumbering the rest.
@@ -74,15 +78,15 @@ const start = Number(args.get('start') ?? 10);
 const step = Number(args.get('step') ?? 10);
 const prefixArg = args.get('prefix');
 
-/* `--wide=` (empty) means none, which is different from the flag being absent
-   and meaning the default. `has` before `get` is what tells them apart. */
-const wideRaw = args.has('wide') ? args.get('wide') : '1,4';
-const wide = new Set(
-  String(wideRaw)
-    .split(',')
-    .map((n) => Number(n.trim()))
-    .filter((n) => Number.isInteger(n) && n > 0)
-);
+/* The width pattern, repeated across however many tiles are asked for. An
+   unrecognised name is refused rather than silently becoming `half` — a typo
+   in a layout flag should not quietly produce a different layout. */
+const SPANS = ['third', 'half', 'twoThirds', 'full'];
+const pattern = String(args.get('span') ?? 'half')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const badSpan = pattern.find((s) => !SPANS.includes(s));
 
 const die = (message) => {
   console.error(`\n  ${message}\n`);
@@ -95,6 +99,8 @@ if (!category) {
   die(`--count must be a whole number of 1 or more (got "${args.get('count')}").`);
 } else if (!Number.isInteger(start) || !Number.isInteger(step) || step < 1) {
   die('--start and --step must be whole numbers, and --step at least 1.');
+} else if (badSpan) {
+  die(`--span "${badSpan}" is not one of: ${SPANS.join(', ')}`);
 }
 if (process.exitCode) process.exit();
 
@@ -178,7 +184,9 @@ const docs = Array.from({ length: count }, (_, i) => {
        an unfilled tile is a flat colour rather than a broken box. */
     tint: '210 70% 22%',
     sound: false,
-    wide: wide.has(n),
+    /* Repeated across the run, so `--span=third,third,third,half,half`
+       lays out three, then two, then three again. */
+    span: pattern[i % pattern.length],
     order: start + i * step,
   };
 });
@@ -188,9 +196,7 @@ console.log(
     `for "${discipline.title}" in ${projectId}/${dataset}\n`
 );
 for (const d of docs) {
-  console.log(
-    `    ${d._id.padEnd(36)} order=${String(d.order).padEnd(4)} ${d.wide ? 'WIDE' : 'narrow'}`
-  );
+  console.log(`    ${d._id.padEnd(36)} order=${String(d.order).padEnd(4)} ${d.span}`);
 }
 
 if (DRY_RUN) {

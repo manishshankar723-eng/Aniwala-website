@@ -483,6 +483,9 @@ const pieces = defineCollection({
     tint: z.string().default('210 70% 22%'),
     /* Two keywords and nothing else — this reaches `object-fit`. */
     fit: z.enum(['cover', 'contain']).default('cover'),
+    /* Sixths of a row. Normalised by the loader, so `wide` is only ever a
+       fallback for documents written before this existed. */
+    span: z.enum(['third', 'half', 'twoThirds', 'full']).default('half'),
     wide: z.boolean().default(false),
     order: z.number().int().default(50),
     draft: z.boolean().default(false),
@@ -976,8 +979,6 @@ const workCategories = defineCollection({
        and a discipline with a malformed one should lose its video, not fail
        the build for every other page. */
     video: z.string().optional(),
-    /* Two values, and nothing else: this reaches `grid-template-columns`. */
-    columns: z.union([z.literal(2), z.literal(3)]).default(2),
     order: z.number().int().default(50),
     services: z.array(z.string()).default([]),
     ...seoOverrides,

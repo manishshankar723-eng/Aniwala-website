@@ -35,6 +35,8 @@ export interface Piece {
   caseStudy?: string;
   /** `cover` crops to the tile; `contain` fits the whole picture inside it. */
   fit: 'cover' | 'contain';
+  /** How much of the row this tile takes, in sixths. */
+  span: 'third' | 'half' | 'twoThirds' | 'full';
   wide?: boolean;
 }
 
@@ -150,6 +152,7 @@ const flatten = (entry: CollectionEntry<'pieces'>): Piece => {
     imageAlt: cover?.alt,
     caseStudy: entry.data.caseStudy,
     fit: entry.data.fit,
+    span: entry.data.span,
     wide: entry.data.wide,
   };
 };

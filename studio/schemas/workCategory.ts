@@ -157,33 +157,6 @@ export default defineType({
         }),
     }),
 
-    /**
-     * How dense this gallery is on a wide screen.
-     *
-     * Per discipline rather than site-wide, because the right answer depends
-     * on what is in it: environment renders carry detail that wants the width,
-     * a wall of character turnarounds reads better three-up. Narrower screens
-     * ignore this entirely and step down to two and then one — three columns
-     * on a laptop makes every tile too small to judge, which is the one thing
-     * a portfolio tile must not be.
-     */
-    defineField({
-      name: 'columns',
-      title: 'Tiles per row',
-      type: 'number',
-      group: 'main',
-      options: {
-        list: [
-          { title: 'Two — bigger tiles', value: 2 },
-          { title: 'Three — denser grid', value: 3 },
-        ],
-        layout: 'radio',
-      },
-      description:
-        'On a wide screen. Laptops and phones step down to two and one whatever this says. A wide tile spans two columns, so at three-per-row it takes two thirds rather than the whole line.',
-      initialValue: 2,
-    }),
-
     defineField({
       name: 'services',
       title: 'Hired as',
