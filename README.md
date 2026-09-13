@@ -125,7 +125,10 @@ src/
 └── styles/global.css    Reset, @font-face, and ALL design tokens
 scripts/
 ├── check-links.mjs      Fails CI on a broken link, missing asset or scripted href
+├── check-dataset.mjs    Fails CI if the dataset answers a stranger's query
 ├── build-preview.mjs    A build that shows unpublished drafts
+├── upload-r2.mjs        Puts a file in the R2 bucket, prints its public URL
+├── r2-cors.mjs          The bucket's CORS policy, so the Studio may upload
 ├── generate-icons.mjs   Favicon/apple-touch/PWA PNGs from the mark
 └── generate-og-image.mjs  The social card. Run by hand, output committed
 public/
@@ -136,7 +139,7 @@ public/
 supabase/
 ├── schema.sql           Tables, RLS policies, column grants, rate limiter
 ├── mirror-events.sql    One-time: webhooks fire on UPDATE and DELETE too
-└── functions/           submit, notify, moderate, schedule (Deno, run on Supabase)
+└── functions/           submit, notify, moderate, schedule, sign-upload (Deno)
 studio/                  The Sanity Studio. A separate npm package.
 ```
 
@@ -257,6 +260,24 @@ happened here before.
 ever changes, change it there too** — the failure is silent and total: every
 form gets a CSP violation in the console and nothing else.
 
+Two directives carry the video hosts, and both name them **exactly** rather
+than by wildcard:
+
+- `media-src` — the R2 bucket, for the hero loop and any portfolio piece with
+  an uploaded or linked file. `pub-<id>.r2.dev` is a per-bucket subdomain, so
+  `*.r2.dev` would trust every bucket on the platform, including one an
+  attacker can create in a minute.
+- `frame-src` — `*.cloudflarestream.com` and `iframe.videodelivery.net`, for a
+  piece using Cloudflare Stream. The wildcard is on the subdomain only,
+  because a Stream embed lives at `customer-<code>.cloudflarestream.com` and
+  the code is per-account. Nothing else is needed for Stream: the player's own
+  requests are governed by the policy *inside* that frame, not this one.
+
+**If the bucket moves to a custom domain, change `media-src` too.** The
+failure is silent in the way that costs the most time: the hero shows its
+poster still and never moves, which reads as "the video did not upload"
+rather than "the policy is stale".
+
 ### Secrets
 
 Public by design, and fine in the bundle: `SANITY_PROJECT_ID`,
@@ -264,7 +285,7 @@ Public by design, and fine in the bundle: `SANITY_PROJECT_ID`,
 
 Never in this repo or the bundle: the Supabase **service role** key,
 `TURNSTILE_SECRET_KEY`, `MODERATION_SECRET`, `NOTIFY_SECRET`, any Sanity
-**write** token. Those live on the Edge Functions (`supabase secrets set`) or
+**write** token, `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`. Those live on the Edge Functions (`supabase secrets set`) or
 in GitHub Actions secrets.
 
 `SANITY_READ_TOKEN` should be a **Viewer** token. It only ever needs to read
@@ -483,6 +504,7 @@ Three places, on purpose.
 | Anything that decides a URL or drives code behaviour | This repo. Plain files, in git. |
 | Enquiries, bookings, applications, comments | One Supabase project. Optionally mirrored into Sanity as read-only **Form submissions** — see *Reading everything in the Studio*. Supabase stays the source of truth. |
 | Every picture | Sanity, on the document it belongs to — a service's hero, a discipline's tile, a post's cover. Gathered in one place under **Images**. |
+| Every video | Cloudflare R2, or Cloudflare Stream if it needs transcoding. Never Sanity, and never the web server. See *Video* below. |
 
 The split worth understanding is the last of the three repo/CMS lines. If a
 change is *words*, it belongs in the CMS — including the words nobody thinks
@@ -518,6 +540,91 @@ Everything a visitor submits goes into a single Supabase database, so there is
 one dashboard to check and one export to take — not a form service plus a
 comment service plus a scheduler.
 
+### Video
+
+**Video never touches Sanity's storage.** The file goes to Cloudflare R2 and
+the document stores a URL — Sanity holds a string. That is a deliberate choice:
+video is the one asset heavy enough that where it lives is a decision rather
+than a detail, and Sanity charges storage and asset bandwidth for something it
+does not transcode.
+
+Two places take one: the homepage hero block, and a portfolio piece. Both use
+the same field, which accepts either
+
+- **a direct `.mp4`/`.webm` URL** — R2, or any host serving one. Renders in a
+  native `<video>`. This is what the drop zone produces.
+- **a Cloudflare Stream id or embed URL** — renders in Stream's iframe. Worth
+  it for anything long enough that a phone should not be handed the 1080p
+  master, since Stream is the only one of the three that transcodes.
+
+The site works out which it got. There is deliberately no "what kind is this"
+dropdown to get wrong.
+
+On a piece, the image stays the **poster**, so a tile shows a frame of the work
+from first paint rather than a black box. A piece with a video and no image
+falls back to flat tint.
+
+#### Uploading
+
+In the Studio, drop the file on the video field. Or from a terminal:
+
+```bash
+node --env-file=.env scripts/upload-r2.mjs <file> [key]
+node --env-file=.env scripts/upload-r2.mjs clip.mp4 video/home-hero.mp4
+```
+
+The script prints the public URL and then `HEAD`s it — a `200` from the upload
+only proves the object landed, and public read is a **separate bucket setting**.
+Re-using a key overwrites the object, so uploading over `video/home-hero.mp4`
+swaps the hero with no Studio edit at all.
+
+#### How the drop zone works, and why it is not a `file` field
+
+A Sanity `file` field would be one line of schema and look identical. It would
+also put the video in Sanity, which is the thing being avoided.
+
+So the browser uploads **straight to R2**, using a short-lived presigned URL
+from the `sign-upload` Edge Function. The file never passes through a server:
+an Edge Function's request body is capped far below the size of a real video,
+so anything that proxies it breaks on the first upload that matters.
+
+That leaves one hard problem — who is allowed to ask for a signed URL. It
+cannot be a shared key: the Studio is a static app, so anything compiled into
+it (including any `SANITY_STUDIO_*` variable) is readable by anyone who opens
+the bundle. The one credential an editor has that an outsider does not is their
+own Sanity session, so the browser sends that and the function asks Sanity
+whether it is real and belongs to this project.
+
+Two things about that check are worth knowing, because the obvious version of
+it is wrong and both were found by asking the endpoint rather than reading
+about it:
+
+- **With no token at all, Sanity's `users/me` answers `200` — with `{}`.** So
+  checking `response.ok` authorises the entire internet. The identity has to be
+  read out of the body.
+- **A read-only token is a valid identity.** A viewer has no business writing to
+  the bucket, so the role is checked too, against a named list.
+
+Prerequisites, both one-time:
+
+- **A CORS policy on the bucket**, or the browser upload fails at the preflight
+  and reports a network error — which reads as "R2 is down" rather than "the
+  bucket has no CORS policy". `node --env-file=.env scripts/r2-cors.mjs` sets
+  it, or prints the JSON to paste if the token is scoped to objects only
+  (which is the correct scope, and worth keeping).
+- **The function's secrets**: `supabase secrets set --env-file …` with the five
+  `R2_*` values and `SANITY_PROJECT_ID`. Do not `source .env` to do this —
+  a single unquoted value stops the shell part-way and the rest are set to
+  empty strings, which the CLI reports as a success.
+
+The five `R2_*` variables are documented at the end of `.env.example`. The site
+never reads them: it renders whatever URL is on the document, so nothing about
+R2 reaches the browser or the build.
+
+The bucket's host has to be named in the CSP or the video is blocked silently.
+See *Headers*.
+
+
 ### Interface copy
 
 Two documents in the Studio hold the site's own words:
@@ -552,6 +659,26 @@ SANITY_WRITE_TOKEN=sk... npm run seed:copy                # then do it
 That script creates the two new documents and FILLS IN missing fields on the
 three existing ones. It never overwrites a field somebody has already edited,
 so it is safe to re-run and safe to run against production.
+
+There is a second seed, for the pipeline strip's logos:
+
+```
+cd studio
+SANITY_WRITE_TOKEN=sk... npm run seed:tools -- --dry-run
+SANITY_WRITE_TOKEN=sk... npm run seed:tools
+```
+
+**Tool logos are a lookup, not a list.** The strip reads its tools from where
+they already live — `capabilities` on Site copy, and the `tools` array on each
+service — and a `tool` document only attaches a logo to one of those names,
+matched by exact spelling. That is what stops a service page and the strip
+beneath it from ever disagreeing, and the cost of it is a join key typed by
+hand. So nobody types it: `seed:tools` reads the names out of the dataset and
+writes the rows, leaving nothing to do in the Studio but drop a file onto one.
+Run it again after adding a tool to a service. It uses `createIfNotExists`, so
+it never touches a logo already uploaded.
+
+A tool with no logo is not missing from anything — it renders as a text pill.
 
 ### Setting up the CMS
 
@@ -1185,7 +1312,15 @@ safe.
   `src/lib/motion.ts` handles this centrally — keep it that way.
 - Images go through `astro:assets` so they build to AVIF/WebP.
   Never `<img src="/big.jpg">`.
-- Video never lives on Hostinger. Bunny Stream or Vimeo, embed by ID.
+- Video never lives on the web server. Sanity, Cloudflare R2 or Cloudflare
+  Stream — see *Video*. (This line used to name Bunny and Vimeo, and the hero
+  loop was sitting in `public/video/` regardless, shipping 2.3MB through every
+  deploy to change a file nobody was deploying code for.)
+- A page's own `<style>` block cannot reach inside a component it renders.
+  Astro scopes every element in a selector to the file it is written in, so
+  `.grid > *` compiles to `> *[data-astro-cid-thispage]` and a child component's
+  root carries its OWN id. Use `:global()` for the child half. The rule silently
+  matches nothing otherwise, which looks like a layout bug, not a scoping one.
 
 ## Second site
 

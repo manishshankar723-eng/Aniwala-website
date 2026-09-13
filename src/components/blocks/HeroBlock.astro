@@ -38,6 +38,7 @@ interface Props {
 const { block } = Astro.props;
 const isVideo = block.variant === 'video';
 
+
 /* Only looked up for a video hero, and only when a slot was picked. The still
    is shown before the video paints and whenever it cannot play at all, so on a
    slow connection it may be the only thing a visitor sees. */

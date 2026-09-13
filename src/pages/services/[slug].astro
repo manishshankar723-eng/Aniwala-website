@@ -224,39 +224,51 @@ const faqs = await getFaqs(`service:${service.slug}`);
   }
 
   /* --- Offerings -------------------------------------------------------- */
+  /*
+    Wrapping flex, not a fixed-column grid. The hairlines are the container
+    background showing through a 1px gap, so an unfilled cell is a solid slab
+    of `--color-line` rather than blank space — and the offering count is
+    per-service CMS content, so at four across a service with six offerings
+    painted two of them. Flex lines hold only real cards and a short last
+    line grows to fill the width, so there is nothing left to paint.
+  */
   .offerings {
-    display: grid;
+    display: flex;
+    flex-wrap: wrap;
     gap: 1px;
     background: var(--color-line);
     border: 1px solid var(--color-line);
     border-radius: 0.75rem;
     overflow: hidden;
-    grid-template-columns: 1fr;
-  }
-  @media (min-width: 700px) {
-    .offerings {
-      grid-template-columns: repeat(2, 1fr);
-    }
-  }
-  @media (min-width: 1100px) {
-    .offerings {
-      grid-template-columns: repeat(3, 1fr);
-    }
-  }
-  /* A fourth column past this point. Three across a 2240px shell gives each
-     card ~90 characters of measure, which is well past readable. */
-  @media (min-width: 1700px) {
-    .offerings {
-      grid-template-columns: repeat(4, 1fr);
-    }
   }
   .offering {
+    /* A hair under an even share, so N cards still fit on one line once the
+       1px gaps are counted. */
+    flex: 1 1 100%;
+    min-width: 0;
     background: var(--color-ground);
     padding: clamp(1.6rem, 2.6vw, 2.25rem);
     display: flex;
     flex-direction: column;
     gap: 0.6rem;
     transition: background-color 0.25s ease;
+  }
+  @media (min-width: 700px) {
+    .offering {
+      flex-basis: calc(50% - 1px);
+    }
+  }
+  @media (min-width: 1100px) {
+    .offering {
+      flex-basis: calc(33.333% - 1px);
+    }
+  }
+  /* A fourth column past this point. Three across a 2240px shell gives each
+     card ~90 characters of measure, which is well past readable. */
+  @media (min-width: 1700px) {
+    .offering {
+      flex-basis: calc(25% - 1px);
+    }
   }
   .offering:hover {
     background: var(--color-surface);
@@ -272,6 +284,10 @@ const faqs = await getFaqs(`service:${service.slug}`);
   }
   .offering-body {
     margin: 0;
+    /* A card on a short last line is wider than the ones above it. Capping
+       the measure is what keeps that from turning into a 110-character line;
+       at the normal card width the cap never bites. */
+    max-width: 62ch;
     font-size: calc(0.92rem * var(--type-body-scale, 1));
     line-height: 1.65;
     color: var(--color-ink-muted);

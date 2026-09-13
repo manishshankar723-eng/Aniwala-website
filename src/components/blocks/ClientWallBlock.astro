@@ -32,13 +32,20 @@ const clients = await getClients();
 }
 
 <style>
+  /*
+    Wrapping flex rather than `auto-fit`. `auto-fit` collapses a track only
+    when nothing at all lands in it, so it covers a wall shorter than one row
+    and nothing else — the eleventh logo starts a second row and the nine
+    cells beside it become slabs of `--color-line` showing through the 1px
+    gap. A flex line holds only real logos and grows them to fill it.
+  */
   .clients {
     list-style: none;
     margin: 0;
     padding: 0;
-    display: grid;
+    display: flex;
+    flex-wrap: wrap;
     gap: 1px;
-    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
     background: var(--color-line);
     border: 1px solid var(--color-line);
     border-radius: 0.6rem;
@@ -54,6 +61,11 @@ const clients = await getClients();
     object-fit: contain;
   }
   .client {
+    flex: 1 1 10rem;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     background: var(--color-ground);
     padding: 2rem 1rem;
     text-align: center;

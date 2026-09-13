@@ -68,7 +68,7 @@ export const UI_COPY = {
   ctaBody:
     "We'll tell you straight whether we can hit it, and what it would take if we can. No deck, no discovery phase. Just an answer within two working days.",
   ctaSecondaryLabel: 'Email the studio',
-  faqEyebrow: 'Questions',
+  faqEyebrow: 'Frequently asked questions',
   faqTitle: 'Before you ask',
 
   adminTitle: 'Redirecting to the Studio…',
@@ -155,7 +155,7 @@ export const UI_COPY = {
   serviceRelatedEyebrow: 'Pairs with',
   serviceRelatedTitle: 'Rarely just one discipline',
   serviceRelatedLink: 'Every discipline',
-  serviceFaqTitle: '{{label}}, answered',
+  serviceFaqTitle: '{{label}} FAQ',
   serviceCtaEyebrow: 'Start a project',
   serviceCtaTitle: 'Have {{article}} {{name}} brief?',
   serviceCtaBody:
@@ -412,7 +412,7 @@ export const PRIVACY = {
 /* The careers page's FAQ and closing panel                            */
 /* ------------------------------------------------------------------ */
 export const CAREERS_CLOSING = {
-  faqEyebrow: 'Questions',
+  faqEyebrow: 'Frequently asked questions',
   faqTitle: 'Before you apply',
   ctaEyebrow: 'Not job hunting?',
   ctaTitle: 'Then brief us instead.',
@@ -641,25 +641,20 @@ export const BRAND = {
 };
 
 /* ------------------------------------------------------------------ */
-/* The services grid's closing tile                                    */
+/* The services grid's closing tile — deliberately not seeded           */
 /* ------------------------------------------------------------------ */
 
-/**
- * The tile after the last service, offering work none of the six names.
+/*
+ * There used to be a SERVICE_GRID_CTA here ("Something else?") that this
+ * seeded onto every tiles-layout grid, and it has been removed from the
+ * dataset. It is NOT seeded any more, and that is the whole point: the three
+ * fields are `setIfMissing`, so leaving the constant in place would have made
+ * the next `npm run seed:copy` silently put the tile back on a page it had
+ * been taken off.
  *
- * It was written into `ServiceGridBlock.astro`, which meant every services
- * grid on the site had it whether or not it suited the page. It is now three
- * optional fields on the block — so this seeds the ONE block that was
- * actually showing it, and every other grid keeps the behaviour it had.
- *
- * Only grids in the "tiles" layout ever rendered it: the numbered "rows"
- * layout has no tile to append one to.
+ * The fields themselves stay in the schema (`schemas/blocks.ts`) — an editor
+ * can still add a closing tile to any grid. Nothing fills one in by default.
  */
-export const SERVICE_GRID_CTA = {
-  ctaTitle: 'Something else?',
-  ctaBody: "Tell us what you need and we'll scope it honestly.",
-  ctaHref: '/contact/',
-};
 
 /* ------------------------------------------------------------------ */
 /* How a client hires the studio                                       */

@@ -11,9 +11,15 @@ import { getUiCopy } from '../lib/studio';
  * of it. The card that reads the work back to you in a paragraph is
  * `CaseCard` — this one's job is to make you want to click.
  *
- * A piece with a case study is a link. A piece without one is deliberately
- * NOT a link and NOT hoverable: a tile that lifts under the cursor and then
- * goes nowhere is worse than a tile that never invited the click.
+ * NOT A LINK, ever. It used to become one when the piece named a case study,
+ * and the tile carried a "read the case study" line. That was the portfolio
+ * selling the writing about the work instead of the work: somebody browsing a
+ * discipline wants the next picture, not an essay, and the case studies have
+ * their own page and their own cards for the reader who does want one.
+ *
+ * So the tile is the media and nothing else clickable — which also means the
+ * image keeps its real alt text, rather than the empty alt it needed when a
+ * heading inside an anchor was announcing the tile instead.
  */
 interface Props {
   piece: Piece;
@@ -24,25 +30,23 @@ interface Props {
 const ui = await getUiCopy();
 
 const { piece, showCategory = true } = Astro.props;
-const { title, blurb, kind, client, year, tools, tint, caseStudy, image, imageAlt } = piece;
+const { title, blurb, kind, client, year, tools, tint, video, image, imageAlt } = piece;
 
 const category = await categoryBySlug(piece.category);
-const href = caseStudy ? `/case-studies/${caseStudy}/` : undefined;
 
 /* Same rule the case study cards follow: a self-directed piece must never be
    read as commissioned work, so the client line only appears when there is a
    client distinct from us. */
 const isStudioProject = kind === 'Studio project';
 
-const Tag = href ? 'a' : 'div';
 ---
 
 <article
-  class:list={['piece', piece.wide && 'piece--wide', href && 'piece--linked']}
+  class:list={['piece', piece.wide && 'piece--wide']}
   style={`--tint:${tint}`}
   data-reveal
 >
-  <Tag class="piece-inner" href={href}>
+  <div class="piece-inner">
     {/*
       The piece itself, over its tint.
 
@@ -54,15 +58,56 @@ const Tag = href ? 'a' : 'div';
     */}
     <span class="piece-art" aria-hidden="true"></span>
     {image && (
-      <img
-        class="piece-img"
-        src={image}
-        alt={href ? '' : imageAlt}
-        aria-hidden={href ? 'true' : undefined}
-        loading="lazy"
-        decoding="async"
-      />
+      <img class="piece-img" src={image} alt={imageAlt} loading="lazy" decoding="async" />
     )}
+    {
+      video?.kind === 'file' && (
+        /*
+          A direct file plays natively — no player, no iframe, no third party.
+          The still is the POSTER, so the tile shows a frame of the work from
+          the first paint rather than a black box while the video opens.
+
+          Muted and playsinline are not preferences: without both, iOS refuses
+          to autoplay and shows its own play button over the tile, which turns
+          a gallery of moving work into a grid of paused videos.
+        */
+        <video
+          class="piece-video"
+          src={video.src}
+          poster={image}
+          autoplay
+          muted
+          loop
+          playsinline
+          preload="metadata"
+          aria-hidden="true"
+          tabindex="-1"
+        />
+      )
+    }
+    {
+      video?.kind === 'stream' && (
+        /*
+          Stream carries its own player, so this is an iframe. Over the still,
+          not instead of it: the poster stays underneath and the player fades
+          in on top once it has something to draw.
+
+          `loading="lazy"` is right here and wrong on the tools marquee, and
+          the difference is that this grid holds still — a tile below the fold
+          is genuinely not needed yet, and an iframe is an order of magnitude
+          heavier than the few KB of SVG that marquee defers.
+        */
+        <iframe
+          class="piece-video"
+          src={`${video.src}?autoplay=true&loop=true&muted=true&controls=false&preload=metadata${image ? `&poster=${encodeURIComponent(image)}` : ''}`}
+          title={title}
+          loading="lazy"
+          allow="autoplay; encrypted-media; picture-in-picture"
+          allowfullscreen
+          tabindex="-1"
+        />
+      )
+    }
     <span class="piece-scrim" aria-hidden="true"></span>
 
     <span class="piece-top">
@@ -89,15 +134,8 @@ const Tag = href ? 'a' : 'div';
         )
       }
 
-      {
-        href && (
-          <span class="piece-more">
-            {ui.cardCaseMore} <span aria-hidden="true">&rarr;</span>
-          </span>
-        )
-      }
     </span>
-  </Tag>
+  </div>
 </article>
 
 <style>
@@ -132,8 +170,13 @@ const Tag = href ? 'a' : 'div';
     .piece-inner {
       min-height: 24rem;
     }
+    /* Both, deliberately. The portfolio index still lays these out in a
+       grid and the discipline gallery in a flex row; each parent ignores
+       the property meant for the other, so one card works in both without
+       the card having to know which it is in. */
     .piece--wide {
       grid-column: span 2;
+      flex-basis: 100%;
     }
     .piece--wide .piece-inner {
       min-height: 28rem;
@@ -151,6 +194,21 @@ const Tag = href ? 'a' : 'div';
       linear-gradient(160deg, hsl(var(--tint) / 0.55), #0b0c10 75%);
     transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
   }
+  /* The player, over the poster — native <video> or Stream's iframe, same box
+     either way, so the card does not care which it got. */
+  .piece-video {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    object-fit: cover;
+    /* Decorative motion, not a control surface: the tile is not a link and
+       the player has no chrome, so nothing here should take a tab stop. */
+    pointer-events: none;
+  }
+
   .piece-img {
     position: absolute;
     inset: 0;

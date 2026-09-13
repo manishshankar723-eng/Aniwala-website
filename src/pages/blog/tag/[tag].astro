@@ -3,6 +3,7 @@ import Base from '../../../layouts/Base.astro';
 import PageHero from '../../../components/PageHero.astro';
 import PostCard from '../../../components/PostCard.astro';
 import CategoryBar from '../../../components/CategoryBar.astro';
+import BlogSidebar from '../../../components/BlogSidebar.astro';
 import CtaBand from '../../../components/CtaBand.astro';
 import Footer from '../../../components/Footer.astro';
 import { getTags, getPostsByTag, getPosts, type Post, getPostCategories } from '../../../lib/posts';
@@ -66,16 +67,21 @@ const count = plural(posts.length, ui.postCountOne, ui.postCountMany);
       ]}
     />
 
-    <section class="section">
-      {/* Categories rather than the full rail: a tag page still needs a way
-          back into the blog, and the rail now lives only on post pages. */}
-      <CategoryBar counts={counts} extraActive={`#${tag}`} />
+    {/* The rail, same as a post page. A filtered view is exactly where a
+        reader wants the other filters within reach — and a tag matching one
+        post used to leave three quarters of a wide screen empty beside it. */}
+    <div class="section blog-shell">
+      <div class="blog-main">
+        <CategoryBar counts={counts} extraActive={`#${tag}`} />
 
-      <h2 class="visually-hidden">{fill(ui.tagHeading, { name: tag })}</h2>
-      <div class="blog-grid">
-        {posts.map((post) => <PostCard post={post} />)}
+        <h2 class="visually-hidden">{fill(ui.tagHeading, { name: tag })}</h2>
+        <div class="blog-grid">
+          {posts.map((post) => <PostCard post={post} />)}
+        </div>
       </div>
-    </section>
+
+      <BlogSidebar activeTag={slug} />
+    </div>
 
     <CtaBand />
   </main>

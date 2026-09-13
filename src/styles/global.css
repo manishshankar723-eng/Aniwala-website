@@ -624,16 +624,43 @@ section[id] {
   padding-bottom: clamp(3rem, 7vw, 5rem);
 }
 
+/*
+  The positioning line, set large — but a clear step below the hero.
+
+  Two failure modes, and the fix has to dodge both.
+
+  It started at a 34ch measure, which on a wide monitor put six short lines
+  down the left and left most of the screen empty beside them: the first thing
+  the eye found on the page was the hole. Widening the measure fixed that and
+  created the second one — at a 3.4rem cap this sat close enough to the page
+  hero to read as a second headline rather than as the line under it, which is
+  worse, because two headings of similar weight means the page has none.
+
+  Size and measure move together, because they are the same lever. `ch` scales
+  with font-size, so dropping the cap to 2.8rem and taking the measure to 76ch
+  keeps the block filling its column at the same physical width while setting
+  the type about 2.3x smaller than the hero instead of 1.9x. Change one and
+  the hole or the clash comes back; change both and neither does.
+*/
 .statement {
   margin: 0;
-  max-width: 34ch;
+  max-width: 76ch;
   font-family: var(--font-display);
   font-weight: calc(600 + var(--type-display-weight, 0));
   font-stretch: 105%;
   letter-spacing: calc(-0.015em + var(--type-display-track, 0em));
   line-height: 1.25;
-  font-size: calc(clamp(1.35rem, 3.4vw, 3rem) * var(--type-display-scale, 1));
-  text-wrap: balance;
+  font-size: calc(clamp(1.35rem, 3.4vw, 2.8rem) * var(--type-display-scale, 1));
+  /*
+    `pretty`, NOT `balance` — and this is the third way the same hole came
+    back. `balance` evens the line lengths of a short block, which is right
+    for a two-line heading and wrong here: on the homepage it held all three
+    lines to about 1340px inside a 1785px column and left 445px of nothing
+    down the right, which is a hole the measure and the size cannot fix
+    because the text is choosing not to fill them. `pretty` only pulls back
+    from leaving one orphaned word on the last line.
+  */
+  text-wrap: pretty;
 }
 
 .section-head {
@@ -1009,8 +1036,11 @@ a.chip.is-active:hover {
   margin-inline: auto;
 }
 
-/* Listing grid. Listing pages run full width — the rail is only on posts —
-   so this can go to three across without squeezing the cards. */
+/* Listing grid.
+
+   Used both full width (the `blog` page's post-list block) and inside the
+   railed shell (category, tag and archive), so the column counts below are
+   the full-width ones and `.blog-shell .blog-grid` narrows them. */
 .blog-grid {
   display: grid;
   gap: 1.25rem;
@@ -1029,6 +1059,15 @@ a.chip.is-active:hover {
 @media (min-width: 1900px) {
   .blog-grid {
     grid-template-columns: repeat(4, 1fr);
+  }
+}
+/* Two across beside the rail, whatever the viewport. The content track is
+   ~820px at the shell's cap, which is two cards; the full-width counts above
+   would put four 200px cards in it. Qualified, so it wins over all of them
+   without needing to repeat their breakpoints. */
+@media (min-width: 1050px) {
+  .blog-shell .blog-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 

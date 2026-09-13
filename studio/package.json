@@ -12,7 +12,8 @@
     "manage": "sanity manage",
     "migrate": "node --env-file=../.env scripts/migrate.mjs",
     "check": "node scripts/check-schema.mjs",
-    "seed:copy": "node --env-file=../.env scripts/seed-copy.mjs"
+    "seed:copy": "node --env-file=../.env scripts/seed-copy.mjs",
+  "seed:tools": "node --env-file=../.env scripts/seed-tools.mjs"
   },
   "engines": {
     "node": ">=22.12"

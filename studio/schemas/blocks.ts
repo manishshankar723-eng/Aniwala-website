@@ -30,6 +30,7 @@
  * padding number — are deliberately absent.
  */
 import { defineType, defineField, defineArrayMember } from 'sanity';
+import { R2VideoInput } from '../components/R2VideoInput';
 import { IMAGE_SLOTS } from '../../src/config/imageSlots';
 
 /* Reused by nearly every block. Defined as plain field arrays rather than a
@@ -195,9 +196,10 @@ export const heroBlock = defineType({
     defineField({
       name: 'videoUrl',
       title: 'Background video',
+      components: { input: R2VideoInput },
       type: 'string',
       description:
-        'Direct link to an .mp4 or .webm — the file itself, not a YouTube or Vimeo page. It plays muted and on a loop behind the headline, so keep it short and heavily compressed: under about 5MB, or a phone spends its data allowance on decoration. Leave blank to show only the still below.',
+        'Direct link to an .mp4 or .webm — the file itself, not a YouTube or Vimeo page. TO CHANGE IT: run `node --env-file=.env scripts/upload-r2.mjs <file> video/home-hero.mp4` and paste the URL it prints. It plays muted and on a loop behind the headline, so keep it short and heavily compressed: under about 5MB, or a phone spends its data allowance on decoration. Leave blank to show only the still below.',
       hidden: ({ parent }) => parent?.variant !== 'video',
       validation: (Rule) =>
         Rule.custom((v: string | undefined) => {
@@ -370,6 +372,27 @@ export const tagListBlock = defineType({
       options: { layout: 'tags' },
       hidden: ({ parent }) => parent?.source !== 'custom',
     }),
+
+    /**
+     * How fast the strip scrolls.
+     *
+     * PIXELS PER SECOND, deliberately, where the marquee block next door
+     * takes seconds per loop. The two are not interchangeable here: this
+     * strip's list is CMS content that grows, and a fixed loop time would
+     * mean every tool added to a service made the strip move faster. Rate is
+     * the thing an editor actually means by "speed", and it holds whether the
+     * list is three tools or forty.
+     */
+    defineField({
+      name: 'speed',
+      title: 'Scroll speed',
+      type: 'number',
+      description:
+        'HIGHER IS FASTER, measured in pixels per second. 85 is the default. Around 40 is a slow drift; past about 150 the logos are moving too fast to take in. Leave blank for the default.',
+      placeholder: '85',
+      validation: (Rule) => Rule.min(10).max(300),
+    }),
+
     ...linkFields,
   ],
   preview: preview('Tag list'),
@@ -508,7 +531,27 @@ export const workGridBlock = dataBlock(
   'workGridBlock',
   'Work grid',
   'The six discipline tiles, with their pictures. Edit them under Portfolio categories and Images.',
-  [],
+  [
+    /**
+     * Filters the TILES, in place, by the service each discipline is hired
+     * as — which is the axis a visitor who arrived knowing their budget
+     * actually thinks in. It is not the discipline bar the piece grid shows:
+     * that one navigates away to a discipline page, and a row of links to the
+     * same six things the tiles already link to is furniture, not a filter.
+     *
+     * Off by default, and worth leaving off anywhere the grid is a menu
+     * rather than the page's job. On the homepage the six tiles ARE the
+     * answer, and a control that can hide four of them only gets in the way.
+     */
+    defineField({
+      name: 'showFilter',
+      title: 'Show the service filter',
+      type: 'boolean',
+      description:
+        'Filters the tiles by the service each discipline is hired as. Only on a page whose job IS the grid — on a marketing page it just lets a reader hide most of what you do.',
+      initialValue: false,
+    }),
+  ],
   true
 );
 

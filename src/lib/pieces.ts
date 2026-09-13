@@ -28,8 +28,60 @@ export interface Piece {
   image?: string;
   srcset?: string;
   imageAlt?: string;
+  /** How to play this piece's video, or undefined for a still. */
+  video?: PieceVideo;
   caseStudy?: string;
   wide?: boolean;
+}
+
+/**
+ * How a piece's video should be played.
+ *
+ * Two shapes, because two hosts answer two different needs and the studio uses
+ * both. A FILE is a direct .mp4/.webm — R2, or anywhere else that serves one —
+ * and plays in a native <video>: cheap, no third-party player, and the right
+ * answer for the short silent loops a gallery actually wants. A STREAM is
+ * Cloudflare Stream, which transcodes and serves adaptive bitrate, and earns
+ * its iframe on anything long enough that a phone should not be handed the
+ * 1080p master.
+ *
+ * The field takes either and this decides which, so an editor pastes a URL
+ * and never has to know there was a choice to make.
+ */
+export type PieceVideo = { kind: 'file'; src: string } | { kind: 'stream'; src: string };
+
+/** Direct video file, possibly with a query string or fragment after it. */
+const FILE_RE = /\.(mp4|webm|ogv|ogg)(\?|#|$)/i;
+
+/**
+ * Resolve whatever the editor pasted.
+ *
+ * File first: a direct link is unambiguous, and checking it before the Stream
+ * id avoids a filename that happens to contain 32 hex characters being read
+ * as a video id.
+ *
+ * For a Stream value the ORIGIN IS KEPT when there is one, and that is the
+ * point. A Stream embed normally lives at `customer-<code>.cloudflarestream.com`,
+ * where the code is per-account and nothing in this repo knows it. Reusing the
+ * origin off the pasted URL means it never has to: paste the dashboard's embed
+ * address and the account's own subdomain comes with it.
+ * `iframe.videodelivery.net` is the fallback for a bare id — account-agnostic,
+ * so it works without configuration.
+ *
+ * Returns undefined for anything that is neither, so a malformed value shows
+ * the still rather than an empty player.
+ */
+export function resolveVideo(value: string | undefined): PieceVideo | undefined {
+  const v = value?.trim();
+  if (!v) return undefined;
+
+  if (/^(https?:\/\/|\/)/i.test(v) && FILE_RE.test(v)) return { kind: 'file', src: v };
+
+  const id = v.match(/[0-9a-f]{32}/i)?.[0];
+  if (!id) return undefined;
+
+  const host = v.match(/^https:\/\/([^/]*cloudflarestream\.com)\//i)?.[1];
+  return { kind: 'stream', src: `https://${host ?? 'iframe.videodelivery.net'}/${id}/iframe` };
 }
 
 const flatten = (entry: CollectionEntry<'pieces'>): Piece => {
@@ -45,6 +97,7 @@ const flatten = (entry: CollectionEntry<'pieces'>): Piece => {
     year: entry.data.year,
     tools: entry.data.tools,
     tint: entry.data.tint,
+    video: resolveVideo(entry.data.video),
     image: cover?.asset ? imageUrl(cover, 1200) : undefined,
     srcset: cover?.asset ? imageSrcSet(cover, [480, 768, 1200, 1800]) : undefined,
     imageAlt: cover?.alt,

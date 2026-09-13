@@ -8,6 +8,14 @@ astro dev --background
 
 Manage the background server with `astro dev stop`, `astro dev status`, and `astro dev logs`.
 
+**A CMS change needs `npm run restart` — code changes do not.** Sanity is read
+through Astro's content layer, which caches into `.astro/` and is only
+re-fetched when the server starts. So editing a component hot-reloads, but
+publishing in the Studio, or any script that writes to the dataset, leaves the
+dev server serving the content it started with — indefinitely, with no warning.
+It looks exactly like the change not having worked. `astro dev status` prints
+the uptime; if the server is older than the edit, that is the answer.
+
 ## Before pushing
 
 ```
@@ -37,6 +45,12 @@ server. Do not work around a failing check — they are load bearing:
   `supabase/functions/_shared/sanity.ts` refuses to mirror into a public
   dataset and `scripts/check-dataset.mjs` fails the build if data is already
   exposed. Do not weaken either to make something pass.
+- **`public/.htaccess` carries the CSP**, and it is the only thing standing
+  between a CMS string and a loaded third-party frame. Video hosts are named
+  there EXACTLY — the R2 bucket in `media-src`, Cloudflare Stream in
+  `frame-src` — never as `*.r2.dev`, which would trust every bucket on the
+  platform. Widening it is a deliberate act; a blocked video fails silently,
+  so the temptation under pressure is to reach for a wildcard.
 - **`supabase/schema.sql`** — RLS and the column grants are the only thing
   protecting form data. Read that file's header before changing a policy.
 

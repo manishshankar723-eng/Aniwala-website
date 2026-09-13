@@ -128,6 +128,15 @@ ErrorDocument 404 /404.html
   #
   # media-src gets it too: the hero background video is a CMS-supplied URL.
   #
+  # The R2 bucket is named EXACTLY, not as *.r2.dev, for the same reason the
+  # Supabase project is named below: r2.dev hands every bucket on the platform
+  # a subdomain, so the wildcard would trust any bucket anyone can create in a
+  # minute — which is most of what this directive exists to prevent.
+  #
+  # IF THE BUCKET MOVES TO A CUSTOM DOMAIN, change it here too. The failure is
+  # silent: the hero shows its poster still and never moves, which reads as
+  # "the video did not upload" rather than "the policy is stale".
+  #
   # challenges.cloudflare.com is Turnstile, the "are you human" check in front
   # of the three forms. It needs TWO directives and the second is easy to
   # forget: `script-src` for its api.js, and `frame-src` for the iframe the
@@ -138,6 +147,20 @@ ErrorDocument 404 /404.html
   #
   # frame-ancestors stays 'none': that governs who may frame US, which is
   # still nobody. It is unrelated to what we are allowed to frame.
+  #
+  # cloudflarestream.com / videodelivery.net are the portfolio's videos, and
+  # they are in frame-src ONLY. A Stream video is an iframe carrying
+  # Cloudflare's own player, so the player's own requests are governed by the
+  # policy inside that frame, not this one: nothing needs adding to media-src,
+  # connect-src or script-src for it, and adding it would widen the page's
+  # policy for no gain. The wildcard is on the SUBDOMAIN alone — a Stream
+  # embed lives at customer-<code>.cloudflarestream.com, where the code is
+  # per-account, and `*.` matches that without naming every account's code.
+  # videodelivery.net is the account-agnostic embed host, used when somebody
+  # pastes a bare video id with no customer subdomain to read off.
+  #
+  # A blocked frame here is silent: the tile shows its poster and never moves,
+  # which looks exactly like a video that has not been uploaded yet.
   #
   # connect-src NAMES THE PROJECT, and used to say `https://*.supabase.co`.
   # That wildcard trusted every Supabase project on the internet, which gives
@@ -151,7 +174,7 @@ ErrorDocument 404 /404.html
   # silent and total: every form gets a CSP violation in the console and
   # nothing else, so it reads as "the forms are broken" rather than "the
   # policy is stale".
-  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.sanity.io; font-src 'self'; connect-src 'self' https://ocxbnnfchqzgkbqlagnq.supabase.co; media-src 'self' https://cdn.sanity.io; frame-src https://challenges.cloudflare.com; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests"
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.sanity.io; font-src 'self'; connect-src 'self' https://ocxbnnfchqzgkbqlagnq.supabase.co; media-src 'self' https://cdn.sanity.io https://pub-5bcaef0bed5a45e1bb7c8c42238fa677.r2.dev; frame-src https://challenges.cloudflare.com https://*.cloudflarestream.com https://iframe.videodelivery.net; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests"
 </IfModule>
 
 # --- Fonts need CORS to be preloaded -----------------------------

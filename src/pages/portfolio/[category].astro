@@ -152,38 +152,58 @@ const words = { name: category.shortName, title: category.title };
     color: var(--color-ink-muted);
   }
 
+  /*
+    A GALLERY, not a card grid — two big stills across, and a piece marked
+    "wide" taking a row to itself. That alternation is what gives a wall of
+    work its rhythm; three small equal tiles read as a catalogue.
+
+    Wrapping flex rather than fixed columns, for the reason the panels
+    elsewhere use it: a discipline with one published piece is the normal
+    case here, not the edge case, and a lone card holding a third of the row
+    with the rest of a wide screen empty beside it is the thing this page
+    looked like before. A flex line holds only real pieces and grows them to
+    fill it, so one piece is a full-width still and two split the row.
+  */
   .grid {
-    display: grid;
+    display: flex;
+    flex-wrap: wrap;
     gap: 1rem;
-    grid-template-columns: 1fr;
   }
-  @media (min-width: 700px) {
-    .grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
+  /* `:global`, and it is not optional. Astro scopes every element in a
+     selector to the file it is written in, so a bare `.grid > *` compiles to
+     `> *[data-astro-cid-thispage]` — and a PieceCard's root carries its OWN
+     component's id, not this page's. The rule matched nothing and every
+     piece sat at its intrinsic width. */
+  .grid > :global(*) {
+    flex: 1 1 100%;
+    min-width: 0;
   }
-  @media (min-width: 1600px) {
-    .grid {
-      grid-template-columns: repeat(3, 1fr);
+  @media (min-width: 900px) {
+    .grid > :global(*) {
+      flex-basis: calc(50% - 0.5rem);
     }
   }
 
   /* --- Related services -------------------------------------------------- */
+  /*
+    Wrapping flex rather than `auto-fit`. Both spread a handful of cards
+    across the full width, but `auto-fit` only collapses tracks that hold
+    nothing at all — once the related list is longer than one row fits, the
+    leftovers on the last row become slabs of `--color-line` showing through
+    the 1px gap. A flex line only ever holds real cards.
+  */
   .svc-grid {
-    display: grid;
+    display: flex;
+    flex-wrap: wrap;
     gap: 1px;
     background: var(--color-line);
     border: 1px solid var(--color-line);
     border-radius: 0.75rem;
     overflow: hidden;
-    grid-template-columns: 1fr;
-  }
-  @media (min-width: 700px) {
-    .svc-grid {
-      grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-    }
   }
   .svc {
+    flex: 1 1 100%;
+    min-width: 0;
     background: var(--color-ground);
     padding: 2rem 1.75rem;
     display: flex;
@@ -192,6 +212,11 @@ const words = { name: category.shortName, title: category.title };
     text-decoration: none;
     color: inherit;
     transition: background-color 0.25s ease;
+  }
+  @media (min-width: 700px) {
+    .svc {
+      flex-basis: 16rem;
+    }
   }
   .svc:hover {
     background: var(--color-surface);

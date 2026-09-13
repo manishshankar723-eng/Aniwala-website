@@ -115,7 +115,21 @@ const REDUCED_MOTION_SCRIPT = `(() => {
         </p>
       )
     }
-    <slot />
+    {/*
+      Wrapped, so the slotted CTA gets air above it. It used to sit straight
+      after the sub-paragraph with nothing but line-box spacing between them,
+      which read as the button being stuck to the text. The page hero's
+      buttons already had `.hero-actions` at this spacing; the video hero's
+      never did because the CTA is slotted in from the block, and a parent's
+      scoped styles do not reach slotted content.
+
+      Guarded, or an empty wrapper would add the margin on a hero with no CTA.
+    */}
+    {Astro.slots.has('default') && (
+      <div class="hero-actions">
+        <slot />
+      </div>
+    )}
   </div>
 
   {src && <script is:inline set:html={REDUCED_MOTION_SCRIPT} />}
@@ -203,6 +217,14 @@ const REDUCED_MOTION_SCRIPT = `(() => {
     font-size: calc(1.05rem * var(--type-body-scale, 1));
     line-height: 1.6;
     color: rgb(255 255 255 / 0.72);
+  }
+
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    /* Matches the page hero's actions, so the two heroes space the same. */
+    margin-top: 2.25rem;
   }
 
   .hero-scroll {

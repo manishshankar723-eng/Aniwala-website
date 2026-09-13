@@ -443,7 +443,7 @@ export const sanityPieces = (): Loader =>
     type: 'piece',
     hasBody: false,
     projection: `
-      _id, slug, title, "category": category->slug.current, blurb, image, kind,
+      _id, slug, title, "category": category->slug.current, blurb, image, video, kind,
       client, year, tools, caseStudy, tint, wide, order
     `,
     toData: (doc, isDraft) => ({
@@ -451,6 +451,7 @@ export const sanityPieces = (): Loader =>
       category: doc.category,
       blurb: doc.blurb,
       ...(doc.image ? { image: doc.image } : {}),
+      ...(doc.video ? { video: doc.video } : {}),
       kind: doc.kind,
       client: doc.client,
       year: doc.year,
@@ -489,6 +490,24 @@ export const sanityClients = (): Loader =>
   sanityLoader({
     name: 'sanity:clients',
     type: 'client',
+    hasBody: false,
+    idFrom: (doc) => doc._id.replace(/^drafts\./, ''),
+    projection: `_id, name, logo, order`,
+    toData: (doc, isDraft) => ({
+      name: doc.name,
+      ...(doc.logo ? { logo: doc.logo } : {}),
+      order: doc.order ?? 50,
+      draft: isDraft,
+    }),
+  });
+
+/* Logos for the pipeline strip. Only tools somebody has uploaded a logo for
+   exist as documents — the names themselves come from `siteCopy.capabilities`
+   and the service documents, and are matched to these by name. */
+export const sanityTools = (): Loader =>
+  sanityLoader({
+    name: 'sanity:tools',
+    type: 'tool',
     hasBody: false,
     idFrom: (doc) => doc._id.replace(/^drafts\./, ''),
     projection: `_id, name, logo, order`,

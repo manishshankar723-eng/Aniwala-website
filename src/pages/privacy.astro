@@ -99,6 +99,18 @@ const contactLead = fillHtml(policy.contactLead, { legalName }, links);
 </Base>
 
 <style>
+  /*
+    The policy is one 68ch column and nothing else, so on a wide screen the
+    measure cap left most of the page empty to its right. Centred, the same
+    cap puts that space in both margins, where it reads as a page rather than
+    as a column that stopped early. `.prose` is global and stays left where
+    it sits beside something — a post's rail, a case study's — so this is
+    scoped to the one page that has nothing beside it.
+  */
+  .prose {
+    margin-inline: auto;
+  }
+
   .addr {
     display: grid;
     gap: 0.15rem;

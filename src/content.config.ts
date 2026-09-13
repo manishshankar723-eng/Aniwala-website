@@ -20,6 +20,7 @@ import {
   sanityPieces,
   sanityTestimonials,
   sanityClients,
+  sanityTools,
   sanityMilestones,
   sanityFaqs,
   sanityContactDetails,
@@ -468,6 +469,9 @@ const pieces = defineCollection({
     /** One line: what it is, not how good it looks. */
     blurb: z.string(),
     image: sanityImage.optional(),
+    /** A direct video URL or a Cloudflare Stream id. The Studio's R2 drop
+        zone writes the first kind; both can also be pasted by hand. */
+    video: z.string().optional(),
     kind: z.enum(['Client project', 'Studio project']),
     client: z.string(),
     year: z.number(),
@@ -507,6 +511,27 @@ const clients = defineCollection({
   schema: z.object({
     name: z.string(),
     /** Optional: without one the wall renders the name as text. */
+    logo: sanityImage.omit({ alt: true }).optional(),
+    order: z.number().int().default(50),
+    draft: z.boolean().default(false),
+  }),
+});
+
+/**
+ * Logos for the "What we run" strip.
+ *
+ * Deliberately NOT the list of tools. That list already exists twice over —
+ * `siteCopy.capabilities` for the studio-wide strip, `tools` on each service
+ * for the per-discipline one — and a third copy here is how a service page
+ * ends up naming a tool the strip below it does not. These documents only
+ * attach a logo to a name, so a tool with no logo needs no document and the
+ * strip still shows it as text.
+ */
+const tools = defineCollection({
+  loader: sanityTools(),
+  schema: z.object({
+    /** Matched against the pipeline lists by exact spelling. */
+    name: z.string(),
     logo: sanityImage.omit({ alt: true }).optional(),
     order: z.number().int().default(50),
     draft: z.boolean().default(false),
@@ -1163,6 +1188,7 @@ export const collections = {
   pieces,
   testimonials,
   clients,
+  tools,
   milestones,
   engagementModels,
   faqs,

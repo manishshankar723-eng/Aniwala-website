@@ -56,6 +56,7 @@ import workCategory from './workCategory';
 import postCategory from './postCategory';
 import testimonial from './testimonial';
 import client from './client';
+import tool from './tool';
 import milestone from './milestone';
 import engagementModel from './engagementModel';
 import redirect from './redirect';
@@ -89,6 +90,7 @@ export const schemaTypes = [
   teamMember,
   testimonial,
   client,
+  tool,
   milestone,
   engagementModel,
 

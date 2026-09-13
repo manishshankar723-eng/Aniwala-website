@@ -3,6 +3,7 @@ import Base from '../../../layouts/Base.astro';
 import PageHero from '../../../components/PageHero.astro';
 import PostCard from '../../../components/PostCard.astro';
 import CategoryBar from '../../../components/CategoryBar.astro';
+import BlogSidebar from '../../../components/BlogSidebar.astro';
 import CtaBand from '../../../components/CtaBand.astro';
 import Footer from '../../../components/Footer.astro';
 import { getPosts, getPostCategories, type Post } from '../../../lib/posts';
@@ -72,15 +73,22 @@ const count = plural(posts.length, ui.postCountOne, ui.postCountMany);
       ]}
     />
 
-    <section class="section">
-      <CategoryBar active={category} counts={counts} />
+    {/* The rail, same as a post page. A filtered view is exactly where a
+        reader wants the other filters within reach — and a narrow filter
+        used to leave most of a wide screen empty beside its results. */}
+    <div class="section blog-shell">
+      <div class="blog-main">
+        <CategoryBar active={category} counts={counts} />
 
-      <h2 class="visually-hidden">{fill(ui.categoryHeading, { name: category })}</h2>
+        <h2 class="visually-hidden">{fill(ui.categoryHeading, { name: category })}</h2>
 
-      <div class="blog-grid">
-        {posts.map((post) => <PostCard post={post} />)}
+        <div class="blog-grid">
+          {posts.map((post) => <PostCard post={post} />)}
+        </div>
       </div>
-    </section>
+
+      <BlogSidebar activeCategory={category} />
+    </div>
 
     <CtaBand />
   </main>

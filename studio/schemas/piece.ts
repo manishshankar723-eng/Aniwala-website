@@ -17,6 +17,7 @@
  * filter chips, so they stay in code and this picks from them.
  */
 import { defineType, defineField } from 'sanity';
+import { R2VideoInput } from '../components/R2VideoInput';
 
 export default defineType({
   name: 'piece',
@@ -81,6 +82,56 @@ export default defineType({
           validation: (Rule) => Rule.required().error('Every image needs alt text.'),
         },
       ],
+    }),
+
+    /**
+     * A moving piece. Two hosts, one field.
+     *
+     * A DIRECT FILE — R2, or anything serving an .mp4/.webm — plays in a
+     * native <video>. That is the right answer for the short silent loops a
+     * gallery wants: no player, no iframe, no third party, and the studio is
+     * already paying nothing for R2.
+     *
+     * CLOUDFLARE STREAM earns its iframe on anything long enough that a phone
+     * should not be handed the 1080p master: it transcodes and serves adaptive
+     * bitrate, which a file on R2 does not.
+     *
+     * Whichever is pasted, the site works it out. There is deliberately no
+     * "which kind is this" dropdown to get wrong.
+     *
+     * NOT SANITY. Its asset pipeline is built for stills — an upload there is
+     * served as one undivided file with no transcode and no poster, so a phone
+     * downloads the desktop cut in full before anything moves.
+     *
+     * The IMAGE above still earns its place when this is set: it is the poster,
+     * and the only thing on screen until the player has something to show.
+     */
+    defineField({
+      name: 'video',
+      title: 'Video',
+      type: 'string',
+      group: 'main',
+      components: { input: R2VideoInput },
+      description:
+        'A video URL. For R2: run `node --env-file=.env scripts/upload-r2.mjs <file> video/pieces/<name>.mp4` and paste the URL it prints. For Cloudflare Stream: paste the video id or its embed URL. Leave blank for a piece that is not a video.',
+      validation: (Rule) =>
+        Rule.custom((v: string | undefined) => {
+          if (!v) return true;
+          const s = v.trim();
+          if (/youtube\.com|youtu\.be|vimeo\.com/i.test(s))
+            return 'That is a YouTube or Vimeo page, which cannot be played as a silent background loop.';
+          /* A direct file, checked first: a link is unambiguous, and a
+             filename that happens to hold 32 hex characters should not be
+             mistaken for a Stream id. */
+          if (/^(https?:\/\/|\/)/i.test(s) && /\.(mp4|webm|ogv|ogg)(\?|#|$)/i.test(s)) return true;
+          if (/^[0-9a-f]{32}$/i.test(s)) return true;
+          if (/^https:\/\/[^/]*(cloudflarestream\.com|videodelivery\.net)\//i.test(s)) {
+            return /[0-9a-f]{32}/i.test(s) ? true : 'That address has no video id in it.';
+          }
+          /* Refused here rather than rendered as a dead frame: a silently
+             empty player looks identical to a video that has not loaded. */
+          return 'Use a direct .mp4 or .webm URL, or a Cloudflare Stream id.';
+        }),
     }),
 
     defineField({

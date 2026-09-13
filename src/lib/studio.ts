@@ -119,6 +119,31 @@ export async function getClients(): Promise<Client[]> {
 }
 
 /**
+ * Tool name -> logo URL, for the pipeline strip.
+ *
+ * A LOOKUP rather than a list, because the list of tools is not this
+ * collection's to own: the studio-wide strip reads `siteCopy.capabilities`
+ * and a service page's reads that service's own `tools`, and both keep doing
+ * so. This only answers "is there a logo for this name", so a tool nobody has
+ * uploaded a logo for is not missing from anything — it renders as text.
+ *
+ * Keyed case-insensitively and trimmed. The names are typed twice by hand, in
+ * two different documents, and "ZBrush" against "Zbrush" silently losing a
+ * logo is the kind of thing nobody finds for a month.
+ */
+export async function getToolLogos(): Promise<Map<string, string>> {
+  const entries = await getCollection('tools', live);
+  return new Map(
+    entries
+      .filter((e) => e.data.logo)
+      .map((e) => [
+        e.data.name.trim().toLowerCase(),
+        imageUrl(e.data.logo as SanityImage, 256),
+      ])
+  );
+}
+
+/**
  * How a client can hire the studio.
  *
  * Sorted like the other ordered lists here. Unlike them it is NOT allowed to

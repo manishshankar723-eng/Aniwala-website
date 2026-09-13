@@ -41,23 +41,35 @@ const faqSchema = {
 {
   items.length > 0 && (
     <section class="section section--bordered" id="faq">
-      <div class="section-head" data-reveal>
-        <p class="section-eyebrow">{eyebrow}</p>
-        <h2 class="section-title">{title}</h2>
-      </div>
+      {/*
+        Two columns from a laptop up: the heading holds the left, the
+        accordion takes the rest. Stacked full-width, the list was capped at
+        62rem inside a 2240rem shell, so a wide screen got a column of
+        questions and then most of a screen of nothing beside it — the cap
+        was protecting the line length of the questions, but a cap is only
+        half an answer while the space it leaves has no job.
+      */}
+      <div class="faq-layout">
+        <div class="faq-head">
+          <div class="section-head" data-reveal>
+            <p class="section-eyebrow">{eyebrow}</p>
+            <h2 class="section-title">{title}</h2>
+          </div>
+        </div>
 
-      <div class="faq">
-        {items.map((f) => (
-          <details class="faq-item" name={name} data-reveal>
-            <summary class="faq-q">
-              <span>{f.q}</span>
-              <span class="faq-mark" aria-hidden="true" />
-            </summary>
-            <div class="faq-a">
-              <p>{f.a}</p>
-            </div>
-          </details>
-        ))}
+        <div class="faq">
+          {items.map((f) => (
+            <details class="faq-item" name={name} data-reveal>
+              <summary class="faq-q">
+                <span>{f.q}</span>
+                <span class="faq-mark" aria-hidden="true" />
+              </summary>
+              <div class="faq-a">
+                <p>{f.a}</p>
+              </div>
+            </details>
+          ))}
+        </div>
       </div>
 
       {schema && (
@@ -68,8 +80,28 @@ const faqSchema = {
 }
 
 <style>
+  .faq-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+  @media (min-width: 1000px) {
+    .faq-layout {
+      grid-template-columns: minmax(16rem, 24rem) minmax(0, 1fr);
+      gap: clamp(3rem, 5vw, 6rem);
+    }
+    /* The heading rides down the list rather than scrolling away from it —
+       worth having precisely because the column is otherwise idle. */
+    .faq-head {
+      position: sticky;
+      top: calc(var(--announce-h) + var(--header-h) + 2rem);
+    }
+    .faq-head .section-head {
+      margin-bottom: 0;
+    }
+  }
+
   .faq {
-    max-width: 62rem;
     border-top: 1px solid var(--color-line);
   }
 

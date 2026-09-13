@@ -93,7 +93,13 @@ const caseSchema = {
       isStudioProject && (
         <section class="section section--intro">
           <p class="own-note" data-reveal>
-            <strong>{ui.caseOwnNoteLead}</strong> {ui.caseOwnNoteBody}
+            {/* The measure is capped on this span, not on the box. The box
+                runs the full width so it lines up with the facts grid under
+                it; capping the box instead left two thirds of the row empty
+                beside a short note. */}
+            <span class="own-note-text">
+              <strong>{ui.caseOwnNoteLead}</strong> {ui.caseOwnNoteBody}
+            </span>
           </p>
         </section>
       )
@@ -212,7 +218,6 @@ const caseSchema = {
 <style>
   /* --- Studio-project disclosure ---------------------------------------- */
   .own-note {
-    max-width: 66ch;
     margin: 0;
     padding: 1.1rem 1.35rem;
     border: 1px solid color-mix(in srgb, var(--color-accent) 35%, var(--color-line));
@@ -222,29 +227,39 @@ const caseSchema = {
     line-height: 1.65;
     color: var(--color-ink-muted);
   }
+  .own-note-text {
+    display: block;
+    max-width: 110ch;
+  }
   .own-note strong {
     color: var(--color-ink);
   }
 
   /* --- Facts ------------------------------------------------------------ */
+  /* Wrapping flex, not fixed columns. Four facts divide evenly into both
+     counts today, but the hairlines are the container background showing
+     through a 1px gap — adding a fifth to the array above would paint three
+     slabs of `--color-line` rather than leave blank space. */
   .facts {
-    display: grid;
+    display: flex;
+    flex-wrap: wrap;
     gap: 1px;
     margin: 0;
     background: var(--color-line);
     border: 1px solid var(--color-line);
     border-radius: 0.75rem;
     overflow: hidden;
-    grid-template-columns: repeat(2, 1fr);
-  }
-  @media (min-width: 800px) {
-    .facts {
-      grid-template-columns: repeat(4, 1fr);
-    }
   }
   .fact {
+    flex: 1 1 calc(50% - 1px);
+    min-width: 0;
     background: var(--color-ground);
     padding: 1.35rem 1.25rem;
+  }
+  @media (min-width: 800px) {
+    .fact {
+      flex-basis: calc(25% - 1px);
+    }
   }
   .fact dt {
     font-family: var(--font-label);

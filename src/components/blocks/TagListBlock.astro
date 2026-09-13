@@ -1,10 +1,21 @@
 ---
 /**
- * A wrapped row of short labels — the tools list, a list of formats.
- * Same sharing rule as the marquee: the studio list by default.
+ * The pipeline strip — the tools, scrolling.
+ *
+ * It was a wrapped row of static chips. Moving, it reads as a pipeline rather
+ * than a spec sheet, and it stops a ten-item list from dictating the height
+ * of the section on a phone.
+ *
+ * LOGOS ARE A LOOKUP, NOT A LIST. The names still come from wherever that
+ * page's list already lives — the shared `capabilities`, or the tools named
+ * on the service documents — and a `tool` document only attaches a logo to
+ * one of those names. That is what stops a service page's tool list and the
+ * strip under it from ever disagreeing. A name with no logo renders as a text
+ * pill, which is the same rule the logo wall follows: the name is a perfectly
+ * good badge on its own, and a real fallback rather than a placeholder box.
  */
 import SectionHead from './SectionHead.astro';
-import { getSiteCopy } from '../../lib/studio';
+import { getSiteCopy, getToolLogos } from '../../lib/studio';
 import { allServiceTools } from '../../lib/services';
 import { getBookingSettings } from '../../lib/studio';
 
@@ -17,6 +28,8 @@ interface Props {
     items?: string[];
     linkLabel?: string;
     linkHref?: string;
+    /** Pixels per second. Unset means the default below. */
+    speed?: number;
   };
 }
 const { block } = Astro.props;
@@ -34,6 +47,58 @@ const items =
       : block.source === 'enquiryTypes'
         ? (await getBookingSettings()).enquiryTypes
         : (await getSiteCopy()).capabilities;
+
+const logos = await getToolLogos();
+const logoFor = (name: string) => logos.get(name.trim().toLowerCase());
+
+/*
+ * HOW MANY COPIES OF THE LIST, and why it is not simply two.
+ *
+ * The loop works by sliding the track exactly one copy's width: at that point
+ * copy 2 is sitting precisely where copy 1 started, so the repeat is
+ * invisible. Any other distance jumps.
+ *
+ * For that to hold there has to be something drawn in the space the track
+ * slides out of, which means the copies AFTER the first must together be
+ * wider than the viewport — with two copies and a short list (a service page
+ * naming three tools) the strip ran out of badges and swept a gap across the
+ * screen once per cycle.
+ *
+ * So the count is derived from how wide the list is likely to be. The widths
+ * are estimates and deliberately mean: a badge is a fixed circle, a pill is
+ * roughly its text. Being wrong costs one spare copy of a ten-item list, and
+ * being wrong the other way is the gap.
+ */
+const BADGE_W = 112;
+const GAP_W = 28;
+const SHELL_W = 2400;
+
+const groupWidth =
+  items.reduce((w, t) => w + (logoFor(t) ? BADGE_W : t.length * 9 + 52) + GAP_W, 0) || 1;
+const copies = Math.min(12, Math.max(2, Math.ceil(SHELL_W / groupWidth) + 1));
+
+/*
+ * Constant speed whatever the list: the duration is derived from the width,
+ * so one copy always takes the same time per pixel and a three-tool strip
+ * does not race a ten-tool one.
+ *
+ * That is also why the Studio field is a RATE rather than a loop time, the
+ * way the marquee block's is. A loop time is a fine knob for a fixed list;
+ * this one grows every time a tool is added to a service, and a fixed loop
+ * time would quietly speed the strip up each time it did.
+ *
+ * The floor is for a very short list. A single tool is only a couple of
+ * hundred pixels of track, and at this rate that is a cycle fast enough to
+ * read as a glitch rather than as motion.
+ */
+const DEFAULT_PX_PER_SECOND = 85;
+/* `??`, not `||`, so the block can be edited without a zero or a blank
+   silently falling back to the default and looking like the field is
+   ignored. The schema's own min keeps it out of the useless range. */
+const pxPerSecond = block.speed ?? DEFAULT_PX_PER_SECOND;
+const duration = Math.max(8, Math.round(groupWidth / pxPerSecond));
+
+const groups = Array.from({ length: copies }, (_, i) => i > 0);
 ---
 
 {
@@ -45,14 +110,151 @@ const items =
         linkLabel={block.linkLabel}
         linkHref={block.linkHref}
       />
-      <ul class="chip-row" data-reveal>
-        {items.map((t) => (
-          <li class="chip chip--lg">{t}</li>
-        ))}
-      </ul>
+
+      <div
+        class="tools"
+        data-reveal
+        style={`--tools-shift:${(100 / copies).toFixed(4)}%;--tools-speed:${duration}s`}
+      >
+        <div class="tools-track">
+          {groups.map((isDuplicate) => (
+            <ul class="tools-group" aria-hidden={isDuplicate ? 'true' : undefined}>
+              {/*
+                The badge image is deliberately NOT `loading="lazy"`. The
+                track is always moving, so a badge that has not loaded by the
+                time it slides into view pops in mid-scroll — and most of them
+                start outside the overflow, which is exactly where a lazy
+                image decides it is not needed yet. They are a few KB of SVG
+                each and the copies share one request per file, so there is
+                nothing to defer.
+              */}
+              {items.map((t) => {
+                const logo = logoFor(t);
+                return (
+                  <li class:list={['tool', logo ? 'tool--badge' : 'tool--pill']}>
+                    {logo ? (
+                      <img
+                        class="tool-logo"
+                        src={logo}
+                        alt={t}
+                        width="128"
+                        height="128"
+                        decoding="async"
+                      />
+                    ) : (
+                      t
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          ))}
+        </div>
+      </div>
     </section>
   )
 }
 
 <style>
+  /*
+    Full-bleed inside a padded section: the strip is a band, and a band that
+    stops at the text margin reads as a cropped row rather than as something
+    running past the edge of the screen. The mask fades both ends so items
+    leave and arrive rather than being guillotined.
+  */
+  .tools {
+    margin-inline: calc(var(--gutter) * -1);
+    overflow: hidden;
+    mask-image: linear-gradient(
+      90deg,
+      transparent,
+      #000 var(--gutter),
+      #000 calc(100% - var(--gutter)),
+      transparent
+    );
+    user-select: none;
+  }
+
+  .tools-track {
+    display: flex;
+    width: max-content;
+    animation: tools-scroll var(--tools-speed) linear infinite;
+  }
+
+  /* Hovering pauses it, so a logo that catches the eye can be read. */
+  .tools:hover .tools-track {
+    animation-play-state: paused;
+  }
+
+  .tools-group {
+    display: flex;
+    align-items: center;
+    gap: clamp(1rem, 1.8vw, 1.75rem);
+    /* The gap between groups has to match the gap inside one, or the seam
+       is a visibly wider space once per copy. */
+    padding-right: clamp(1rem, 1.8vw, 1.75rem);
+    flex-shrink: 0;
+    list-style: none;
+    margin: 0;
+  }
+
+  .tool {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    transition:
+      border-color 0.25s ease,
+      background-color 0.25s ease;
+  }
+  .tools:hover .tool {
+    border-color: var(--color-line-strong);
+  }
+
+  /* With a logo: a circle, the logo inset inside it. */
+  .tool--badge {
+    width: clamp(3.75rem, 6vw, 5.25rem);
+    aspect-ratio: 1;
+    border-radius: 50%;
+  }
+  .tool-logo {
+    width: 52%;
+    height: 52%;
+    object-fit: contain;
+  }
+
+  /* Without one: the name, as the pill it already was. */
+  .tool--pill {
+    padding: 0 clamp(1rem, 1.6vw, 1.4rem);
+    height: clamp(2.6rem, 4vw, 3.1rem);
+    border-radius: 999px;
+    white-space: nowrap;
+    font-size: calc(0.92rem * var(--type-label-scale, 1));
+    color: var(--color-ink-muted);
+  }
+
+  @keyframes tools-scroll {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      /* Exactly one copy of the list. See the note at the top of this file. */
+      transform: translateX(calc(var(--tools-shift) * -1));
+    }
+  }
+
+  /*
+    Stated explicitly rather than relying on the global reduced-motion block:
+    that one only clamps the duration, which parks the track at the END of the
+    animation — a strip scrolled to an arbitrary offset with its first items
+    off-screen. Killing the animation by name parks it at the start, and the
+    mask keeps it looking deliberate rather than cut off.
+  */
+  @media (prefers-reduced-motion: reduce) {
+    .tools-track {
+      animation: none;
+    }
+  }
 </style>

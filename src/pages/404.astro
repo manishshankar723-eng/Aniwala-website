@@ -164,25 +164,32 @@ const foot = fillHtml(
     color: var(--color-ink-muted);
   }
 
+  /* Wrapping flex, not fixed columns: the hairlines are the container
+     background showing through a 1px gap, so an unfilled cell paints a slab
+     of `--color-line`. The route list is configured, not fixed at six. */
   .nf-routes {
     margin: clamp(2.5rem, 5vw, 3.5rem) 0 0;
     padding: 0;
-    display: grid;
+    display: flex;
+    flex-wrap: wrap;
     gap: 1px;
-    grid-template-columns: 1fr;
     background: var(--color-line);
     border: 1px solid var(--color-line);
     border-radius: 0.9rem;
     overflow: hidden;
   }
+  .nf-routes li {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
   @media (min-width: 640px) {
-    .nf-routes {
-      grid-template-columns: repeat(2, 1fr);
+    .nf-routes li {
+      flex-basis: calc(50% - 1px);
     }
   }
   @media (min-width: 1000px) {
-    .nf-routes {
-      grid-template-columns: repeat(3, 1fr);
+    .nf-routes li {
+      flex-basis: calc(33.333% - 1px);
     }
   }
 

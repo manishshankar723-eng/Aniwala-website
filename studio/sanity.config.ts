@@ -220,6 +220,17 @@ export default defineConfig({
                   .title('Clients')
                   .defaultOrdering([{ field: 'order', direction: 'asc' }])
               ),
+            /* Logos for the "What we run" strip. The tool NAMES come from the
+               pipeline list on Site copy and from the service documents — a
+               document here only attaches a logo to one, matched by name. */
+            S.listItem()
+              .title('Tool logos')
+              .schemaType('tool')
+              .child(
+                S.documentTypeList('tool')
+                  .title('Tool logos')
+                  .defaultOrdering([{ field: 'order', direction: 'asc' }])
+              ),
             S.listItem()
               .title('Milestones')
               .schemaType('milestone')
@@ -374,6 +385,14 @@ export default defineConfig({
                       .child(
                         S.documentTypeList('client')
                           .title('Client logos')
+                          .defaultOrdering([{ field: 'order', direction: 'asc' }])
+                      ),
+                    S.listItem()
+                      .title('Tool logos')
+                      .id('images-tools')
+                      .child(
+                        S.documentTypeList('tool')
+                          .title('Tool logos')
                           .defaultOrdering([{ field: 'order', direction: 'asc' }])
                       ),
                   ])

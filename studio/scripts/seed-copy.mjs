@@ -53,7 +53,6 @@ import {
   BRAND,
   ENGAGEMENT_MODELS,
   SEARCH_PAGES,
-  SERVICE_GRID_CTA,
   LEGAL_NAME,
 } from './seed-ui.mjs';
 
@@ -163,27 +162,12 @@ async function main() {
   }
 
   /*
-   * The services grid's closing tile.
-   *
-   * A block INSIDE a page's block array rather than a document of its own, so
-   * it cannot go in SEEDS above — it is patched by path, keyed on the block's
-   * own `_key`. Found by query rather than hardcoded, because which page uses
-   * a services grid is the editor's decision and this script should not have
-   * an opinion about it.
-   *
-   * Only the "tiles" layout is touched. The numbered "rows" layout never
-   * rendered the tile, so seeding one there would ADD something the site did
-   * not have, which is not what a transcription is for.
+   * The services grid's closing tile used to be seeded here, onto every
+   * tiles-layout grid it found. It was removed from the site, and seeding is
+   * `setIfMissing`, so leaving that in would have made the next run of this
+   * script quietly put the tile back. The fields stay in the schema for an
+   * editor who wants one; nothing fills them in.
    */
-  const gridBlocks = await client.fetch(
-    `*[_type == "page"]{ _id, "keys": blocks[_type == "serviceGridBlock" && layout != "rows"]._key }[count(keys) > 0]`
-  );
-
-  for (const page of gridBlocks) {
-    for (const key of page.keys) {
-      console.log(`  fill in  ${page._id.padEnd(16)} services grid tile (${key})`);
-    }
-  }
 
   if (DRY_RUN) {
     console.log('\nNothing was written.\n');
@@ -201,23 +185,6 @@ async function main() {
   for (const { id, type, fields } of SEEDS) {
     tx = tx.createIfNotExists({ _id: id, _type: type });
     tx = tx.patch(id, (p) => p.setIfMissing(fields));
-  }
-
-  /* Addressed by the block's own key, so reordering the page's blocks later
-     cannot make this write land on a different section. */
-  for (const page of gridBlocks) {
-    for (const key of page.keys) {
-      tx = tx.patch(page._id, (p) =>
-        p.setIfMissing(
-          Object.fromEntries(
-            Object.entries(SERVICE_GRID_CTA).map(([field, value]) => [
-              `blocks[_key=="${key}"].${field}`,
-              value,
-            ])
-          )
-        )
-      );
-    }
   }
 
   await tx.commit();
