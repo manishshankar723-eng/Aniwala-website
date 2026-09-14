@@ -23,9 +23,10 @@
  * `scripts/upload-r2.mjs` keeps working exactly as before. This only adds a
  * second way to fill it in.
  */
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Box, Button, Card, Flex, Stack, Text, TextInput } from '@sanity/ui';
-import { set, unset, useClient, type StringInputProps } from 'sanity';
+import { set, unset, useClient, useFormValue, type Path, type StringInputProps } from 'sanity';
+import { PosterCapture } from './PosterCapture';
 
 /* Public already — it is in the website's own bundle. Overridable so a fork
    pointing at another Supabase project does not need a code change. */
@@ -34,6 +35,24 @@ const SIGN_URL = `${
 }/functions/v1/sign-upload`;
 
 const ACCEPT = 'video/mp4,video/webm';
+
+/*
+ * `posterField` as a real option rather than a cast.
+ *
+ * Sanity types `options` per field type and `StringOptions` is a closed shape,
+ * so a custom key is a type error at every schema that sets one — which is the
+ * behaviour you want, because the alternative is a misspelling that silently
+ * never offers the panel. Declaration merging is the documented way to add
+ * one, and it belongs HERE, beside the code that reads it: a schema and a
+ * component that disagree about this name is exactly the failure the type is
+ * being asked to catch.
+ */
+declare module 'sanity' {
+  interface StringOptions {
+    /** Sibling image field the poster panel writes to. Omit and no panel. */
+    posterField?: string;
+  }
+}
 
 /**
  * The editor's Sanity session token.
@@ -107,8 +126,33 @@ async function hasAudioTrack(file: File): Promise<boolean | undefined> {
   return false;
 }
 
+/**
+ * The video field's path, turned into a patch path for a SIBLING field.
+ *
+ * `props.path` is Sanity's own shape — strings for object keys, `{_key}` for
+ * array members — and the client's patch API wants the string spelling of the
+ * same thing. Dropping the last segment moves from the video field to the
+ * object holding it, so `blocks[{_key}].videoUrl` + `poster` comes out as
+ * `blocks[_key=="block-0"].poster`, and a top-level `video` + `image` simply
+ * as `image`.
+ *
+ * Matched by KEY and never by index, for the reason every patch in this repo
+ * is: an index is a statement about the array as it was when the form loaded,
+ * and a block moved in the meantime makes it a statement about the wrong
+ * block. The key travels with the item.
+ */
+function siblingPath(path: Path, field: string): string {
+  let out = '';
+  for (const seg of path.slice(0, -1)) {
+    if (typeof seg === 'string') out += out ? `.${seg}` : seg;
+    else if (typeof seg === 'number') out += `[${seg}]`;
+    else if (seg && typeof seg === 'object' && '_key' in seg) out += `[_key=="${seg._key}"]`;
+  }
+  return out ? `${out}.${field}` : field;
+}
+
 export function R2VideoInput(props: StringInputProps) {
-  const { value, onChange, elementProps } = props;
+  const { value, onChange, elementProps, path, schemaType } = props;
   const client = useClient({ apiVersion: '2024-10-01' });
   const { projectId = '', token: configuredToken } = client.config();
 
@@ -117,6 +161,25 @@ export function R2VideoInput(props: StringInputProps) {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
+
+  /*
+   * The file stays in state after the upload, and only for the poster panel:
+   * a frame can be read from the local File and not from the R2 URL, because
+   * a cross-origin video taints the canvas. Cleared when the panel is done, so
+   * a Studio left open for an afternoon is not holding a stack of videos in
+   * memory.
+   */
+  const [captured, setCaptured] = useState<File | null>(null);
+
+  /* Opt-in, per schema: `options: { posterField: 'image' }` on the video
+     field. A video field with no target simply never offers the panel —
+     better than guessing at a field name and patching something else. */
+  const posterField = schemaType.options?.posterField;
+  const documentId = useFormValue(['_id']) as string | undefined;
+  const posterPath = useMemo(
+    () => (posterField ? siblingPath(path, posterField) : null),
+    [path, posterField]
+  );
 
   const upload = useCallback(
     async (file: File) => {
@@ -170,6 +233,9 @@ export function R2VideoInput(props: StringInputProps) {
         if (exists) {
           onChange(set(publicUrl));
           setStatus('Already uploaded — reused the file already in the bucket.');
+          /* Still offer the poster. The bucket having the video says nothing
+             about whether anybody ever took a still of it. */
+          setCaptured(file);
           return;
         }
 
@@ -201,6 +267,7 @@ export function R2VideoInput(props: StringInputProps) {
         });
 
         onChange(set(publicUrl));
+        setCaptured(file);
       } catch (e) {
         setError((e as Error).message);
       } finally {
@@ -271,6 +338,16 @@ export function R2VideoInput(props: StringInputProps) {
           />
         </Flex>
       </Card>
+
+      {captured && posterPath && documentId && (
+        <PosterCapture
+          file={captured}
+          documentId={documentId}
+          fieldPath={posterPath}
+          fieldLabel={posterField as string}
+          onDone={() => setCaptured(null)}
+        />
+      )}
     </Stack>
   );
 }

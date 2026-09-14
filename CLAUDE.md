@@ -109,6 +109,29 @@ and will drift.
   already fired by the time a media query could apply. A visitor who presses
   play on a tile has asked for the motion, and that one keeps running.
 
+- **A video's poster is produced, not remembered.** The Studio drop zone offers
+  a frame after every upload (`options: { posterField: '<sibling image field>' }`
+  on the video field turns it on) and `upload-r2.mjs` writes one beside the
+  source. The frame is picked by luma CONTRAST across the opening, never frame
+  0 — graded work opens on black, and a poster grabbed from frame 0 is the
+  black rectangle the poster exists to prevent. It is a floor, not a judgement:
+  the scrubber and `--poster-at=` are the expected second step.
+
+- **The hero's still is a field on the hero block**, not an `artwork` slot. The
+  slot indirection is what let the still and the video drift apart — swapping
+  one left the other in a document nobody opened. `posterSlot` is read as a
+  fallback and hides itself on heroes that do not use it; do not file anything
+  new that way.
+
+- **A poster and the frame the video opens on must match, or be crossfaded.**
+  The `poster` attribute is swapped for the first decoded frame instantly and
+  unfaded, so a better still can make the snap worse rather than better.
+  `upload-r2.mjs --start=<seconds>` trims the front and takes the poster from
+  the result at t=0 (same bytes, invisible handover); `lib/video.ts` fades each
+  video in over the still behind it as the general case. Each component owns
+  the opacity it fades TO — the page-hero band is `0.38`, and a global "fade to
+  1" there would turn the band into a video.
+
 ## The Studio
 
 `studio/` is a separate npm package (Sanity v6, React 19, Node ≥ 22.12). The

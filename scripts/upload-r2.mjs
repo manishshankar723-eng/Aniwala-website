@@ -26,10 +26,22 @@ import os from 'node:os';
 import path from 'node:path';
 
 const KEEP_AUDIO = process.argv.includes('--keep-audio');
+const NO_POSTER = process.argv.includes('--no-poster');
+/* `=` form on purpose. The positional parse below drops every `--` argument
+   whole, so a space-separated value would survive as a stray positional and be
+   read as the object key. */
+const POSTER_AT = Number(
+  process.argv.find((a) => a.startsWith('--poster-at='))?.split('=')[1] ?? NaN
+);
+const START_AT = Number(
+  process.argv.find((a) => a.startsWith('--start='))?.split('=')[1] ?? NaN
+);
 const [, , filePath, keyArg] = process.argv.filter((a) => !a.startsWith('--'));
 
 if (!filePath) {
   console.error('Usage: node --env-file=.env scripts/upload-r2.mjs <file> [key]');
+  console.error('       [--keep-audio] [--no-poster] [--poster-at=<seconds>]');
+  console.error('       [--start=<seconds>]   trim the front off, poster from the new first frame');
   process.exit(1);
 }
 
@@ -67,6 +79,69 @@ const TYPES = {
   '.avif': 'image/avif',
   '.svg': 'image/svg+xml',
 };
+
+/**
+ * Cut the front off, so the video OPENS on the frame you want.
+ *
+ * This is the difference between a good poster and an invisible one. A
+ * `<video>` swaps its poster for the first decoded frame instantly and
+ * unfaded, so a still taken from a good moment and a video that opens on black
+ * do not merely differ — they visibly snap the instant playback starts, and
+ * again on every loop. Picking a better still makes that worse, because it
+ * widens the gap.
+ *
+ * Trimming closes it from the other side. The poster is then taken from the
+ * TRIMMED file at t=0 rather than from the original, so the still and the first
+ * frame are the same bytes and the handover cannot be seen. The site also
+ * crossfades the two (see `src/lib/video.ts`), which covers the cases this
+ * cannot; the two are belt and braces and neither makes the other pointless.
+ *
+ * `-c:v copy`, so there is no re-encode and no generation loss — the same
+ * trade `stripAudio` makes below. The cost is that a stream copy can only cut
+ * at a KEYFRAME, so the real start lands at or before the second you asked
+ * for, sometimes by a second or two. That does not weaken the guarantee: the
+ * poster is read from wherever the cut actually landed. It is reported rather
+ * than hidden, because "I asked for 1.6 and got 0.0" is something you want to
+ * know before you look at the page and wonder.
+ */
+function trimFront(source) {
+  if (!Number.isFinite(START_AT) || START_AT <= 0) return null;
+  if (!/\.(mp4|webm|mov|m4v)$/i.test(source)) return null;
+
+  const out = path.join(os.tmpdir(), `r2-trim-${Date.now()}${path.extname(source)}`);
+  try {
+    execFileSync(
+      'ffmpeg',
+      ['-y', '-v', 'error', '-ss', String(START_AT), '-i', source,
+       '-c:v', 'copy', '-c:a', 'copy', '-movflags', '+faststart', out],
+      { stdio: 'ignore' }
+    );
+  } catch {
+    return null;
+  }
+
+  /* What the keyframe snap actually gave us, inferred from the durations
+     rather than assumed. */
+  const seconds = (file) => {
+    try {
+      return Number(
+        execFileSync(
+          'ffprobe',
+          ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file],
+          { encoding: 'utf8' }
+        ).trim()
+      );
+    } catch {
+      return NaN;
+    }
+  };
+
+  const before = seconds(source);
+  const after = seconds(out);
+  const actual = Number.isFinite(before) && Number.isFinite(after) ? before - after : START_AT;
+
+  return { file: out, temp: true, asked: START_AT, actual };
+}
 
 /**
  * Drop the audio track, unless asked not to.
@@ -114,7 +189,127 @@ async function stripAudio(source) {
   }
 }
 
-const stripped = await stripAudio(filePath);
+/**
+ * A still for the video, written next to the source file.
+ *
+ * WHY THE SCRIPT DOES THIS AT ALL. A `<video>` with no poster paints a black
+ * rectangle until its first frame decodes, so the poster is not decoration —
+ * it is what the hero looks like for the whole of a cold load. Nothing in the
+ * upload path could produce one before this: the Studio drop zone sends the
+ * file straight from the browser to R2 and a browser has no decoder to hand,
+ * and Sanity only ever receives a URL string. So every still on the site was a
+ * separate manual upload that nobody revisited when the video changed. That is
+ * how the homepage ended up showing a frame from the middle of a previous cut.
+ *
+ * WHICH FRAME, and this is the part worth getting right. Frame 0 is the
+ * obvious choice and it is usually wrong — a graded piece opens on black, or
+ * fades up, and a poster grabbed from the first frame is a black rectangle
+ * that looks exactly like the bug it was meant to fix.
+ *
+ * So the opening is sampled at 2fps and scored, and the score is CONTRAST —
+ * the standard deviation of the frame's luma — not brightness. Brightness
+ * alone rejects a black frame and then happily picks a white flash or an empty
+ * lit background. Spread asks "is there anything in this picture", which is
+ * nearer the question. On the homepage reel it scores the opening black at 1.0
+ * and the title reveal at 80.
+ *
+ * It is a DEFAULT, not a judgement. No measurement knows that a title card is
+ * the frame you wanted; `--poster-at=<seconds>` is how you say so, and it is
+ * expected to get used. The bar this clears is "never silently produce a black
+ * rectangle", which is the failure that actually shipped.
+ *
+ * Measured from raw grayscale pixels rather than through ffmpeg's signalstats
+ * filter. signalstats is the more obvious tool and it has to be reached
+ * through the lavfi `movie=` source, whose filename is part of a filtergraph
+ * STRING — so a Windows path arrives carrying a drive-letter colon and a
+ * backslash, both of which are filtergraph syntax. Escaping that correctly on
+ * every shell is a losing game. Passing the file as a plain `-i` argument and
+ * doing the arithmetic here has no escaping surface at all: 16x9 grays is 144
+ * bytes a frame, and the whole 15-second window is under 5KB.
+ *
+ * It is written, never uploaded. The video belongs in R2; a poster belongs in
+ * Sanity as an image, on a different field depending on what the video is for
+ * — a piece's Image, a discipline's Tile image, an artwork slot for the hero.
+ * Guessing which would be worse than printing the path and letting you drop it
+ * in the one place you already know.
+ */
+const POSTER_WINDOW_S = 15;
+const POSTER_FPS = 2;
+const GRID_W = 16;
+const GRID_H = 9;
+
+function posterFrame(source, forced) {
+  if (NO_POSTER) return null;
+  if (!/\.(mp4|webm|mov|m4v)$/i.test(source)) return null;
+
+  let at = Number.isFinite(forced) ? forced : POSTER_AT;
+
+  if (!Number.isFinite(at)) {
+    let gray;
+    try {
+      gray = execFileSync(
+        'ffmpeg',
+        [
+          '-v', 'error',
+          '-i', source,
+          '-t', String(POSTER_WINDOW_S),
+          '-vf', `fps=${POSTER_FPS},scale=${GRID_W}:${GRID_H},format=gray`,
+          '-f', 'rawvideo',
+          '-pix_fmt', 'gray',
+          '-',
+        ],
+        { stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 1 << 20 }
+      );
+    } catch {
+      return null;
+    }
+
+    const size = GRID_W * GRID_H;
+    let best = { t: 0, score: -1 };
+
+    for (let i = 0; i + size <= gray.length; i += size) {
+      const frame = gray.subarray(i, i + size);
+      let sum = 0;
+      for (const p of frame) sum += p;
+      const mean = sum / size;
+      let variance = 0;
+      for (const p of frame) variance += (p - mean) ** 2;
+      const score = Math.sqrt(variance / size);
+      if (score > best.score) best = { t: i / size / POSTER_FPS, score };
+    }
+
+    if (best.score < 0) return null;
+    at = best.t;
+  }
+
+  /* Named after the file YOU passed, not after `source` — with `--start` the
+     frame is read out of a trimmed temp copy, and writing the poster beside
+     that would leave it in the OS temp directory to be swept away. */
+  const out = path.join(
+    path.dirname(filePath),
+    `${path.basename(filePath, path.extname(filePath))}-poster.jpg`
+  );
+
+  try {
+    /* `-ss` AFTER `-i` so the seek is frame-accurate rather than snapping to
+       the nearest keyframe — which on a long GOP can be seconds away from the
+       frame that was measured, and is how a careful pick still lands on
+       black. */
+    execFileSync(
+      'ffmpeg',
+      ['-y', '-v', 'error', '-i', source, '-ss', String(at), '-frames:v', '1', '-q:v', '3', out],
+      { stdio: 'ignore' }
+    );
+    return { file: out, at };
+  } catch {
+    return null;
+  }
+}
+
+/* Trim first, then strip: stripping rewrites the container, so doing it the
+   other way round would throw away the faststart the trim just added. */
+const trimmed = trimFront(filePath);
+const stripped = await stripAudio(trimmed?.file ?? filePath);
 const body = await readFile(stripped.file);
 const key = (keyArg ?? path.basename(filePath)).replace(/^\/+/, '');
 const ext = path.extname(key).toLowerCase();
@@ -137,14 +332,42 @@ const hmac = (key, data) => createHmac('sha256', key).update(data).digest();
 
 const payloadHash = sha256(body);
 
+/*
+ * HOW LONG A BROWSER MAY KEEP THIS.
+ *
+ * R2 sends no `Cache-Control` of its own — an object uploaded without one
+ * comes back carrying an ETag and a Last-Modified and nothing else, so a
+ * browser falls back to HEURISTIC freshness: a fraction of the object's age,
+ * which for a file uploaded yesterday is a couple of hours. After that every
+ * visit spends a round trip revalidating before it may play a frame. The
+ * response is a cheap 304 rather than the whole file, so this was never the
+ * headline cost — but it is a stall in front of a hero, and it is free to fix.
+ *
+ * NOT `immutable`, and not a year. `immutable` is only honest when the URL
+ * changes with the content, and the key here is whatever the caller passed:
+ * `const key = keyArg ?? basename(filePath)`. Re-uploading over an existing
+ * key is a DOCUMENTED workflow — README, "Uploading": push a new file to
+ * `video/home-hero.mp4` and the hero swaps with no Studio edit. Cache that for
+ * a year and marked immutable, and the swap would reach nobody who had already
+ * visited, for a year, with no way to force it short of renaming the file.
+ *
+ * A month with revalidation left available is the honest trade: repeat visits
+ * inside it are instant, and an overwrite still reaches everybody once the
+ * month is out. If a file ever needs the year, give it a content-hashed key
+ * first — that is the half that makes the promise true.
+ */
+const cacheControl = 'public, max-age=2592000';
+
 /* Sorted, lowercase, and every one of them signed — a header sent but not
-   signed makes R2 reject the whole request rather than ignore the header. */
+   signed makes R2 reject the whole request rather than ignore the header.
+   Adding one means adding it in BOTH places, and in alphabetical order. */
 const canonicalHeaders =
+  `cache-control:${cacheControl}\n` +
   `content-type:${contentType}\n` +
   `host:${host}\n` +
   `x-amz-content-sha256:${payloadHash}\n` +
   `x-amz-date:${amzDate}\n`;
-const signedHeaders = 'content-type;host;x-amz-content-sha256;x-amz-date';
+const signedHeaders = 'cache-control;content-type;host;x-amz-content-sha256;x-amz-date';
 
 const canonicalRequest = [
   'PUT',
@@ -177,6 +400,7 @@ console.log(`  -> ${BUCKET}/${key}\n`);
 const response = await fetch(`https://${host}${canonicalUri}`, {
   method: 'PUT',
   headers: {
+    'Cache-Control': cacheControl,
     'Content-Type': contentType,
     'x-amz-content-sha256': payloadHash,
     'x-amz-date': amzDate,
@@ -194,10 +418,38 @@ if (!response.ok) {
   process.exit(1);
 }
 
-if (stripped.temp) await unlink(stripped.file).catch(() => {});
-
 const url = `${PUBLIC_BASE.replace(/\/+$/, '')}/${key}`;
 console.log(`  Uploaded.\n  ${url}\n`);
+
+if (trimmed) {
+  console.log(`  Trimmed to start at ${trimmed.actual.toFixed(2)}s (asked for ${trimmed.asked}s —`);
+  console.log('  a stream copy can only cut at a keyframe).\n');
+}
+
+/*
+ * WHICH FILE THE STILL COMES FROM, and it is the whole point of `--start`.
+ *
+ * Trimmed: the prepared file at t=0, so the poster IS the first frame and the
+ * handover cannot be seen at all. Untrimmed: the original, scored as described
+ * on `posterFrame` — `stripped.file` would do equally well, since dropping an
+ * audio track changes nothing about the pictures, but the original is certain
+ * to still be on disk.
+ *
+ * This has to run BEFORE the temp files are removed, which is why the cleanup
+ * moved down here from beside the upload.
+ */
+const poster = trimmed ? posterFrame(stripped.file, 0) : posterFrame(filePath);
+if (poster) {
+  console.log(`  Poster frame at ${poster.at.toFixed(2)}s:`);
+  console.log(`  ${poster.file}`);
+  console.log('  Put it on the video’s own document — a piece’s Image, a');
+  console.log('  discipline’s Tile image, or a hero block’s Still image.\n');
+}
+
+if (stripped.temp) await unlink(stripped.file).catch(() => {});
+if (trimmed?.temp && trimmed.file !== stripped.file) {
+  await unlink(trimmed.file).catch(() => {});
+}
 
 /* Read it back. A 200 from the PUT only proves the object landed; it says
    nothing about whether the bucket is actually readable from the internet,

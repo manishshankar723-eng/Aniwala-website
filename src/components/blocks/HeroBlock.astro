@@ -16,7 +16,7 @@
  */
 import VideoHero from '../VideoHero.astro';
 import PageHero from '../PageHero.astro';
-import { getArtwork, heroArtwork } from '../../lib/artwork';
+import { getArtwork, heroArtwork, toArtwork } from '../../lib/artwork';
 import type { SanityImage } from '../../lib/sanity/client';
 
 interface Props {
@@ -29,6 +29,8 @@ interface Props {
     ctaHref?: string;
     crumbLabel?: string;
     videoUrl?: string;
+    /** The still, on the block. Supersedes `posterSlot`. */
+    poster?: SanityImage;
     posterSlot?: string;
     /** Background picture for a standard hero. The video variant uses `posterSlot`. */
     image?: SanityImage;
@@ -39,10 +41,25 @@ const { block } = Astro.props;
 const isVideo = block.variant === 'video';
 
 
-/* Only looked up for a video hero, and only when a slot was picked. The still
-   is shown before the video paints and whenever it cannot play at all, so on a
-   slow connection it may be the only thing a visitor sees. */
-const poster = isVideo && block.posterSlot ? await getArtwork(block.posterSlot) : undefined;
+/*
+ * The still, shown before the video paints and whenever it cannot play at all
+ * — so on a slow connection it may be the only thing a visitor sees.
+ *
+ * THE BLOCK'S OWN FIELD FIRST, the artwork slot only as a fallback. The slot
+ * was the arrangement that let the picture and the video drift apart: swapping
+ * the video left the still behind in a separate document nobody thought to
+ * open, and the homepage opened on a dark frame from a previous cut for as
+ * long as it took somebody to notice. `toArtwork` and `getArtwork` return the
+ * same shape, so only the lookup differs.
+ *
+ * The fallback stays until no hero uses a slot. It costs one `??` and it is
+ * what makes the migration something that can happen document by document
+ * rather than all at once.
+ */
+const poster = !isVideo
+  ? undefined
+  : (toArtwork(block.poster) ??
+    (block.posterSlot ? await getArtwork(block.posterSlot) : undefined));
 
 /* The band's backdrop: this page's own picture, or the site-wide one when the
    editor has not set one here. `heroArtwork` owns that fallback so the eleven

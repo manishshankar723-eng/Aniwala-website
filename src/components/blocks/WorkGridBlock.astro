@@ -309,6 +309,17 @@ const filters = block.showFilter
     object-fit: cover;
   }
 
+  /* Faded in over the tile image rather than cutting to it, so a loop whose
+     first frame is not the still does not snap when it starts. Neither
+     attribute exists without JavaScript. See lib/video.ts. */
+  .work-video[data-fade] {
+    opacity: 0;
+  }
+  .work-video[data-fade][data-ready] {
+    opacity: 1;
+    transition: opacity 0.5s ease;
+  }
+
   /* A tile that cannot move still shows its still — the same picture, holding
      still, which is the whole of what the setting asks for here. */
   @media (prefers-reduced-motion: reduce) {

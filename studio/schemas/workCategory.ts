@@ -142,6 +142,10 @@ export default defineType({
       type: 'string',
       group: 'main',
       components: { input: R2VideoInput },
+      /* The Tile image is this video's poster and is already required before
+         the video is accepted — so the drop zone can fill it in rather than
+         leaving an editor to go and find a frame. */
+      options: { posterField: 'image' },
       description:
         'Optional. A silent loop that plays in this discipline\u2019s tile on the portfolio grid AND behind the heading on its own page. Drop an .mp4 or .webm here, or run `node --env-file=.env scripts/upload-r2.mjs <file> video/pieces/<name>.mp4` and paste the URL. Needs the Tile image above, which becomes its poster. Muted always \u2014 browsers do not autoplay sound.',
       validation: (Rule) =>

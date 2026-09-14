@@ -318,6 +318,22 @@ const crumbSchema =
     opacity: 0.38;
     z-index: -1;
   }
+  /*
+   * Faded in to the band's own 0.38 rather than cutting to it — and that
+   * number is why this rule has to live here rather than in lib/video.ts. The
+   * video is a wash OVER the picture, not a replacement for it, so a generic
+   * "fade to opacity 1" would quietly turn the band into a video.
+   */
+  .page-hero-video[data-fade] {
+    opacity: 0;
+  }
+  .page-hero-video[data-fade][data-ready] {
+    opacity: 0.38;
+    transition: opacity 0.7s ease;
+  }
+  /* No reduced-motion override of the fade is needed here, unlike the other
+     three: the rule below already removes this video from the page entirely,
+     so there is nothing left to transition. */
 
   /* Belt and braces with the script above: the script pauses the video, this
      takes it off the page entirely so the still underneath is what shows. */

@@ -2,11 +2,19 @@
 /**
  * The services, as a grid of tiles or a list of numbered rows.
  *
- * `grid` is the homepage's six-up tile grid, read from the nav's services
- * dropdown so the two can never list different services. `rows` is the
- * services page: numbered, full-width, with each service's tagline and its
- * first three offerings — read from `config/services.ts`, which is the only
- * place that has those.
+ * `grid` is the six-up tile grid, read from the nav's services dropdown so the
+ * two can never list different services. `rows` is numbered and full-width,
+ * with each service's tagline and its first three offerings — read from the
+ * `service` documents via `lib/services.ts`, which is the only place that has
+ * those.
+ *
+ * The homepage runs `rows` and the portfolio grid above it runs tiles, which
+ * is deliberate rather than incidental: both sections are six things with
+ * pictures, and when both were tile walls the page read as saying the same
+ * thing twice — the portfolio tiles already carry the service name as their
+ * kicker, so five of the six service names appeared on the page before this
+ * section started. Same content, different shape, so the eye can tell them
+ * apart. The Studio's Layout radio switches it.
  *
  * Two sources for one block looks wrong until you notice they are two
  * different amounts of information about the same six things. The grid needs a
@@ -75,6 +83,19 @@ const tiles = navServices.map((child) => {
     art: toArtwork(service?.hero),
   };
 });
+
+/*
+ * The rows take the SAME picture, and that is the point of putting it on the
+ * service document rather than in a slot: one upload reaches the tile, the
+ * row, and the band at the top of the service's own page.
+ *
+ * A row's copy is read, not scanned, so the picture is a thumbnail beside the
+ * words rather than a bed underneath them. Letting it bleed the full width
+ * would turn the list back into the wall of art this layout exists to be
+ * different from — the grid above already does that job, and having both
+ * sections do it is what the rows were chosen to stop.
+ */
+const rowServices = services.map((s) => ({ ...s, art: toArtwork(s.hero) }));
 ---
 
 <section class="section" class:list={[!rows && 'section--bordered']} id={block.anchor ?? (rows ? 'disciplines' : 'services')}>
@@ -83,12 +104,33 @@ const tiles = navServices.map((child) => {
   {
     rows ? (
       <ol class="svc-list">
-        {services.map((s, i) => (
+        {rowServices.map((s, i) => (
           <li class="svc-row" style={`--tint:${s.tint}`} data-reveal>
             <a href={`/services/${s.slug}/`} class="svc-link">
               <span class="svc-wash" aria-hidden="true" />
 
               <span class="svc-n">{String(i + 1).padStart(2, '0')}</span>
+
+              {/*
+                Decorative, like every other picture that sits next to the name
+                of the thing it shows: the row's own heading is right beside it,
+                so an alt here would make a screen reader read each service
+                twice. The tint stays behind it, so a service with no hero is a
+                coloured block rather than a hole in the column.
+              */}
+              <span class="svc-thumb" aria-hidden="true">
+                {s.art && (
+                  <img
+                    class="svc-img"
+                    src={s.art.src}
+                    srcset={s.art.srcset}
+                    sizes="(min-width: 700px) 200px, 100vw"
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                  />
+                )}
+              </span>
 
               <span class="svc-main">
                 <h2 class="svc-title">{s.title}</h2>
@@ -369,11 +411,29 @@ const tiles = navServices.map((child) => {
     border-bottom: 1px solid var(--color-line);
   }
 
+  /*
+   * NAMED AREAS, because the picture does not sit in the same place at both
+   * widths and a column count alone cannot say that.
+   *
+   * Narrow, the thumbnail is a full-width strip ABOVE the entry, and the row
+   * reads as a catalogue card: picture, then number, name, tagline, chips.
+   * Wide, it becomes a column of its own between the number and the words, so
+   * the pictures line up down the list and the eye can run the column without
+   * reading any of it.
+   *
+   * Placing it after the number in the source is what makes both work from one
+   * piece of markup — `grid-area` moves it, so there is no second copy of the
+   * image for a screen reader to find and no CSS `order` lying to the keyboard
+   * about where it is.
+   */
   .svc-link {
     position: relative;
     isolation: isolate;
     display: grid;
     grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      'img img img'
+      'n   main go';
     align-items: start;
     gap: 1rem 1.5rem;
     padding: clamp(1.75rem, 3.5vw, 2.75rem) clamp(0.75rem, 2vw, 1.5rem);
@@ -382,9 +442,44 @@ const tiles = navServices.map((child) => {
   }
   @media (min-width: 700px) {
     .svc-link {
-      gap: 1rem 3rem;
+      /* The picture column is capped rather than fluid: past about 200px it
+         stops being a thumbnail beside a name and starts being a tile with a
+         caption, which is the other layout. */
+      grid-template-columns: auto clamp(7rem, 16vw, 12.5rem) 1fr auto;
+      grid-template-areas: 'n img main go';
+      gap: 1rem 2rem;
       align-items: center;
     }
+  }
+
+  /*
+   * The picture. Its own tint underneath for the reason every image on this
+   * site has one — the block holds its colour while the file loads, and a
+   * service with no hero is a deliberate-looking coloured panel rather than a
+   * gap in the column.
+   */
+  .svc-thumb {
+    grid-area: img;
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    overflow: hidden;
+    border-radius: 0.5rem;
+    background:
+      radial-gradient(ellipse 90% 70% at 30% 20%, hsl(var(--tint) / 0.85), transparent 70%),
+      linear-gradient(160deg, hsl(var(--tint) / 0.55), #0b0c10 75%);
+  }
+  .svc-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .svc-link:hover .svc-img,
+  .svc-link:focus-visible .svc-img {
+    transform: scale(1.06);
   }
 
   /* Tint sweeps in from the left on hover — the row equivalent of a tile
@@ -407,6 +502,7 @@ const tiles = navServices.map((child) => {
   }
 
   .svc-n {
+    grid-area: n;
     font-family: var(--font-label);
     font-size: calc(0.72rem * var(--type-label-scale, 1));
     letter-spacing: calc(0.015em + var(--type-label-track, 0em));
@@ -415,6 +511,7 @@ const tiles = navServices.map((child) => {
   }
 
   .svc-main {
+    grid-area: main;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
@@ -445,6 +542,7 @@ const tiles = navServices.map((child) => {
 
 
   .svc-go {
+    grid-area: go;
     font-size: calc(1.4rem * var(--type-heading-scale, 1));
     color: var(--color-accent);
     padding-top: 0.2rem;

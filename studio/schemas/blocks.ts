@@ -221,6 +221,10 @@ export const heroBlock = defineType({
       title: 'Background video',
       components: { input: R2VideoInput },
       type: 'string',
+      /* Where the drop zone files the still it offers after an upload — the
+         field directly below, not the slot below that. See the note on
+         `poster`. */
+      options: { posterField: 'poster' },
       description:
         'Direct link to an .mp4 or .webm — the file itself, not a YouTube or Vimeo page. TO CHANGE IT: run `node --env-file=.env scripts/upload-r2.mjs <file> video/home-hero.mp4` and paste the URL it prints. It plays muted and on a loop behind the headline, so keep it short and heavily compressed: under about 5MB, or a phone spends its data allowance on decoration. Leave blank to show only the still below.',
       hidden: ({ parent }) => parent?.variant !== 'video',
@@ -237,22 +241,51 @@ export const heroBlock = defineType({
         }),
     }),
 
+    /*
+     * THE STILL, ON THE BLOCK.
+     *
+     * This replaced `posterSlot`, which named an `artwork` document filed
+     * against a slot from a hardcoded list. That indirection is exactly the
+     * arrangement `config/imageSlots.ts` argues against at length and has been
+     * unwinding everywhere else: a picture belongs to the thing it depicts, so
+     * it is created with it, deleted with it, and cannot be orphaned.
+     *
+     * It was also the specific cause of a real fault. Swapping the hero video
+     * left the still behind in a different document that nobody thought to
+     * open, so the homepage spent a while opening on a dark frame from the
+     * middle of a previous cut — while the new video opened on a bright title
+     * card. Two fields that must agree, kept in two documents, will not agree.
+     *
+     * Here the drop zone can fill it in directly: upload a video and it offers
+     * a frame from that same file, scrubber included. `posterSlot` is still
+     * read by the site as a fallback so nothing broke on the way, but nothing
+     * new should be filed that way.
+     */
+    defineField({
+      name: 'poster',
+      title: 'Still image',
+      type: 'image',
+      options: { hotspot: true },
+      description:
+        'Shown before the video loads and wherever it cannot play — on a slow connection this may be the only thing seen, so it should look like the video does when it starts. Drop a video above and it will offer you a frame from it.',
+      hidden: ({ parent }) => parent?.variant !== 'video',
+    }),
+
     defineField({
       name: 'posterSlot',
-      title: 'Still image',
+      title: 'Still image (old slot)',
       type: 'string',
       description:
-        'Shown before the video loads and wherever it cannot play — on a slow connection this may be the only thing seen. Upload the picture under Images against the slot you pick here.',
-      /* Home slots only. The site-wide hero background is also a slot, and
-         offering it here would let someone pick the picture that every OTHER
-         page falls back to as this video's still. */
+        'Superseded by the Still image above, and only still here so heroes filed the old way keep their picture. Set the field above instead; when both are filled, the one above wins.',
       options: {
         list: IMAGE_SLOTS.filter((s) => s.group === 'Home').map((s) => ({
           title: s.title,
           value: s.name,
         })),
       },
-      hidden: ({ parent }) => parent?.variant !== 'video',
+      /* Hidden unless it is already carrying something, so it stops being an
+         option for new work without stranding the heroes that use it. */
+      hidden: ({ parent }) => parent?.variant !== 'video' || !parent?.posterSlot,
     }),
   ],
   preview: {

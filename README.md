@@ -780,14 +780,100 @@ already fired by the time a media query could apply. Pausing leaves the poster:
 the same picture, holding still. A tile keeps its control bar, and a visitor who
 presses play on one has asked for the motion — so that one keeps running.
 
+#### Posters
+
+**A `<video>` with no poster paints a black rectangle until its first frame
+decodes.** On a cold load the poster *is* the hero for as long as the download
+takes, so it is not decoration — and it was the one part of a video that nothing
+in the pipeline produced. Every still used to be a separate manual upload, which
+is how the homepage spent a while opening on a dark frame from the middle of a
+*previous* cut while the new video opened on a bright title card. Two fields that
+must agree, kept in two places, will not agree.
+
+Both upload paths now offer one.
+
+**In the Studio**, drop a video and a *Poster frame* panel appears under the drop
+zone with a frame already picked, a scrubber, and a Save button. It writes to the
+image field beside the video — a piece's Image, a discipline's Tile image, the
+hero's Still image.
+
+The frame has to come from the file you just dropped, not from the R2 URL
+afterwards: a `<video>` fed a `blob:` URL is same-origin, so the canvas it is
+drawn onto can be read; a cross-origin one taints the canvas and every pixel read
+throws. That is also why the panel appears at upload time and not later.
+
+**From the terminal**, `upload-r2.mjs` writes `<name>-poster.jpg` next to the
+source file and prints the path. It does not upload it — the video belongs in R2
+and a poster belongs in Sanity, on a field that depends on what the video is for,
+and guessing which would be worse than telling you where the file is.
+
+**How the frame is chosen, and why it is only a default.** Frame 0 is the obvious
+pick and it is usually wrong: graded work opens on black or fades up, so a poster
+grabbed from the first frame is the black rectangle it was meant to prevent.
+Frames across the opening are scored on **contrast** — the standard deviation of
+luma — rather than brightness, because brightness alone rejects black and then
+cheerfully picks a white flash or an empty lit background. Spread asks "is there
+anything in this picture", which is nearer the question.
+
+It clears the bar of *never silently producing black*. It does not know that the
+title card is the frame you wanted — on the homepage reel it lands on a shape
+mid-transition, which is legible and is not what a person would choose. So the
+scrubber in the Studio and `--poster-at=<seconds>` on the script are not
+escape hatches, they are the expected second step.
+
+**Getting it perfect.** A good poster and an *invisible* one are different
+problems. The still being wrong is one; the still not matching where the video
+starts is the other, and it is the one people miss — the `poster` attribute is
+swapped for the first decoded frame instantly and unfaded, so a beautiful frame
+in front of a video that opens on black snaps the moment playback begins, and
+again on every loop. A better still makes that worse, because it widens the gap.
+
+Two things close it, from opposite ends:
+
+- **`--start=<seconds>`** trims the front off the video and then takes the
+  poster from the trimmed file at t=0 — so the still and the first frame are the
+  same bytes and the handover cannot be seen. `-c:v copy`, so no re-encode and
+  no generation loss; the cost is that a stream copy can only cut at a keyframe,
+  so the real start lands at or before what you asked for. The script prints
+  where it actually landed, and the guarantee holds either way because the
+  poster is read from the result.
+- **The site crossfades the handover** regardless. Each video is faded in over
+  the still behind it rather than cutting to it, so a poster that does not match
+  lands softly instead of snapping. `src/lib/video.ts` sets `data-fade` on every
+  managed video and `data-ready` two painted frames after playback truly starts;
+  each component supplies the opacity it fades *to*, because the page-hero band
+  sits at `0.38` and a global "fade to 1" would quietly turn it into a video.
+  Neither attribute exists without JavaScript, so a page without it renders
+  exactly as before.
+
+Together they mean a poster never *has* to be exactly right, and can be when you
+want it to be. What neither fixes: the crop must match — both go through the same
+`object-fit: cover`, so a still at a different aspect ratio shifts at the swap —
+and a loop is only truly seamless if its last frame matches its first.
+
+**The hero's still lives on the hero block**, as a normal image field. It used to
+be an `artwork` document named by a `posterSlot` dropdown — the indirection
+`config/imageSlots.ts` argues against at length, and the specific reason the still
+and the video drifted apart. `posterSlot` is still read as a fallback so nothing
+broke on the way across, and it hides itself on any hero not already using it.
+
 #### Uploading
 
 In the Studio, drop the file on the video field. Or from a terminal:
 
 ```bash
 node --env-file=.env scripts/upload-r2.mjs <file> [key] [--keep-audio]
+                                           [--no-poster] [--poster-at=<seconds>]
 node --env-file=.env scripts/upload-r2.mjs clip.mp4 video/home-hero.mp4
+node --env-file=.env scripts/upload-r2.mjs clip.mp4 video/home-hero.mp4 --poster-at=2.5
 ```
+
+Uploaded objects carry `Cache-Control: public, max-age=2592000`. R2 sends no
+caching directive of its own, so without one a browser falls back to heuristic
+freshness — a couple of hours for a recent file — and then spends a round trip
+revalidating before it may play a frame. Not `immutable` and not a year, because
+overwriting a key in place is a documented move here and an immutable year would
+hide the swap from everyone who had already visited.
 
 The script prints the public URL and then `HEAD`s it — a `200` from the upload
 only proves the object landed, and public read is a **separate bucket setting**.

@@ -374,13 +374,45 @@ const isStudioProject = kind === 'Studio project';
     object-position: center;
   }
 
+  /*
+   * `z-index: -1` is load bearing, and its absence was a bug waiting for the
+   * first piece to have BOTH an image and a video.
+   *
+   * `.piece-inner` is `position: relative` with no z-index, so it is not a
+   * stacking context and these all paint in `.piece`'s: the negative layers
+   * first, then everything at `auto` in DOM order. Without a z-index here the
+   * still was `auto`, which put it above `.piece-video` at -1 — a poster image
+   * covering the video it is the poster FOR, and covering the scrim as well.
+   *
+   * It went unnoticed only because both video pieces happened to have no
+   * image. The Studio now offers to fill that field in after every upload, so
+   * the combination stopped being hypothetical.
+   *
+   * At -1 with the video, DOM order decides, and the still is written first.
+   */
   .piece-img {
     position: absolute;
     inset: 0;
+    z-index: -1;
     width: 100%;
     height: 100%;
     object-fit: cover;
     transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* Faded in over the still rather than cutting to it. Without JavaScript
+     neither attribute is set and this does nothing. See lib/video.ts. */
+  .piece-video[data-fade] {
+    opacity: 0;
+  }
+  .piece-video[data-fade][data-ready] {
+    opacity: 1;
+    transition: opacity 0.5s ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .piece-video[data-fade][data-ready] {
+      transition: none;
+    }
   }
   .piece--linked:hover .piece-img {
     transform: scale(1.05);

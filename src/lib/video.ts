@@ -175,9 +175,50 @@ function soloAudio(target: HTMLVideoElement) {
   }
 }
 
+/**
+ * Hand over from the still to the moving picture without a cut.
+ *
+ * A `<video>`'s `poster` is swapped for the first decoded frame INSTANTLY and
+ * unfaded. When the two are the same picture nobody notices; when they are not
+ * — a poster picked from a good moment, a video that opens on black — the hero
+ * visibly snaps the instant playback begins, and again on every loop. Choosing
+ * a better still makes that worse, not better, because it widens the gap.
+ *
+ * So the video is faded in over whatever is behind it instead. Every component
+ * that uses this already keeps the still as a real element underneath (the two
+ * heroes, the discipline tile, the piece tile), so there is always something to
+ * fade FROM.
+ *
+ * THE DEFAULT IS NO FADE, and that is what makes it safe. `data-fade` is set
+ * here, in script, so a page whose JavaScript never runs has neither attribute
+ * and renders exactly as it did before — video visible, native poster swap.
+ * The opacity it fades TO is the component's business, not this module's: the
+ * page-hero band sits at 0.38 so its picture reads through, and a rule here
+ * that said `opacity: 1` would quietly break it.
+ */
+function fadeIn(v: HTMLVideoElement) {
+  if (v.dataset.ready !== undefined) return;
+  /* Two frames of actual painting, not just the `playing` event: `playing`
+     fires when the element decides it will play, which on a cold buffer is
+     before anything is on screen. Fading in there shows the gap rather than
+     hiding it. */
+  if (v.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      v.dataset.ready = '';
+    });
+  });
+}
+
 function wire(v: HTMLVideoElement) {
   if (wired.has(v)) return;
   wired.add(v);
+
+  /* Marks the element as ours to fade. Paired with `data-ready` below by CSS
+     in each component — see the note on `fadeIn`. */
+  v.dataset.fade = '';
+  v.addEventListener('playing', () => fadeIn(v));
+  v.addEventListener('timeupdate', () => fadeIn(v));
 
   /* Belt and braces on top of the attributes. A `loop` stripped by an editor
      paste, or a `muted` lost to a browser restoring media state across a

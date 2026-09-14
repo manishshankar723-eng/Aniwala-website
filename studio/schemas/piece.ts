@@ -112,6 +112,10 @@ export default defineType({
       type: 'string',
       group: 'main',
       components: { input: R2VideoInput },
+      /* Where the drop zone files the still it offers after an upload. On a
+         piece the Image above IS the poster, so there is nowhere else it
+         could go. See components/PosterCapture.tsx. */
+      options: { posterField: 'image' },
       description:
         'A video URL. For R2: run `node --env-file=.env scripts/upload-r2.mjs <file> video/pieces/<name>.mp4` and paste the URL it prints. For Cloudflare Stream: paste the video id or its embed URL. Leave blank for a piece that is not a video.',
       validation: (Rule) =>
