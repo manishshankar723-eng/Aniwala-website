@@ -66,13 +66,12 @@ jobs:
 
     env:
       # ------------------------------------------------------------------
-      # MUST TRACK `SITE_TO_CHECK` IN deploy.yml. That file deploys to staging
-      # today because aniwala.com still serves a WordPress install; when the
-      # cutover happens, both files change together or this check quietly
-      # starts watching a host nobody is using any more.
+      # MUST TRACK `SITE_TO_CHECK` IN deploy.yml. Both moved from staging to
+      # aniwala.com together at the cutover; if they ever disagree, this
+      # check quietly watches a host nobody is using.
       # ------------------------------------------------------------------
-      SITE: https://staging.aniwala.com
-      HOST: staging.aniwala.com
+      SITE: https://aniwala.com
+      HOST: aniwala.com
       # Days of certificate life below which this fails. ACME clients normally
       # renew with 30 days to go, so 21 means "renewal should already have
       # happened and did not" rather than "expiry is close".

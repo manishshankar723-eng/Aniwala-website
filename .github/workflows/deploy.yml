@@ -318,16 +318,16 @@ jobs:
     # agree; if they ever disagree, the site half-deploys and still looks
     # green.
     #
-    # STAGING, not the live site, and deliberately. aniwala.com currently
-    # serves a WordPress install out of the parent folder. Uploading this
-    # build there drops an Astro .htaccess on top of WordPress's own and
-    # takes out its permalinks — so the cutover is a decision to make on
-    # purpose, not something to arrive at by editing one line.
+    # PRODUCTION — aniwala.com. This pointed at the staging folder while the
+    # domain still served WordPress; the cutover moved it here on purpose,
+    # after public_html and the WordPress database were backed up.
     #
-    # To go live later: change REMOTE_DIR to
-    #   domains/aniwala.com/public_html/
-    # and SITE_TO_CHECK to https://aniwala.com/ — after backing up
-    # public_html and the WordPress database.
+    # staging.aniwala.com still lives INSIDE this folder, at
+    # public_html/staging/, and survives every deploy only because the rsync
+    # below excludes `/staging/`. Nothing deploys TO staging any more, so it
+    # stays frozen at its last build. The pre-upload check still refuses to
+    # run if this folder looks like a WordPress install, which is what makes
+    # a mistaken target fail loudly rather than delete a site.
     #
     # NO LEADING SLASH, and that changed when this moved from FTP to SSH. The
     # FTP account was chrooted, so `/domains/...` there resolved inside the
@@ -338,8 +338,8 @@ jobs:
     # SSH reads it.
     # ------------------------------------------------------------------
     env:
-      REMOTE_DIR: domains/aniwala.com/public_html/staging/
-      SITE_TO_CHECK: https://staging.aniwala.com/
+      REMOTE_DIR: domains/aniwala.com/public_html/
+      SITE_TO_CHECK: https://aniwala.com/
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -599,12 +599,19 @@ jobs:
           # /blog/tag/staging/ would silently never upload and its stale copy
           # would be protected from deletion. Anchored, it only means the one
           # folder at the top of REMOTE_DIR.
+          #
+          # `/.private/` is Hostinger's, not ours. It sits at the top of
+          # public_html beside the WordPress install and predates this site;
+          # nothing in the build creates or needs it, so --delete would remove
+          # it on the first production deploy. Protected because its contents
+          # are unknown, not because anything here reads them.
           rsync -rlptz --delete --human-readable --stats \
                 --exclude='.git*' \
                 --exclude='node_modules/' \
                 --exclude='labs/' \
                 --exclude='.well-known/' \
                 --exclude='/staging/' \
+                --exclude='/.private/' \
                 -e "ssh -p $SSH_PORT -o BatchMode=yes -o ConnectTimeout=30" \
                 dist/ "$SSH_USER@$SSH_HOST:$REMOTE_DIR"
 
