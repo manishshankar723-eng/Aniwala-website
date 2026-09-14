@@ -174,7 +174,32 @@ ErrorDocument 404 /404.html
   # silent and total: every form gets a CSP violation in the console and
   # nothing else, so it reads as "the forms are broken" rather than "the
   # policy is stale".
-  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.sanity.io; font-src 'self'; connect-src 'self' https://ocxbnnfchqzgkbqlagnq.supabase.co; media-src 'self' https://cdn.sanity.io https://pub-5bcaef0bed5a45e1bb7c8c42238fa677.r2.dev; frame-src https://challenges.cloudflare.com https://*.cloudflarestream.com https://iframe.videodelivery.net; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests"
+  #
+  # GOOGLE ANALYTICS 4 needs THREE directives, and missing any one of them
+  # fails the same quiet way everything else in this file does — the tag looks
+  # installed, the Realtime report stays empty, and the obvious conclusion is
+  # that the measurement id is wrong.
+  #
+  #   script-src   googletagmanager.com serves gtag.js itself.
+  #   connect-src  where the hits actually go. `*.google-analytics.com` is a
+  #                SUBDOMAIN wildcard and has to be: GA4 sends collection hits
+  #                to a regional host — region1.google-analytics.com and
+  #                friends — chosen by Google, not by us, so naming
+  #                www.google-analytics.com alone drops traffic from whichever
+  #                regions get routed elsewhere. It matches subdomains of
+  #                google-analytics.com and nothing else, which is the same
+  #                shape as the cloudflarestream.com entry below and not the
+  #                suffix match that rule warns about.
+  #   img-src      gtag still falls back to a pixel when a browser blocks or
+  #                fails the fetch, and that pixel is how those visits get
+  #                counted at all.
+  #
+  # Nothing here is added to frame-src: GA4 renders no iframe.
+  #
+  # IF ANALYTICS IS EVER REMOVED, take these back out. A policy that trusts an
+  # origin nothing loads from is a permission granted to whatever gets injected
+  # next, for no benefit at all.
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.sanity.io https://www.googletagmanager.com https://*.google-analytics.com; font-src 'self'; connect-src 'self' https://ocxbnnfchqzgkbqlagnq.supabase.co https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com; media-src 'self' https://cdn.sanity.io https://pub-5bcaef0bed5a45e1bb7c8c42238fa677.r2.dev; frame-src https://challenges.cloudflare.com https://*.cloudflarestream.com https://iframe.videodelivery.net; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests"
 </IfModule>
 
 # --- Fonts need CORS to be preloaded -----------------------------

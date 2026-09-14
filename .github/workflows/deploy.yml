@@ -112,6 +112,17 @@ jobs:
       # the live forms silently keep taking the unverified path.
       TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
 
+      # The GA4 measurement id, baked into the HTML at build time like the two
+      # keys above — so it has to be here, in the job that builds, not on the
+      # deploy job that only moves files.
+      #
+      # Absent, the build is still correct: Analytics.astro renders nothing and
+      # the site ships with no tag, no gtag.js and no cookies. That is the
+      # quiet one to watch for — a green deploy that reports no traffic reads
+      # as "Google has not picked it up yet" for about a week before anybody
+      # checks whether the tag is in the page at all.
+      GA_MEASUREMENT_ID: ${{ secrets.GA_MEASUREMENT_ID }}
+
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -575,11 +586,25 @@ jobs:
           # Delete it and renewal fails — against the two-year
           # Strict-Transport-Security in .htaccess, that is an outage no
           # visitor can click past, arriving up to ninety days later.
+          #
+          # `/staging/` IS THE STAGING SITE. staging.aniwala.com is served out
+          # of public_html/staging/, INSIDE the production document root, so
+          # the day REMOTE_DIR moves to public_html/ this --delete would treat
+          # the whole staging copy as stale and remove it — the build has no
+          # `staging/` folder to match it against. Harmless while REMOTE_DIR is
+          # the staging folder itself, which is why it can be here already.
+          #
+          # ANCHORED with a leading slash, unlike the lines around it. Unanchored,
+          # `staging/` matches at any depth, so a future page such as
+          # /blog/tag/staging/ would silently never upload and its stale copy
+          # would be protected from deletion. Anchored, it only means the one
+          # folder at the top of REMOTE_DIR.
           rsync -rlptz --delete --human-readable --stats \
                 --exclude='.git*' \
                 --exclude='node_modules/' \
                 --exclude='labs/' \
                 --exclude='.well-known/' \
+                --exclude='/staging/' \
                 -e "ssh -p $SSH_PORT -o BatchMode=yes -o ConnectTimeout=30" \
                 dist/ "$SSH_USER@$SSH_HOST:$REMOTE_DIR"
 

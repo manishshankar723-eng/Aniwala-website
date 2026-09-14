@@ -23,11 +23,18 @@
  * change — and now it is an edit rather than a deploy, which removes the
  * excuse for putting it off. The claims the current text makes:
  *
- *   - no analytics, no advertising, no third-party tracking of any kind
+ *   - Google Analytics 4 measures visits, and sets the two `_ga` cookies the
+ *     Cookies section names. No advertising and no ad-tech profiling.
  *   - localStorage holds exactly the functional keys the page lists
  *   - visitor-submitted data lives in Supabase (see supabase/schema.sql)
  *   - three forms collect data: enquiry/booking, job application, comment
- *   - fonts are self-hosted; there is no third-party request on any page
+ *   - fonts are self-hosted, so the only third-party requests a page makes
+ *     are the analytics ones
+ *
+ * THE ANALYTICS CLAIMS ARE TIED TO ONE ENVIRONMENT VARIABLE. GA4 ships only
+ * when `GA_MEASUREMENT_ID` is set at build time — see `components/Analytics.astro`.
+ * Unset it and this document overstates what the site does, which is the
+ * harmless direction but still wrong; remove the analytics paragraphs then.
  *
  * NOT LEGAL ADVICE. This is an honest description of the site's behaviour
  * written by the people who built it. Have a solicitor read it before you

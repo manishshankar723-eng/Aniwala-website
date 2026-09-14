@@ -10,6 +10,7 @@ import { previewMode } from '../lib/sanity/client';
 import { getUiCopy, getBrand, getContactDetails } from '../lib/studio';
 import SiteSchema from '../components/SiteSchema.astro';
 import SiteConfig from '../components/SiteConfig.astro';
+import Analytics from '../components/Analytics.astro';
 import { TURNSTILE_SITE_KEY } from '../config/site';
 import '../styles/global.css';
 
@@ -496,6 +497,17 @@ const ogImage = ogImageProp ?? new URL('/og-default.jpg', Astro.site).href;
     />
 
     <ClientRouter />
+
+    {/*
+      Analytics, and NOT on a preview build.
+
+      Same reasoning as `hideFromSearch` above: a preview is a rehearsal of
+      unpublished content, and the traffic an editor generates clicking through
+      their own drafts is not traffic. Sending it to the production property
+      would quietly inflate exactly the pages somebody is in the middle of
+      working on. Renders nothing when GA_MEASUREMENT_ID is unset either way.
+    */}
+    {!previewMode && <Analytics />}
 
     {/*
       Must be inline and in <head>: it runs before first paint, so a visitor

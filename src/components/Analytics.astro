@@ -1,0 +1,129 @@
+---
+/**
+ * Google Analytics 4.
+ *
+ * RENDERS NOTHING when GA_MEASUREMENT_ID is unset — no script tag, no
+ * `dataLayer`, no cookies. Same supported "not configured yet" state as
+ * `Turnstile.astro`, and the same reason: a build without the id is a correct
+ * build, not a broken one, so `astro dev` and preview builds stay out of the
+ * production property without anybody having to remember anything.
+ *
+ * ---------------------------------------------------------------------
+ * WHY THIS IS NOT THE SNIPPET GOOGLE GIVES YOU
+ *
+ * Google's copy-paste snippet calls `gtag('config', id)`, which sends one
+ * `page_view` at the moment it runs, and then relies on a full page load to
+ * send the next one.
+ *
+ * THIS SITE NEVER DOES A SECOND FULL PAGE LOAD. `ClientRouter` turns every
+ * internal link into a client-side swap, so the document is never re-parsed
+ * and this script is never re-run — exactly the behaviour that used to leave
+ * the hero videos frozen on their posters (see `lib/video.ts`). Pasted as
+ * given, GA would record the page a visitor LANDED on and nothing else: a
+ * visitor who arrives on /, reads three service pages and fills in the contact
+ * form is recorded as a single-page bounce on /.
+ *
+ * That failure is silent and it flatters the wrong number. Bounce rate looks
+ * excellent because nobody ever registers a second page, and the service pages
+ * — the ones this site exists to sell — report no traffic at all.
+ *
+ * So: automatic page views are turned OFF at config, and every page view is
+ * sent by hand on `astro:page-load`, which fires on the first load AND after
+ * every view transition. One code path, no double counting on arrival.
+ *
+ * THE OTHER HALF OF THAT FIX IS A SETTING IN GA4, NOT IN THIS FILE.
+ * `ClientRouter` navigates with the History API, and GA4's Enhanced
+ * Measurement has a sub-option — Page views -> Show advanced settings ->
+ * "Page changes based on browser history events" — which fires its OWN
+ * synthetic `page_view` on every pushState. Left on, it double counts every
+ * navigation after the first against the manual events below. It must be
+ * UNCHECKED, with "Page loads" left on. Everything else in Enhanced
+ * Measurement (scrolls, outbound clicks, file downloads, form interactions)
+ * is unaffected and should stay on.
+ *
+ * ---------------------------------------------------------------------
+ * ONLY THE CANONICAL HOST REPORTS.
+ *
+ * The same build is uploaded to staging and to production — that is the point
+ * of a staging copy, and it is why `public/.htaccess` decides `noindex` by
+ * HOSTNAME at request time rather than by baking a flag into a build. A
+ * build-time variable cannot tell the two apart: it is one artifact with one
+ * value of GA_MEASUREMENT_ID, deployed twice.
+ *
+ * So the check is the same shape as that one, for the same reason. Without it
+ * every click around staging — and staging stays a deploy target after the
+ * cutover, not just before it — lands in the production property, in a shape
+ * that is easy to create and tedious to filter out afterwards.
+ *
+ * The host comes from `Astro.site` rather than a literal, so it cannot drift
+ * from the canonical hostname the rest of the build already uses.
+ *
+ * ON A NON-CANONICAL HOST NOTHING LOADS: no gtag.js request, no cookies. It
+ * says so in the console instead, because "no network request" and "the tag
+ * was never deployed" look identical in DevTools, and one of those is a bug.
+ *
+ * ---------------------------------------------------------------------
+ * IF YOU ADD A CONSENT BANNER LATER, this is the file it hooks into: set
+ * Consent Mode defaults BEFORE the `config` call below. Do not set them to
+ * `denied` without a banner actually wired up — GA then reports nothing while
+ * looking perfectly installed, which is the same class of silent failure this
+ * whole comment is about.
+ */
+import { GA_MEASUREMENT_ID } from '../config/site';
+
+/* The one hostname allowed to report, read off the build's own `site` so it
+   tracks astro.config.mjs instead of being a second copy to keep in step. */
+const canonicalHost = new URL(Astro.site!).hostname;
+---
+
+{
+  GA_MEASUREMENT_ID && (
+    <script is:inline define:vars={{ gaId: GA_MEASUREMENT_ID, canonicalHost }}>
+      {/* Bail on staging, previews and anything else that is not the real
+          site — before a single request is made. */}
+      if (window.location.hostname !== canonicalHost) {
+        console.info(
+          '[analytics] Google Analytics is deliberately inactive on ' +
+            window.location.hostname +
+            ' — only ' +
+            canonicalHost +
+            ' reports. See src/components/Analytics.astro.',
+        );
+      } else if (!window.__aniwalaGaBound) {
+        /* Guarded because a re-run would bind a second listener and double
+           every page view from that point on. `ClientRouter` should not
+           re-execute this script at all, but the cost of being wrong about
+           that is silently doubled traffic in a report somebody makes
+           decisions from. */
+        window.__aniwalaGaBound = true;
+
+        window.dataLayer = window.dataLayer || [];
+        function gtag() {
+          window.dataLayer.push(arguments);
+        }
+        window.gtag = gtag;
+
+        /* Injected rather than written as a <script src>, so that a
+           non-canonical host makes no request to Google at all. */
+        var tag = document.createElement('script');
+        tag.async = true;
+        tag.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(gaId);
+        document.head.appendChild(tag);
+
+        gtag('js', new Date());
+
+        /* `send_page_view: false` — the listener below covers the first load
+           too, so leaving this on would count every arrival twice. */
+        gtag('config', gaId, { send_page_view: false });
+
+        document.addEventListener('astro:page-load', function () {
+          gtag('event', 'page_view', {
+            page_title: document.title,
+            page_location: window.location.href,
+            page_path: window.location.pathname + window.location.search,
+          });
+        });
+      }
+    </script>
+  )
+}

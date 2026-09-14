@@ -113,6 +113,41 @@ export const FUNCTIONS_BASE_URL = SUPABASE_URL
   ? `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1`
   : '';
 
+/* ------------------------------------------------------------------ */
+/* Google Analytics 4                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The GA4 measurement id — `G-` followed by ten characters.
+ *
+ * PUBLIC, like the anon key and the Turnstile site key above: it ships in the
+ * page and identifies the property to Google. There is no secret half.
+ * Google Analytics -> Admin -> Data streams -> the web stream for aniwala.com.
+ *
+ * UNSET IS A SUPPORTED STATE. Empty means `components/Analytics.astro` renders
+ * nothing at all — no gtag.js request, no cookies, no `dataLayer`. That is
+ * what makes this safe to merge before the id exists, and it is also what
+ * keeps local `astro dev` and preview builds out of the production property
+ * without a second environment variable to get wrong.
+ *
+ * IT MUST ALSO BE IN THE CI ENVIRONMENT. This is read at BUILD time and baked
+ * into the HTML, so setting it in `.env` locally and forgetting the GitHub
+ * secret produces a green deploy of a site that reports nothing — the same
+ * quiet failure described for TURNSTILE_SITE_KEY above, and just as invisible.
+ *
+ * TWO THINGS HAVE TO MOVE WITH IT, and neither is optional:
+ *
+ *   1. THE CSP in `public/.htaccess` names googletagmanager and
+ *      google-analytics explicitly. Without those entries the browser blocks
+ *      gtag.js and reports nothing, with no error a visitor or an editor would
+ *      ever see.
+ *   2. THE PRIVACY POLICY currently states that this site runs no analytics
+ *      and sets no cookies at all. GA4 sets `_ga` and `_ga_<id>`, so that
+ *      document becomes false the moment this is filled in. Editing it is part
+ *      of turning this on — see the header of `src/pages/privacy.astro`.
+ */
+export const GA_MEASUREMENT_ID = env('GA_MEASUREMENT_ID');
+
 /*
  * `commentsEnabled` was here. It is now a switch on the Interface copy
  * document, under Comments — turning a comment form off was a deploy, a
