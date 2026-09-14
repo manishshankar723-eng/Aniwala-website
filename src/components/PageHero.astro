@@ -79,26 +79,16 @@ const { eyebrow, title, lead, crumbs = [], meta = [], image, video: rawVideo } =
  */
 const video = image && isSafeMediaSrc(rawVideo) ? rawVideo!.trim() : undefined;
 
-/**
- * Honour "reduce motion".
+/*
+ * The band's loop is SILENT and it does not stop — see `lib/video.ts`, which
+ * owns both halves of that for every video on the site.
  *
- * Lifted from `VideoHero`, which carries the long version of the argument:
- * `autoplay` has already fired by the time a media query could apply, so CSS
- * alone cannot stop it. Pausing leaves the poster showing — the same picture,
- * holding still. Inline and unbundled so it runs before the first frame paints.
+ * The reduced-motion snippet that used to sit here, and its twin in
+ * `VideoHero`, were inline for a good reason — they had to beat the first
+ * frame. What they could not beat was `ClientRouter`, which does not re-run an
+ * inline script that has already executed, so on the second visit to any page
+ * with a band nothing called `play()` and the video sat on its poster.
  */
-const REDUCED_MOTION_SCRIPT = `(() => {
-  const q = matchMedia('(prefers-reduced-motion: reduce)');
-  const v = document.currentScript.closest('.page-hero').querySelector('video.page-hero-video');
-  const apply = () => {
-    if (!v) return;
-    if (q.matches) { v.pause(); v.removeAttribute('autoplay'); }
-    else { v.play().catch(() => {}); }
-  };
-  apply();
-  q.addEventListener('change', apply);
-})();`;
-
 /**
  * How wide this headline is at 1em, so CSS can pick a size that fits it on
  * one line. See `config/displayMetrics.ts`, and the note on `.page-hero-title`
@@ -162,6 +152,7 @@ const crumbSchema =
     video && (
       <video
         class="page-hero-video"
+        data-video="silent"
         src={video}
         poster={image!.src}
         autoplay
@@ -174,7 +165,6 @@ const crumbSchema =
       />
     )
   }
-  {video && <script is:inline set:html={REDUCED_MOTION_SCRIPT} />}
   <div class="page-hero-wash" aria-hidden="true"></div>
 
   {crumbSchema && (

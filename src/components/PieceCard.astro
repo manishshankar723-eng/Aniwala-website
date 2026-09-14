@@ -74,10 +74,18 @@ const SPAN_CLASS = {
  * own. Reaching into it is not merely awkward, it is cross-origin and simply
  * refused.
  *
- * The `sound` field on a piece no longer gates anything here: the native bar
+ * There is no longer a `sound` field on a piece to consult: the native bar
  * always carries a volume control, so whether there is audio to hear is a
  * question about the FILE, not about the interface. `upload-r2.mjs` still
  * strips the track by default, which is why most of these are silent.
+ *
+ * MUTED ON ARRIVAL, EVERY ARRIVAL, and unmutable from there. `data-video`
+ * marks the tile as a player rather than as wallpaper, which buys it three
+ * things from `lib/video.ts`: the mute is re-applied on every navigation, so a
+ * browser restoring the volume a visitor left behind cannot start a page with
+ * audio; a pause the visitor presses is honoured rather than fought; and only
+ * one tile on the page may have sound at a time, because nine autoplaying
+ * videos that each remember being unmuted is not a feature.
  */
 const hasPlayer = video?.kind === 'file';
 
@@ -146,6 +154,7 @@ const isStudioProject = kind === 'Studio project';
         */
         <video
           class="piece-video"
+          data-video="player"
           src={video.src}
           poster={image}
           autoplay

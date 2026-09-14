@@ -472,8 +472,6 @@ const pieces = defineCollection({
     /** A direct video URL or a Cloudflare Stream id. The Studio's R2 drop
         zone writes the first kind; both can also be pasted by hand. */
     video: z.string().optional(),
-    /** Offer an unmute button. Never autoplay with sound — browsers refuse. */
-    sound: z.boolean().default(false),
     kind: z.enum(['Client project', 'Studio project']),
     client: z.string(),
     year: z.number(),

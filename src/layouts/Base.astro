@@ -569,6 +569,7 @@ const ogImage = ogImageProp ?? new URL('/og-default.jpg', Astro.site).href;
 
     <script>
       import { initMotion, teardownMotion } from '../lib/motion';
+      import { initVideo, teardownVideo } from '../lib/video';
 
       /**
        * On a first load behind the curtain, hold the reveals until it lifts.
@@ -589,6 +590,22 @@ const ogImage = ogImageProp ?? new URL('/og-default.jpg', Astro.site).href;
       document.addEventListener('astro:page-load', bootMotion);
       // Fires before Astro swaps the document out.
       document.addEventListener('astro:before-swap', teardownMotion);
+
+      /*
+       * The videos, on the same two hooks and deliberately NOT behind the
+       * loader gate above.
+       *
+       * The reveals wait for the curtain because playing them behind it wastes
+       * the entrance. A hero loop is the opposite case: it is what the curtain
+       * lifts to show, so it needs to be running by then, not starting then.
+       *
+       * This is also the only thing that starts a video after a client-side
+       * swap — `ClientRouter` does not re-run an inline script that has already
+       * executed, which is why the heroes used to come back from another page
+       * frozen on their poster. See src/lib/video.ts.
+       */
+      document.addEventListener('astro:page-load', initVideo);
+      document.addEventListener('astro:before-swap', teardownVideo);
 
       // Re-assert the theme after a swap so it cannot flash back to dark.
       document.addEventListener('astro:after-swap', () => {

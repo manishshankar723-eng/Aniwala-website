@@ -30,8 +30,6 @@ export interface Piece {
   imageAlt?: string;
   /** How to play this piece's video, or undefined for a still. */
   video?: PieceVideo;
-  /** Whether the tile offers an unmute button. */
-  sound: boolean;
   caseStudy?: string;
   /** `cover` crops to the tile; `contain` fits the whole picture inside it. */
   fit: 'cover' | 'contain';
@@ -128,7 +126,6 @@ const flatten = (entry: CollectionEntry<'pieces'>): Piece => {
     tools: entry.data.tools,
     tint: entry.data.tint,
     video: resolveVideo(entry.data.video),
-    sound: entry.data.sound,
     /*
      * QUALITY 92, not the 80 every other image on the site gets.
      *

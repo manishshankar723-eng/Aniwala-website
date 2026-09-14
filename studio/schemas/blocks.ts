@@ -193,27 +193,28 @@ export const heroBlock = defineType({
      * https — Bunny, Cloudflare R2, Mux, or `public/` in the site repo — and
      * paste the address. Swapping hosts later is a change to this one field.
      */
-    /**
-     * Whether the hero offers its sound.
+    /*
+     * THERE IS NO "PLAY WITH SOUND" FIELD, and that is deliberate.
      *
-     * IT DOES NOT MEAN "AUTOPLAY WITH SOUND". No browser permits that, so the
-     * hero starts muted whatever this says; the flag decides whether a visitor
-     * is given a button to unmute it.
+     * There was one. It did not mean "autoplay with sound" — no browser
+     * permits that — it armed a script that waited for the visitor's first
+     * click, scroll or keypress and used that as the gesture, then put a mute
+     * button beside the call to action.
      *
-     * Off suits a background loop, which is what a hero usually is — decoration
-     * behind a headline, and a headline that can start talking is a strange
-     * thing to build. On suits a hero that is really a showreel, where the
-     * sound is part of the work rather than an accident of the file.
+     * It worked, which was the problem. A full-screen showreel that starts
+     * talking the moment you scroll is the thing people close the tab over,
+     * and a checkbox in here made it one click away on every hero on the site,
+     * with the consequence landing on visitors rather than on whoever ticked
+     * it. A hero is decoration behind a headline; if the sound is the work,
+     * the work belongs in the portfolio, where the tile has a real player with
+     * a volume control the visitor operates.
+     *
+     * The site now re-asserts `muted` on every hero video on every event that
+     * could have changed it — see `src/lib/video.ts`. Re-adding the field here
+     * would not turn the sound back on; it would just be a switch wired to
+     * nothing. If hero audio is ever genuinely wanted, that module is where
+     * the argument has to be had.
      */
-    defineField({
-      name: 'sound',
-      title: 'Play with sound',
-      type: 'boolean',
-      description:
-        'The audio comes on by itself, as soon as the visitor clicks, scrolls or presses a key — a browser will not allow it any earlier than that, on any site. A button beside the call to action lets them turn it off again. Leave off for a silent background loop.',
-      initialValue: false,
-      hidden: ({ parent }) => parent?.variant !== 'video',
-    }),
 
     defineField({
       name: 'videoUrl',

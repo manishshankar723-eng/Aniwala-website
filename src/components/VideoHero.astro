@@ -18,17 +18,9 @@ interface Props {
   src?: string;
   /** Still frame shown before the video paints, and the fallback if it can't play. */
   poster?: string;
-  /**
-   * Offer the sound.
-   *
-   * The hero is muted either way — no browser autoplays audio on a video
-   * nobody has touched. This only decides whether a visitor gets a control to
-   * turn it on.
-   */
-  sound?: boolean;
 }
 
-const { eyebrow, headline, sub, src: rawSrc, poster, sound = false } = Astro.props;
+const { eyebrow, headline, sub, src: rawSrc, poster } = Astro.props;
 
 /**
  * The background loop, refused unless it points somewhere a video may live.
@@ -44,9 +36,6 @@ const { eyebrow, headline, sub, src: rawSrc, poster, sound = false } = Astro.pro
  * pasted it will report it.
  */
 const src = isSafeMediaSrc(rawSrc) ? rawSrc!.trim() : undefined;
-
-/* Nothing to unmute without a video. */
-const offerSound = sound && Boolean(src);
 
 /**
  * The MIME type, from the extension.
@@ -64,35 +53,24 @@ const videoType = (() => {
   return 'video/mp4';
 })();
 
-/**
- * Honour "reduce motion".
+/*
+ * THE HERO IS SILENT. Not "muted until someone asks" — silent.
  *
- * A full-screen video playing on its own behind the headline is the clearest
- * case there is for that setting, and CSS cannot help: `autoplay` has already
- * fired by the time a media query could apply. Pausing leaves the poster
- * showing — the same picture, holding still.
+ * There used to be a `sound` field on the hero block and a script under it
+ * that waited for the visitor's first click, scroll or keypress and used it as
+ * the gesture a browser requires before audio may start. It worked, which was
+ * the problem: arriving at a site and having a full-screen showreel start
+ * talking at you on the first scroll is the thing people close the tab over,
+ * and the field made it one checkbox away on every hero on the site.
  *
- * Inline and unbundled, because it has to run before the first frame paints
- * and a module script is deferred until the document is parsed — long enough
- * to show the motion somebody asked not to see.
- *
- * Passed through `set:html` rather than written between the script tags.
- * Astro treats a script's children as raw text, so an expression written
- * there is emitted with its braces and backticks intact and the browser gets
- * a syntax error. That shipped once; it builds perfectly and breaks only in a
- * browser, which is the worst combination.
+ * So the decision is no longer an editor's to make. `data-video="silent"` is
+ * the contract with `lib/video.ts`, which re-asserts `muted` on every event
+ * that could have changed it — the attribute alone is a starting state, not a
+ * guarantee. The same module keeps the loop running; the inline reduced-motion
+ * snippet that used to live here has moved there too, because `ClientRouter`
+ * never re-ran it after the first page and the hero came back from other pages
+ * frozen on its poster.
  */
-const REDUCED_MOTION_SCRIPT = `(() => {
-  const q = matchMedia('(prefers-reduced-motion: reduce)');
-  const v = document.currentScript.closest('.hero').querySelector('video.hero-video');
-  const apply = () => {
-    if (!v) return;
-    if (q.matches) { v.pause(); v.removeAttribute('autoplay'); }
-    else { v.play().catch(() => {}); }
-  };
-  apply();
-  q.addEventListener('change', apply);
-})();`;
 ---
 
 <section class="hero">
@@ -101,6 +79,7 @@ const REDUCED_MOTION_SCRIPT = `(() => {
       src ? (
         <video
           class="hero-video"
+          data-video="silent"
           autoplay
           muted
           loop
@@ -152,117 +131,12 @@ const REDUCED_MOTION_SCRIPT = `(() => {
 
       Guarded, or an empty wrapper would add the margin on a hero with no CTA.
     */}
-    {(Astro.slots.has('default') || offerSound) && (
+    {Astro.slots.has('default') && (
       <div class="hero-actions">
         <slot />
-        {offerSound && (
-          /*
-            HIDDEN UNTIL THE SOUND IS ACTUALLY ON. Whether the hero has audio
-            is an editorial decision and it lives in the Studio; putting a
-            control for it on the page as well says "here is a setting" to
-            every visitor, on a hero whose job is to say one thing.
-
-            It appears only once audio is playing, and then it is the way to
-            stop it. That part is not decoration: audio a visitor cannot
-            silence is what makes people close the tab, and WCAG 1.4.2 asks
-            for a way to stop anything that plays for more than three seconds.
-
-            Beside the call to action rather than in a corner, so when it does
-            appear it is where the other choice already is.
-          */
-          <button class="hero-sound" type="button" data-hero-sound aria-pressed="false" hidden>
-            <svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor">
-              <path d="M8 2.5 4.8 5.2H2.4v5.6h2.4L8 13.5V2.5Z" />
-              <path class="hero-sound-off" d="M10.4 6.1 12 7.7l1.6-1.6.9.9L12.9 8.6l1.6 1.6-.9.9L12 9.5l-1.6 1.6-.9-.9 1.6-1.6-1.6-1.6.9-.9Z" />
-              <path class="hero-sound-on" d="M10.6 5.6a3.4 3.4 0 0 1 0 4.8l-.9-.9a2.1 2.1 0 0 0 0-3l.9-.9Zm1.8-1.8a6 6 0 0 1 0 8.4l-.9-.9a4.7 4.7 0 0 0 0-6.6l.9-.9Z" />
-            </svg>
-            <span class="hero-sound-label">Mute</span>
-          </button>
-        )}
       </div>
     )}
   </div>
-
-  {src && <script is:inline set:html={REDUCED_MOTION_SCRIPT} />}
-
-  {
-    offerSound && (
-      <script>
-        {/*
-          THE SETTING DECIDES, NOT THE VISITOR. When the hero is marked as
-          having sound, the audio comes on by itself — the button is left as
-          the way to turn it OFF again, not as the way to turn it on.
-
-          It cannot come on at load, and that is not a choice made here: a
-          browser mutes any video that plays before the visitor has touched
-          the page, and there is no flag, policy or permission that changes
-          it. The first real interaction — a click, a key, a scroll — is the
-          earliest moment the sound is allowed to exist, so that is when it
-          starts. Anything else on the page still works normally; the gesture
-          is only listened for, never swallowed.
-
-          A press of the button itself is excluded, or the pointer event would
-          unmute a moment before the click handler muted it again.
-
-          `volume` is raised from 0 rather than set once, so sound fades in
-          over a moment instead of arriving at full level — a hero is the
-          whole screen, and a showreel that shouts is the thing people reach
-          for the tab close on.
-        */}
-        const btn = document.querySelector<HTMLButtonElement>('.hero-sound[data-hero-sound]');
-        const video = document.querySelector('video.hero-video') as HTMLVideoElement | null;
-
-        if (video) {
-          const label = btn?.querySelector('.hero-sound-label');
-
-          const show = (on: boolean) => {
-            if (btn) {
-              /* Revealed the first time sound starts and left in place after
-                 that. Taking it away again when muted would strand anybody
-                 who pressed it by accident. */
-              btn.hidden = false;
-              btn.setAttribute('aria-pressed', String(on));
-            }
-            if (label) label.textContent = on ? 'Mute' : 'Sound on';
-          };
-
-          const unmute = () => {
-            video.volume = 0;
-            video.muted = false;
-            let v = 0;
-            const fade = setInterval(() => {
-              v = Math.min(1, v + 0.08);
-              video.volume = v;
-              if (v >= 1) clearInterval(fade);
-            }, 40);
-            show(true);
-          };
-
-          /* The earliest gesture the browser will accept. Passive, so none of
-             these are slowed down by being watched. */
-          const GESTURES = ['pointerdown', 'keydown', 'touchstart', 'wheel'];
-          const take = (event: Event) => {
-            if ((event.target as HTMLElement)?.closest?.('[data-hero-sound]')) return;
-            stop();
-            if (video.muted) unmute();
-          };
-          const stop = () => GESTURES.forEach((g) => document.removeEventListener(g, take));
-          GESTURES.forEach((g) => document.addEventListener(g, take, { passive: true }));
-
-          btn?.addEventListener('click', () => {
-            /* Whichever way this goes, the visitor has now decided — so the
-               automatic one must not fire later and override them. */
-            stop();
-            if (video.muted) unmute();
-            else {
-              video.muted = true;
-              show(false);
-            }
-          });
-        }
-      </script>
-    )
-  }
 
   <a class="hero-scroll" href="#main" data-reveal data-reveal-delay="0.3">
     <span class="hero-scroll-label">{ui.heroScrollLabel}</span>
@@ -355,51 +229,6 @@ const REDUCED_MOTION_SCRIPT = `(() => {
     gap: 0.75rem;
     /* Matches the page hero's actions, so the two heroes space the same. */
     margin-top: 2.25rem;
-  }
-
-  /*
-    Sits in the actions row, so it inherits the spacing the CTA already has.
-    Deliberately quieter than the CTA next to it: this is a choice offered, not
-    the thing the page is asking anybody to do.
-  */
-  .hero-sound {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0 1.1rem;
-    height: 2.9rem;
-    border-radius: 999px;
-    border: 1px solid rgb(255 255 255 / 0.28);
-    background: rgb(0 0 0 / 0.35);
-    color: #f4f4f2;
-    cursor: pointer;
-    font-family: var(--font-label);
-    font-size: calc(0.85rem * var(--type-label-scale, 1));
-    font-weight: calc(600 + var(--type-label-weight, 0));
-    backdrop-filter: blur(6px);
-    transition:
-      background-color 0.2s ease,
-      border-color 0.2s ease;
-  }
-  .hero-sound:hover,
-  .hero-sound:focus-visible {
-    background: rgb(0 0 0 / 0.6);
-    border-color: rgb(255 255 255 / 0.55);
-  }
-  .hero-sound svg {
-    width: 1rem;
-    height: 1rem;
-    flex-shrink: 0;
-  }
-  /* The icon states the ACTION: crossed speaker means press to hear. */
-  .hero-sound .hero-sound-on {
-    display: none;
-  }
-  .hero-sound[aria-pressed='true'] .hero-sound-off {
-    display: none;
-  }
-  .hero-sound[aria-pressed='true'] .hero-sound-on {
-    display: inline;
   }
 
   .hero-scroll {

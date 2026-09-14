@@ -150,11 +150,12 @@ src/
 ├── content.config.ts    Zod schemas every CMS document must pass. The gate.
 ├── integrations/
 │   └── redirects.mjs    Writes the CMS's redirects into dist/.htaccess
-├── layouts/Base.astro   Shell: SEO meta, fonts, view transitions, motion boot
+├── layouts/Base.astro   Shell: SEO meta, fonts, view transitions, motion + video boot
 ├── lib/
 │   ├── sanity/          client.ts, loader.ts, portableText.ts
 │   ├── studio.ts        Every CMS accessor the templates call
 │   ├── motion.ts        Lenis + GSAP/ScrollTrigger, lazily imported
+│   ├── video.ts         Every autoplaying video: kept playing, kept silent
 │   ├── copy.ts          Token substitution, ldJson, inlineHtml escaping
 │   ├── supabase.ts      Minimal PostgREST client (no SDK)
 │   ├── submit.ts        One path for all three forms; picks Turnstile or not
@@ -166,6 +167,7 @@ scripts/
 ├── check-dataset.mjs    Fails CI if the dataset answers a stranger's query
 ├── build-preview.mjs    A build that shows unpublished drafts
 ├── upload-r2.mjs        Puts a file in the R2 bucket. Strips audio unless told not to
+├── unset-sound.mjs      One-off: clears the deleted `sound` fields from the dataset
 ├── r2-cors.mjs          The bucket's CORS policy, so the Studio may upload
 ├── generate-icons.mjs   Favicon/apple-touch/PWA PNGs from the mark
 └── generate-og-image.mjs  The social card. Run by hand, output committed
@@ -651,8 +653,9 @@ rather than bespoke — it is the same bar the visitor gets in full screen and o
 every other site, already understood and already keyboard-accessible.
 
 It replaced a custom cluster of three buttons whose volume only appeared when
-an editor had ticked *Has sound worth hearing*, which meant most tiles offered
-no way to hear anything at all.
+an editor had ticked *Has sound worth hearing* — which meant most tiles offered
+no way to hear anything at all. That field has since been deleted outright; see
+**Sound**, below.
 
 Two things make it work, and both were bugs before they were fixed:
 
@@ -675,32 +678,107 @@ time — the cheaper of the two mistakes.
 player; a control outside it has nothing to talk to, and reaching in is
 cross-origin and refused. The player inside has its own.
 
-The **`Has sound worth hearing`** field no longer gates anything: the native bar
-always has a volume control, so whether there is audio is a question about the
-file. `upload-r2.mjs` still strips the track by default, which is why most of
-these are silent.
+There is no field controlling any of this. The native bar always has a volume
+control, so whether there is audio to hear is a question about the **file**.
+`upload-r2.mjs` still strips the track by default, which is why most of these
+are silent.
 
 #### Sound
 
-**Every player is muted, always.** No browser autoplays audio on a video nobody
-has interacted with — there is no flag, policy or workaround that changes that,
-so a design that depends on it does not work anywhere.
+**Nothing on this site ever starts making noise on its own.** That is a rule
+enforced in code, not a default somebody can flip.
 
-What a piece can do is *offer* sound. Tick **Has sound worth hearing** and the
-tile gets an unmute button; press it and that video unmutes, and any other one
-already playing goes quiet — two tiles talking over each other is not a state
-anybody chose. The hero has no such control by design: a background loop behind
-a headline that can start talking is not a thing to build.
+No browser autoplays audio on a video nobody has interacted with — there is no
+flag, policy or workaround that changes that, so a design depending on it does
+not work anywhere. What a page *can* do is treat the visitor's first click or
+scroll as the gesture and unmute then. The hero used to do exactly that, behind
+a **Play with sound** checkbox on the hero block.
 
-That makes the toggle the answer to a second question too. A silent video's
-audio track is bytes every visitor downloads and nobody can ever hear, so
-`upload-r2.mjs` **strips it by default** — `-c:v copy`, so the video is not
-re-encoded and there is no generation loss. Pass `--keep-audio` for a piece
-that has some.
+It worked, which was the problem. A full-screen showreel that starts talking
+the moment you scroll is what people close the tab over, and a checkbox made it
+one click away on every hero, with the consequence landing on visitors rather
+than on whoever ticked it. **Both sound fields have been deleted** —
+`heroBlock.sound` and `piece.sound` — along with the values that were already
+in the dataset (`scripts/unset-sound.mjs`, one-off, safe to re-run).
+
+What replaced them:
+
+- **A background video is silent.** The hero loop, and the band behind a
+  discipline's heading, are decoration. `src/lib/video.ts` re-applies `muted`
+  on every `volumechange`, so the attribute in the markup is a guarantee rather
+  than a starting state. There is no control, because there is nothing to
+  control.
+- **A portfolio tile starts muted and the visitor may unmute it.** The native
+  control bar is the whole interface — no bespoke button, nothing gated on a
+  CMS field. The mute is re-applied on **every** arrival, including a
+  back-navigation, where a browser will otherwise restore the volume somebody
+  left behind on a page they are now seeing fresh.
+- **Only one tile may have audio at a time.** Unmuting a second mutes the
+  first. Nine autoplaying videos that each remember being unmuted is not a
+  feature, and hunting for which one is talking is not a task to hand anybody.
+
+If the sound *is* the work, it belongs on a portfolio tile, which has a real
+player. A headline does not.
+
+That rule answers a second question too. A silent video's audio track is bytes
+every visitor downloads and nobody can ever hear, so `upload-r2.mjs` **strips it
+by default** — `-c:v copy`, so the video is not re-encoded and there is no
+generation loss. Pass `--keep-audio` for a piece that has some.
 
 The Studio's drop zone cannot do that: stripping a track means rewriting the
 container, and a browser has no ffmpeg. **A file dropped into the Studio keeps
 whatever it arrived with.** If the bytes matter, upload it with the script.
+
+#### Playback, and why it used to get stuck
+
+Every autoplaying video on the site is marked `data-video="silent"` (decoration)
+or `data-video="player"` (a tile), and `src/lib/video.ts` owns both. It is
+wired up from `Base.astro` on `astro:page-load`.
+
+**The bug it fixes.** A hero would come back from another page frozen on its
+poster — no error, no pattern, just a still frame. The cause is that
+`ClientRouter` turns every internal link into a document swap and **does not
+re-run an inline script that has already executed**. The only thing calling
+`play()` on a hero was an inline reduced-motion snippet inside each hero
+component. It ran on the first arrival and never again, and the video element
+had been adopted out of a parsed document that never started it.
+
+So playback is no longer started once and hoped for. The conditions under which
+a video *should* be playing are stated once, and every event that could have
+changed the answer re-asks it:
+
+| Event | What it catches |
+| --- | --- |
+| `astro:page-load` | The first load **and** every client-side swap |
+| `pageshow` | A bfcache restore — the document comes back frozen as it was left, and no router event fires |
+| `visibilitychange` | A backgrounded tab has its media paused by the browser and is not given it back on return |
+| `pause` / `ended` | Anything else that stopped it, including a `loop` a browser did not honour |
+| `stalled` / `waiting` | A cold or rate-limited CDN range request that never finishes — `readyState` sticks below `HAVE_FUTURE_DATA` and no error is ever fired. One `load()` retry per video per page view |
+
+**It does not fight the visitor.** A pause pressed on a tile is detected by a
+gesture window — a pause within a second of a pointer or key event on the
+element — and honoured from then on. Reading `document.visibilityState` instead
+is the obvious approach and it is wrong: a browser pausing media for a hidden
+tab and the `visibilitychange` event are not ordered against each other, so
+switching tabs was intermittently recorded as a deliberate stop and the tile
+stayed dead for the rest of the session.
+
+**Offscreen videos are paused.** An `IntersectionObserver` with a two-viewport
+margin gates them. A discipline page can hold nine autoplaying tiles and the
+browser decodes every one of them whether or not it is on screen — which shows
+up as a janky scroll and a hot fan rather than as anything obviously
+video-shaped.
+
+**`preload="auto"` is not the fix for a slow start**, tempting as it looks. A
+media element delays the window `load` event until its preload level is
+satisfied, `auto` means the frames rather than the header, and the first-load
+curtain in `Loader.astro` lifts on `load`. Raising it holds a black screen in
+front of the visitor for longer and calls it an improvement.
+
+**Reduced motion** is handled here rather than in CSS, because `autoplay` has
+already fired by the time a media query could apply. Pausing leaves the poster:
+the same picture, holding still. A tile keeps its control bar, and a visitor who
+presses play on one has asked for the motion — so that one keeps running.
 
 #### Uploading
 

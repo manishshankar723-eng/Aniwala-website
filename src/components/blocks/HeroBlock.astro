@@ -29,7 +29,6 @@ interface Props {
     ctaHref?: string;
     crumbLabel?: string;
     videoUrl?: string;
-    sound?: boolean;
     posterSlot?: string;
     /** Background picture for a standard hero. The video variant uses `posterSlot`. */
     image?: SanityImage;
@@ -64,7 +63,6 @@ const hasCta = Boolean(block.ctaLabel && block.ctaHref);
   isVideo ? (
     <VideoHero
       src={isVideo ? block.videoUrl : undefined}
-      sound={isVideo && block.sound}
       poster={poster?.src}
       eyebrow={block.eyebrow}
       headline={block.headline}

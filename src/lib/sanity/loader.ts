@@ -443,7 +443,7 @@ export const sanityPieces = (): Loader =>
     type: 'piece',
     hasBody: false,
     projection: `
-      _id, slug, title, "category": category->slug.current, blurb, image, video, sound, kind,
+      _id, slug, title, "category": category->slug.current, blurb, image, video, kind,
       client, year, tools, caseStudy, tint, fit, span, wide, order
     `,
     toData: (doc, isDraft) => ({
@@ -452,7 +452,6 @@ export const sanityPieces = (): Loader =>
       blurb: doc.blurb,
       ...(doc.image ? { image: doc.image } : {}),
       ...(doc.video ? { video: doc.video } : {}),
-      sound: doc.sound ?? false,
       kind: doc.kind,
       client: doc.client,
       year: doc.year,

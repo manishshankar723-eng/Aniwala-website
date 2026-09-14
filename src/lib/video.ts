@@ -1,0 +1,368 @@
+/**
+ * Every autoplaying video on the site: kept playing, and kept quiet.
+ *
+ * THE RULE, in one place rather than re-decided per component:
+ *
+ *   - A BACKGROUND video — `data-video="silent"` — is decoration. It is muted,
+ *     it loops, and it is never allowed to stop. There is no control for its
+ *     audio because it does not have any: the mute is re-asserted here, so no
+ *     CMS field, no stray script and no browser gesture handler can turn sound
+ *     on behind a headline.
+ *   - A TILE video — `data-video="player"` — carries the browser's own control
+ *     bar. It starts muted, the visitor may unmute it, and a pause they press
+ *     is honoured from then on. Only one of them may have audio at a time.
+ *
+ * WHY THIS IS A MODULE AND NOT AN INLINE SCRIPT PER HERO, which is what it
+ * replaced. `ClientRouter` turns every internal link into a document swap, and
+ * it does NOT re-run an inline script that has already executed once. So the
+ * two copies of the old reduced-motion snippet — the only thing that called
+ * `play()` — ran on the first arrival and never again. Navigate away, come
+ * back, and the hero was a still frame with no error anywhere: the video
+ * element had been adopted out of a parsed document that never started it, and
+ * nothing on the page was left to ask.
+ *
+ * `astro:page-load` fires on the first load AND after every swap, and the
+ * listener that carries it lives on `document`, which survives the swap. That
+ * is the hook — the same one `initMotion` already rides.
+ *
+ * The other half is that a video stops for reasons that are nobody's fault: a
+ * backgrounded tab, a bfcache restore, a stalled range request on a CDN. Each
+ * one leaves the poster showing, which looks exactly like a broken embed. So
+ * rather than starting playback once and hoping, everything below is a
+ * watchdog: the conditions under which a video SHOULD be playing are stated
+ * once in `wants`, and every event that could have changed the answer re-asks.
+ */
+
+/** The elements this module owns. Anything without the attribute is not ours. */
+const SELECTOR = 'video[data-video]';
+
+/**
+ * Pauses WE caused — the viewport gate below, or a hidden tab — as opposed to
+ * the visitor pressing the button on a tile. Without the distinction the gate
+ * would look like a deliberate stop the first time a tile scrolled away, and
+ * the tile would never play again.
+ */
+const ourPause = new WeakSet<HTMLVideoElement>();
+
+/**
+ * The visitor pressed pause on a tile that offers the control. Honoured from
+ * then on: nothing in here starts it again, because a video that restarts
+ * itself after you stop it is the single most hostile thing a page can do.
+ */
+const stopped = new WeakSet<HTMLVideoElement>();
+
+/** Wired once. `astro:page-load` can fire on a document that still holds
+    elements from before, and listeners must not stack up on them. */
+const wired = new WeakSet<HTMLVideoElement>();
+
+/**
+ * One `load()` recovery per element. A stalled fetch is worth one retry; a URL
+ * that is genuinely dead would otherwise put us in a refetch loop, which is
+ * the "lag" version of the bug we are fixing.
+ */
+const recovered = new WeakSet<HTMLVideoElement>();
+
+/** Whether the element is currently in or near the viewport. Absent means "not
+    measured yet", which is treated as visible — the hero is at the top of the
+    page and must not wait a frame for an observer to agree. */
+const offscreen = new WeakSet<HTMLVideoElement>();
+
+/**
+ * When the visitor last touched this video. A pause is theirs only if it
+ * follows a gesture on the element within a moment.
+ *
+ * Reading `document.visibilityState` instead was the obvious approach and it
+ * is wrong: a browser pausing media for a backgrounded tab and the
+ * `visibilitychange` event are not ordered against each other, so switching
+ * tabs was intermittently recorded as the visitor pressing pause — and the
+ * tile then stayed dead for the rest of the session.
+ */
+const touched = new WeakMap<HTMLVideoElement, number>();
+const GESTURE_WINDOW_MS = 1000;
+
+/**
+ * A tile the visitor started by hand.
+ *
+ * Only reduced motion cares. The setting suppresses playback nobody asked
+ * for, which is every video here by default — but a tile carries a real
+ * control bar, and somebody who presses play on it has asked. Without this the
+ * next sweep would pause it again and the button would look broken.
+ */
+const invited = new WeakSet<HTMLVideoElement>();
+
+let io: IntersectionObserver | null = null;
+let listening = false;
+
+const isPlayer = (v: HTMLVideoElement) => v.dataset.video === 'player';
+
+/**
+ * Held in a module-level reference rather than re-queried per call, for two
+ * reasons: `wants` runs on every media event on every video, and a
+ * `MediaQueryList` with a listener but no reference has historically been
+ * collectable in WebKit — at which point the `change` handler below silently
+ * stops firing and the setting only takes effect on the next page load.
+ */
+const reducedQuery = typeof matchMedia === 'function'
+  ? matchMedia('(prefers-reduced-motion: reduce)')
+  : null;
+
+/**
+ * Should this video be playing right now?
+ *
+ * Every branch below is a reason a browser or a person has already decided it
+ * should not be, and stating them together is what stops the watchdog fighting
+ * any of them. A watchdog that ignores one of these is worse than no watchdog.
+ */
+function wants(v: HTMLVideoElement): boolean {
+  if (!v.isConnected) return false;
+  /* A full-screen loop behind a headline is the clearest case there is for
+     this setting, and CSS cannot help — `autoplay` has already fired by the
+     time a media query could apply. Pausing leaves the poster: the same
+     picture, holding still. A tile keeps its control bar, so a visitor who
+     wants the motion can still ask for it, and `invited` is that asking. */
+  if (reducedQuery?.matches && !invited.has(v)) return false;
+  if (document.visibilityState !== 'visible') return false;
+  if (offscreen.has(v)) return false;
+  if (stopped.has(v)) return false;
+  return true;
+}
+
+/**
+ * Ask for playback, and do not care if the answer is no.
+ *
+ * `play()` rejects for a long list of ordinary reasons — the source is not
+ * ready, another `load()` interrupted it, the tab lost focus mid-call — and an
+ * unhandled rejection in any of them is a console error on a page that is
+ * working fine. One retry covers the "not ready yet" case, which is the one
+ * that actually left heroes frozen on a cold cache.
+ */
+function play(v: HTMLVideoElement, retry = true) {
+  if (!wants(v) || !v.paused) return;
+  const started = v.play();
+  if (!started) return;
+  started.catch(() => {
+    if (!retry) return;
+    setTimeout(() => play(v, false), 400);
+  });
+}
+
+/** A pause of our own making, flagged so the handlers below do not read it as
+    the visitor's. */
+function halt(v: HTMLVideoElement) {
+  if (v.paused) return;
+  ourPause.add(v);
+  v.pause();
+}
+
+/** Re-assert silence on a background video. Setting `muted` fires
+    `volumechange`, which lands back here — harmless, because the second pass
+    finds it already true and changes nothing. */
+function silence(v: HTMLVideoElement) {
+  if (!v.muted) v.muted = true;
+  if (!v.loop) v.loop = true;
+}
+
+/**
+ * One tile with audio, never two.
+ *
+ * Nine tiles autoplay on a discipline page. Without this, unmuting a second
+ * one does not replace the first — it adds to it, and the visitor's only way
+ * back to silence is to find every tile they have touched.
+ */
+function soloAudio(target: HTMLVideoElement) {
+  for (const v of document.querySelectorAll<HTMLVideoElement>(SELECTOR)) {
+    if (v !== target && isPlayer(v) && !v.muted) v.muted = true;
+  }
+}
+
+function wire(v: HTMLVideoElement) {
+  if (wired.has(v)) return;
+  wired.add(v);
+
+  /* Belt and braces on top of the attributes. A `loop` stripped by an editor
+     paste, or a `muted` lost to a browser restoring media state across a
+     session, would otherwise be invisible until someone heard it. */
+  v.loop = true;
+  v.playsInline = true;
+  if (!isPlayer(v)) {
+    silence(v);
+    /* Nothing to route to a TV or a floating window: this is wallpaper, and
+       the picture-in-picture affordance on it is pure confusion. */
+    v.disablePictureInPicture = true;
+    (v as HTMLVideoElement & { disableRemotePlayback: boolean }).disableRemotePlayback = true;
+  } else {
+    /* Muted on arrival, every arrival — including a back-navigation, where a
+       browser will happily restore the unmuted state the visitor left behind
+       on a page they are now seeing for the first time again. */
+    v.muted = true;
+  }
+
+  const gesture = () => touched.set(v, performance.now());
+  v.addEventListener('pointerdown', gesture, { passive: true });
+  v.addEventListener('keydown', gesture, { passive: true });
+
+  v.addEventListener('pause', () => {
+    if (ourPause.delete(v)) return;
+
+    /* A background loop has no pause button, so a pause it did not ask for is
+       always the browser's doing and always worth undoing. */
+    if (!isPlayer(v)) {
+      play(v);
+      return;
+    }
+
+    const recent = performance.now() - (touched.get(v) ?? -Infinity) < GESTURE_WINDOW_MS;
+    if (recent) stopped.add(v);
+    else play(v);
+  });
+
+  /* However playback started — our call, or the visitor pressing play on the
+     control bar — the tile is live again and the earlier stop is spent. A
+     press of their own also counts as asking for the motion, which is the one
+     thing that outranks "reduce motion" here. */
+  v.addEventListener('play', () => {
+    stopped.delete(v);
+    if (performance.now() - (touched.get(v) ?? -Infinity) < GESTURE_WINDOW_MS) invited.add(v);
+  });
+
+  v.addEventListener('ended', () => {
+    /* `loop` makes this unreachable in every browser that honours it. It is
+       here for the one that does not, where a hero would otherwise sit on its
+       last frame — which is the exact symptom this module exists to kill. */
+    v.currentTime = 0;
+    play(v);
+  });
+
+  v.addEventListener('volumechange', () => {
+    if (!isPlayer(v)) {
+      silence(v);
+      return;
+    }
+    if (!v.muted) soloAudio(v);
+  });
+
+  /*
+   * A STALLED FETCH, which is what "it gets stuck on reload" usually is.
+   *
+   * `preload="metadata"` gets the browser the header and no more, so the first
+   * frames are a second request — and a range request to a CDN that is cold,
+   * rate-limited or mid-redeploy can simply never finish. The element stays on
+   * its poster with `readyState` stuck below HAVE_FUTURE_DATA, fires no error,
+   * and waits forever.
+   *
+   * `preload="auto"` is NOT the fix, tempting as it looks. A media element
+   * delays the window `load` event until it has what its preload level asks
+   * for, `auto` means the frames rather than the header, and the first-load
+   * curtain in `Loader.astro` lifts on `load` — so raising it holds a black
+   * screen in front of the visitor for longer and calls it a fix. That is the
+   * "lag on refresh" version of this bug, bought with the cure for the other.
+   *
+   * `load()` abandons that request and starts the resource selection over,
+   * which is the only lever there is. Once per element per page view.
+   */
+  const recover = () => {
+    if (!wants(v) || recovered.has(v)) return;
+    if (v.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) return;
+    recovered.add(v);
+    v.load();
+    play(v);
+  };
+  v.addEventListener('stalled', recover);
+  v.addEventListener('suspend', () => play(v));
+  v.addEventListener('waiting', () => setTimeout(recover, 2500));
+  v.addEventListener('canplay', () => play(v));
+  v.addEventListener('loadeddata', () => play(v));
+}
+
+/**
+ * Don't decode what nobody is looking at.
+ *
+ * This is the part that answers "no lag". A discipline page can hold nine
+ * autoplaying tiles, and a browser decodes every one of them whether or not it
+ * is on screen — which is the whole video budget of the page spent on the
+ * eight nobody is looking at, and it shows up as a janky scroll and a hot fan
+ * rather than as anything obviously video-shaped.
+ *
+ * A generous margin, so a tile is already running by the time it is scrolled
+ * to rather than visibly starting once it arrives.
+ */
+function gate(v: HTMLVideoElement) {
+  io ??= new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        const el = entry.target as HTMLVideoElement;
+        if (entry.isIntersecting) {
+          offscreen.delete(el);
+          play(el);
+        } else {
+          offscreen.add(el);
+          halt(el);
+        }
+      }
+    },
+    { rootMargin: '200% 0px' }
+  );
+  io.observe(v);
+}
+
+/** Re-ask the question for every video on the page. */
+function sweep() {
+  for (const v of document.querySelectorAll<HTMLVideoElement>(SELECTOR)) {
+    if (!isPlayer(v)) silence(v);
+    if (wants(v)) play(v);
+    else halt(v);
+  }
+}
+
+/**
+ * Wire up whatever is on the page now.
+ *
+ * Called from `astro:page-load`, so it runs on the first arrival and again
+ * after every client-side swap. Everything it touches is idempotent — the
+ * WeakSets above are what make calling it twice on the same element free.
+ */
+export function initVideo() {
+  const videos = [...document.querySelectorAll<HTMLVideoElement>(SELECTOR)];
+  for (const v of videos) {
+    wire(v);
+    gate(v);
+  }
+
+  if (!listening) {
+    listening = true;
+
+    /*
+     * A BACK-NAVIGATION OUT OF THE BFCACHE, the other half of "come back from
+     * another page". The document is restored wholesale, frozen exactly as it
+     * was left — including any video the browser paused on the way out. No
+     * `astro:page-load` fires, because as far as the router is concerned
+     * nothing was loaded.
+     */
+    window.addEventListener('pageshow', sweep);
+
+    /* A backgrounded tab has its media paused by the browser and is not given
+       it back on return. */
+    document.addEventListener('visibilitychange', sweep);
+
+    /* Turning the setting on mid-visit should stop the motion then and there,
+       and turning it off should give it back. */
+    reducedQuery?.addEventListener('change', sweep);
+  }
+
+  sweep();
+}
+
+/**
+ * Drop the viewport observer before a swap.
+ *
+ * The elements it watches are about to leave the document, and an observer
+ * holding references to them across every navigation of a session is a leak
+ * that grows with how much of the site somebody reads. The document-level
+ * listeners above are deliberately NOT removed: they are registered once, they
+ * outlive any single page, and re-adding them per page is how you end up with
+ * forty copies of the same handler.
+ */
+export function teardownVideo() {
+  io?.disconnect();
+  io = null;
+}

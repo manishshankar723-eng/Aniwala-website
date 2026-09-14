@@ -75,6 +75,40 @@ server. Do not work around a failing check — they are load bearing:
   resolves to `attacker.example`. The CSP refuses both. It is the backstop, not
   the check.
 
+## Video
+
+**Every autoplaying video goes through `src/lib/video.ts`**, booted from
+`Base.astro` on `astro:page-load`, and is marked either `data-video="silent"`
+(a hero or band — decoration) or `data-video="player"` (a portfolio tile). A
+`<video>` added anywhere without one of those attributes is outside the rule
+and will drift.
+
+- **Nothing ever starts making noise.** A silent video has `muted` re-applied
+  on every `volumechange`, so the attribute is a guarantee, not a starting
+  state. A tile starts muted on EVERY arrival — a browser restores the volume a
+  visitor left behind — and only one tile may hold audio at a time. The
+  `heroBlock.sound` and `piece.sound` fields that used to bargain over this are
+  deleted from `studio/schemas/` and cleared from the dataset by
+  `scripts/unset-sound.mjs`. Do not add them back; the argument is in the
+  comments where each one used to be.
+
+- **Do not start playback from an inline script in a component.**
+  `ClientRouter` does not re-run an inline script that has already executed, so
+  the hero played on the first arrival and came back from every other page
+  frozen on its poster, with no error. That is what `video.ts` replaced. It
+  re-asks whether a video should be playing on `astro:page-load`, `pageshow`
+  (bfcache), `visibilitychange` and the media events — one `load()` retry
+  covers a stalled CDN range request, which fires no error and waits forever.
+
+- **`preload="auto"` is not a fix for a slow start.** A media element delays the
+  window `load` event until its preload level is satisfied, and the first-load
+  curtain in `Loader.astro` lifts on `load` — so raising it trades a frozen
+  video for a longer black screen. Both heroes stay on `metadata` deliberately.
+
+- **Reduced motion is handled in `video.ts`, not in CSS.** `autoplay` has
+  already fired by the time a media query could apply. A visitor who presses
+  play on a tile has asked for the motion, and that one keeps running.
+
 ## The Studio
 
 `studio/` is a separate npm package (Sanity v6, React 19, Node ≥ 22.12). The

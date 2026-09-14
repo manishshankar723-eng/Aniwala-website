@@ -134,29 +134,24 @@ export default defineType({
         }),
     }),
 
-    /**
-     * Does this piece have sound worth hearing?
+    /*
+     * THERE IS NO "HAS SOUND" FIELD, and there has not really been one for a
+     * while — this is the tidy-up of a switch that stopped being wired.
      *
-     * IT DOES NOT MEAN "AUTOPLAY WITH SOUND". No browser permits that — a
-     * video that has not been interacted with is muted or it does not play at
-     * all, and there is no flag, policy or workaround that changes it. So this
-     * decides whether the tile offers an unmute BUTTON, which a visitor may
-     * then press.
+     * It used to add a bespoke unmute button to the tile. The tile now ships
+     * the browser's own control bar, which always carries a volume control, so
+     * whether there is audio to hear became a question about the FILE rather
+     * than about the interface — and the field was left promising a button
+     * that appears whatever it is set to.
      *
-     * Off is the right default and not just a safe one: a wall of tiles that
-     * could each start talking is a worse gallery, and an audio track nothing
-     * ever plays is bytes every visitor downloads for nothing — which is why
-     * `scripts/upload-r2.mjs` strips it unless told otherwise.
+     * What IS guaranteed is the starting state: `src/lib/video.ts` re-mutes
+     * every tile on every page load and every client-side navigation, and lets
+     * only one tile hold audio at a time. So a visitor never lands on noise,
+     * and never has to hunt for which of nine tiles is making it.
+     *
+     * `scripts/upload-r2.mjs` still strips the audio track unless told
+     * otherwise, which is why most of these have nothing to unmute.
      */
-    defineField({
-      name: 'sound',
-      title: 'Has sound worth hearing',
-      type: 'boolean',
-      group: 'meta',
-      description:
-        'Adds an unmute button to the tile. Leave off for silent work — the video still plays, it just never offers audio. Nothing autoplays with sound; browsers do not allow it.',
-      initialValue: false,
-    }),
 
     defineField({
       name: 'kind',
