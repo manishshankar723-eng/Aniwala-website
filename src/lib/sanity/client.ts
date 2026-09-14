@@ -194,6 +194,19 @@ export function iconUrl(source: SanityImage, size: number): string {
 }
 
 /**
+ * An image forced to WebP, for bytes that CODE reads rather than a browser.
+ *
+ * NOT `imageUrl`, for the same reason `iconUrl` is not: `.auto('format')`
+ * negotiates off the request's Accept header, and a fetch made during the
+ * build sends none, so the answer is the original PNG at more than twice the
+ * size. WebP keeps the alpha channel, which is all a mask reads.
+ */
+export function webpUrl(source: SanityImage, width: number, quality = 80): string {
+  if (!builder || !source?.asset) return '';
+  return builder.image(source).width(width).quality(quality).format('webp').url();
+}
+
+/**
  * Is this asset an SVG?
  *
  * Read off the reference, which Sanity shapes as

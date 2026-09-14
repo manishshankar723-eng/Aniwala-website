@@ -33,7 +33,7 @@
 
 import { getLoaderSettings } from '../lib/loader';
 
-const { enabled, imageUrl, alt, maxDuration } = await getLoaderSettings();
+const { enabled, imageUrl, maskUri, alt, maxDuration } = await getLoaderSettings();
 
 /* One copy of the mark, drawn twice: a ghost, and the gold fill revealed
    behind a growing window. Held here so the two can never drift apart.
@@ -72,15 +72,28 @@ const MARK =
     box is the dullest possible construction and the one with no edge cases.
   */}
   {/*
-    An uploaded mark is drawn as two copies of the same image — a faded ghost
-    and a full-strength one revealed by the growing window — which is exactly
-    what the built-in SVG does with its two fills. The reveal animates the
-    height of a block box, so it does not care whether that box holds an SVG
-    path or a PNG.
+    An uploaded mark is drawn as two copies — a faded ghost and a full-strength
+    one revealed by the growing window — which is exactly what the built-in
+    SVG does with its two fills. The reveal animates the height of a block box,
+    so it does not care what that box holds.
+
+    The upload is used as a SHAPE, not a picture: its alpha channel masks a
+    block painted in the theme colours, so it fills gold the way the built-in
+    mark does, whatever colour the file itself was drawn in. `maskUri` is the
+    upload inlined at build — see lib/loader.ts for why it cannot be a CDN URL.
+    Without it (the fetch failed) the upload is shown as-is, in its own
+    colours: a white mark rather than a missing one.
   */}
-  <div class="ld-mark">
+  <div class="ld-mark" style={maskUri ? `--ld-mask:url("${maskUri}")` : undefined}>
     {
-      imageUrl ? (
+      maskUri ? (
+        <Fragment>
+          <span class="ld-svg ld-tint ld-tint--ghost" />
+          <span class="ld-reveal">
+            <span class="ld-svg ld-tint ld-tint--fill" role="img" aria-label={alt} />
+          </span>
+        </Fragment>
+      ) : imageUrl ? (
         <Fragment>
           <img class="ld-svg ld-img ld-img--ghost" src={imageUrl} alt="" aria-hidden="true" />
           <span class="ld-reveal">
@@ -234,10 +247,28 @@ const MARK =
     fill: var(--color-accent);
   }
 
-  /* An uploaded mark cannot be recoloured the way an SVG path can, so the
-     ghost is the same picture at low opacity rather than a different fill.
-     `object-fit: contain` letterboxes a non-square upload instead of
-     stretching it. */
+  /* An uploaded mark, recoloured the way the SVG paths above are. The block is
+     painted in the theme colour and the upload's alpha cuts the shape out of
+     it, so the fill follows --color-accent in both themes. `contain` and
+     `center` letterbox a non-square upload the same way `object-fit` does
+     for the fallback <img> below. An unloaded mask hides the block entirely,
+     so this can never flash as a solid gold square. */
+  .ld-tint {
+    display: block;
+    -webkit-mask: var(--ld-mask) center / contain no-repeat;
+    mask: var(--ld-mask) center / contain no-repeat;
+  }
+  .ld-tint--ghost {
+    background: var(--color-ink);
+    opacity: 0.14;
+  }
+  .ld-tint--fill {
+    background: var(--color-accent);
+  }
+
+  /* The fallback when the mask could not be inlined: the upload as a plain
+     picture, ghost at low opacity. `object-fit: contain` letterboxes a
+     non-square upload instead of stretching it. */
   .ld-img {
     object-fit: contain;
   }

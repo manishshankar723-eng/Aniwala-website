@@ -42,7 +42,7 @@ export default defineType({
       title: 'Mark',
       type: 'image',
       description:
-        'The logo that fills in. Leave empty to use the built-in Aniwala mark. A square, transparent PNG or SVG works best — it is shown at about 128px, so it does not need to be large.',
+        'The logo that fills in. Leave empty to use the built-in Aniwala mark. It must have a TRANSPARENT background: only its shape is used, and that shape fills in the brand accent colour (gold) whatever colour the file is drawn in — so a logo on a solid background would fill as a gold rectangle. A square PNG or SVG works best; it is shown at about 128px, so it does not need to be large.',
       hidden: ({ document }) => !document?.enabled,
     }),
     defineField({
