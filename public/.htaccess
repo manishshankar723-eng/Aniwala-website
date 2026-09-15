@@ -55,6 +55,22 @@ RewriteRule ^(.*)$ https://aniwala.com/$1 [R=301,L]
 RewriteCond %{HTTP_HOST} !^aniwala\.com$ [NC]
 RewriteRule ^ - [E=STAGING:1]
 
+# --- Which assets may be cached forever --------------------------
+# Everything Astro fingerprints lives under /_astro/ and carries a content
+# hash in its filename, so its bytes genuinely never change. Flagged here and
+# read by the Cache-Control block below.
+#
+# SET WITH mod_rewrite, NOT SetEnvIf. The first version of this used
+# `SetEnvIf Request_URI "^/_astro/"`, which is the more obvious spelling and
+# does nothing on this server — LiteSpeed served every fingerprinted bundle
+# with the fallback rule instead, quietly dropping a year of caching to a day.
+# It failed in the safe direction and so said nothing about it.
+#
+# mod_rewrite is demonstrably working here: it is doing the HTTPS redirect, the
+# canonical host and the STAGING flag immediately above. Same mechanism, same
+# file, one fewer module to depend on.
+RewriteRule ^_astro/ - [E=FINGERPRINTED:1]
+
 ErrorDocument 404 /404.html
 
 # --- Caching -----------------------------------------------------
@@ -83,16 +99,26 @@ ErrorDocument 404 /404.html
   # everything else revalidates daily: one cheap conditional request, a 304 in
   # the ordinary case, and an asset that can be replaced.
   #
-  # Wrapped, so a server without mod_setenvif degrades to the daily rule for
-  # everything rather than failing the directive. Slower, never wrong — which
-  # is the correct direction for a cache header to fail in.
-  <IfModule mod_setenvif.c>
-    SetEnvIf Request_URI "^/_astro/" FINGERPRINTED=1
-  </IfModule>
-
+  # THE SAFE RULE IS THE UNCONDITIONAL ONE, and the order below is the point.
+  #
+  # The daily rule is set for every asset first, and the forever rule then
+  # overrides it only where FINGERPRINTED was flagged in the rewrite section
+  # above. `Header set` replaces, and later directives win, so a server that
+  # never sets the flag — for whatever reason, and the last attempt at this
+  # found one — serves everything revalidating rather than serving a
+  # fingerprinted bundle and a replaceable favicon the same false promise.
+  #
+  # Written this way round on purpose: the failure mode of the daily rule is a
+  # conditional request and a 304, and the failure mode of a wrong `immutable`
+  # is an asset nobody can replace for a year.
+  #
+  # REDIRECT_FINGERPRINTED is the same flag after an internal redirect, which
+  # is how Apache renames environment variables that survive one. Naming both
+  # costs a line and covers the case where a rewrite has run first.
   <FilesMatch "\.(js|css|woff2|svg|jpg|jpeg|png|webp|avif|mp4|webm)$">
+    Header set Cache-Control "public, max-age=86400, must-revalidate"
     Header set Cache-Control "public, max-age=31536000, immutable" env=FINGERPRINTED
-    Header set Cache-Control "public, max-age=86400, must-revalidate" env=!FINGERPRINTED
+    Header set Cache-Control "public, max-age=31536000, immutable" env=REDIRECT_FINGERPRINTED
   </FilesMatch>
 
   # HTML must revalidate or visitors get a stale site after a deploy.
