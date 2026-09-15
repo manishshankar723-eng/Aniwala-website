@@ -31,6 +31,8 @@
  * a logo, and copy the name across exactly.
  */
 import { defineType, defineField } from 'sanity';
+import { LogoAppearanceInput } from '../components/LogoAppearanceInput';
+import { TREATMENT_OPTIONS } from '../components/logoTheme';
 
 export default defineType({
   name: 'tool',
@@ -52,6 +54,45 @@ export default defineType({
       type: 'image',
       description:
         'Square-ish, transparent PNG or SVG, no background — the strip draws the circle. Without one the name renders as a text pill, which is a perfectly good strip.',
+    }),
+    /*
+     * BOTH THEMES, because the site has two and a logo file has one set of
+     * colours. A black mark vanished on the dark badge and a white one on the
+     * light badge, and the person uploading only ever saw one of them. See
+     * `components/logoTheme.ts` for the treatments and how they are chosen.
+     */
+    defineField({
+      name: 'logoLight',
+      title: 'Logo for the light theme (optional)',
+      type: 'image',
+      description:
+        "Only if the brand publishes a separate version for light backgrounds — usually the dark-ink wordmark of a white logo. When set it replaces the logo above on the light theme only. Most logos don't need one: the setting below fixes them.",
+      hidden: ({ parent }) => !parent?.logo,
+    }),
+    defineField({
+      name: 'appearance',
+      title: 'How it shows on each theme',
+      type: 'object',
+      description:
+        'Previewed exactly as the strip draws it. Uploading a new logo sets this automatically from a measurement; change it if the preview looks wrong. "Flip light and dark" suits black, white and grey logos and keeps their detail. A disc is the last resort for a colourful logo that is hard to see.',
+      hidden: ({ parent }) => !parent?.logo,
+      components: { input: LogoAppearanceInput },
+      fields: [
+        defineField({
+          name: 'onDark',
+          title: 'On the dark theme',
+          type: 'string',
+          initialValue: 'asIs',
+          options: { list: TREATMENT_OPTIONS.dark, layout: 'radio', direction: 'horizontal' },
+        }),
+        defineField({
+          name: 'onLight',
+          title: 'On the light theme',
+          type: 'string',
+          initialValue: 'asIs',
+          options: { list: TREATMENT_OPTIONS.light, layout: 'radio', direction: 'horizontal' },
+        }),
+      ],
     }),
     defineField({
       name: 'order',

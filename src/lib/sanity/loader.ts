@@ -528,10 +528,12 @@ export const sanityTools = (): Loader =>
     type: 'tool',
     hasBody: false,
     idFrom: (doc) => doc._id.replace(/^drafts\./, ''),
-    projection: `_id, name, logo, order`,
+    projection: `_id, name, logo, logoLight, appearance, order`,
     toData: (doc, isDraft) => ({
       name: doc.name,
       ...(doc.logo ? { logo: doc.logo } : {}),
+      ...(doc.logoLight ? { logoLight: doc.logoLight } : {}),
+      ...(doc.appearance ? { appearance: doc.appearance } : {}),
       order: doc.order ?? 50,
       draft: isDraft,
     }),

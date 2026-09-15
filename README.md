@@ -1294,6 +1294,42 @@ it never touches a logo already uploaded.
 
 A tool with no logo is not missing from anything — it renders as a text pill.
 
+**Every logo has to work on both themes, and the Studio shows you both.** A
+logo file has one set of colours; the strip has a dark badge and a light one.
+Before this existed, eleven of the 34 logos vanished on one theme — black
+marks (Nuke, Unity, Houdini) on dark, white ones (Toon Boom, TVPaint) on light
+— and nobody noticed, because whoever uploads a logo only ever sees the theme
+their own Studio is in.
+
+Each tool (Studio → Tools) now carries:
+
+- **How it shows on each theme** — side-by-side previews drawn exactly as the
+  strip draws them, with your brand colours, then one choice per theme:
+  - *As uploaded*
+  - *Flip light and dark* — for black, white and grey logos. It keeps inner
+    detail (a skull keeps its eyes) and roughly keeps any accent colour.
+  - *On a light / dark disc* — the last resort for a colourful logo that is
+    hard to see. It is loud in a strip of quiet badges.
+- **Logo for the light theme (optional)** — for a brand that publishes its own
+  light-background version. It replaces the logo on the light theme only.
+
+**Uploading a logo sets the choice for you.** The Studio measures the file in
+the browser and picks a treatment (`studio/components/logoTheme.ts` — the
+thresholds were checked against every logo on the site and reproduce the
+choices made by eye). Opening an existing tool never changes it; if the
+measurement disagrees with what is saved, it offers a *Use suggestion* button.
+The preview is the final word.
+
+The logos that predate the field are set once with a script — run it AFTER
+the Studio deploy that adds the field, or the eleven values show as "unknown
+field" warnings until it lands. It skips any tool somebody has already set by
+hand:
+
+```
+node --env-file=.env scripts/set-tool-appearance.mjs --dry
+node --env-file=.env scripts/set-tool-appearance.mjs
+```
+
 ### Setting up the CMS
 
 1. Create a free project at <https://sanity.io>. Note the **project ID**.

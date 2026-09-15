@@ -13,6 +13,14 @@
  * strip under it from ever disagreeing. A name with no logo renders as a text
  * pill, which is the same rule the logo wall follows: the name is a perfectly
  * good badge on its own, and a real fallback rather than a placeholder box.
+ *
+ * EVERY LOGO IS DRAWN FOR BOTH THEMES. A logo file has one set of colours and
+ * the site has two badge colours, so a black mark vanished on dark and a white
+ * one on light. Each tool carries a treatment per theme — as uploaded, flipped
+ * (`invert(1) hue-rotate(180deg)`, which keeps inner detail and roughly keeps
+ * hue), or on a disc in the theme's text colour — and optionally a separate
+ * light-theme file. They are chosen in the Studio against a live preview; see
+ * studio/components/logoTheme.ts for how the suggestion is measured.
  */
 import SectionHead from './SectionHead.astro';
 import { getSiteCopy, getToolLogos } from '../../lib/studio';
@@ -131,16 +139,39 @@ const groups = Array.from({ length: copies }, (_, i) => i > 0);
               {items.map((t) => {
                 const logo = logoFor(t);
                 return (
-                  <li class:list={['tool', logo ? 'tool--badge' : 'tool--pill']}>
+                  <li
+                    class:list={[
+                      'tool',
+                      logo ? 'tool--badge' : 'tool--pill',
+                      logo?.srcLight && 'tool--split',
+                    ]}
+                    data-on-dark={logo && logo.onDark !== 'asIs' ? logo.onDark : undefined}
+                    data-on-light={logo && logo.onLight !== 'asIs' ? logo.onLight : undefined}
+                  >
                     {logo ? (
-                      <img
-                        class="tool-logo"
-                        src={logo}
-                        alt={t}
-                        width="128"
-                        height="128"
-                        decoding="async"
-                      />
+                      <>
+                        <img
+                          class="tool-logo tool-logo--dark"
+                          src={logo.src}
+                          alt={t}
+                          width="128"
+                          height="128"
+                          decoding="async"
+                        />
+                        {/* Only when the brand has its own light version. Both
+                            files are in the page and CSS shows one: a theme
+                            switch is then instant, with nothing to fetch. */}
+                        {logo.srcLight && (
+                          <img
+                            class="tool-logo tool-logo--light"
+                            src={logo.srcLight}
+                            alt={t}
+                            width="128"
+                            height="128"
+                            decoding="async"
+                          />
+                        )}
+                      </>
                     ) : (
                       t
                     )}
@@ -223,6 +254,40 @@ const groups = Array.from({ length: copies }, (_, i) => i > 0);
     width: 52%;
     height: 52%;
     object-fit: contain;
+    transition: filter 0.25s ease;
+  }
+
+  /*
+    PER-THEME TREATMENTS. Dark is the site default and light an override on
+    <html data-theme="light">, so "dark" is written as NOT light — which also
+    covers a page that has not had the attribute stamped at all.
+
+    Flip: black marks turn white and white marks black, keeping their detail.
+    The hue-rotate undoes most of the hue shift `invert` causes, so a grey
+    logo with a coloured accent keeps roughly its accent.
+  */
+  :global(:root:not([data-theme='light'])) .tool[data-on-dark='invert'] .tool-logo,
+  :global(:root[data-theme='light']) .tool[data-on-light='invert'] .tool-logo {
+    filter: invert(1) hue-rotate(180deg);
+  }
+
+  /* Disc: the badge takes the theme's text colour, which contrasts with the
+     page by construction, and follows any palette override in the Studio. */
+  :global(:root:not([data-theme='light'])) .tool--badge[data-on-dark='plate'],
+  :global(:root[data-theme='light']) .tool--badge[data-on-light='plate'] {
+    background: color-mix(in srgb, var(--color-ink) 88%, var(--color-surface));
+    border-color: transparent;
+  }
+
+  /* A separate light-theme file: show exactly one of the pair. */
+  .tool--split .tool-logo--light {
+    display: none;
+  }
+  :global(:root[data-theme='light']) .tool--split .tool-logo--dark {
+    display: none;
+  }
+  :global(:root[data-theme='light']) .tool--split .tool-logo--light {
+    display: block;
   }
 
   /* Without one: the name, as the pill it already was. */

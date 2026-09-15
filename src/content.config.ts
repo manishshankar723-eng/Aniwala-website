@@ -532,12 +532,26 @@ const clients = defineCollection({
  * attach a logo to a name, so a tool with no logo needs no document and the
  * strip still shows it as text.
  */
+/*
+ * How a logo is drawn on each theme's badge. The same three values as
+ * `TREATMENT_OPTIONS` in studio/components/logoTheme.ts, repeated because the
+ * Studio is a separate package. `.catch` rather than failing the build: an
+ * unknown value only means a Studio newer than this site, and the logo still
+ * shows as uploaded — which is exactly what the strip did before this existed.
+ */
+const logoTreatment = z.enum(['asIs', 'invert', 'plate']).catch('asIs');
+
 const tools = defineCollection({
   loader: sanityTools(),
   schema: z.object({
     /** Matched against the pipeline lists by exact spelling. */
     name: z.string(),
     logo: sanityImage.omit({ alt: true }).optional(),
+    /** A separate file for the light theme, when the brand publishes one. */
+    logoLight: sanityImage.omit({ alt: true }).optional(),
+    appearance: z
+      .object({ onDark: logoTreatment, onLight: logoTreatment })
+      .default({ onDark: 'asIs', onLight: 'asIs' }),
     order: z.number().int().default(50),
     draft: z.boolean().default(false),
   }),

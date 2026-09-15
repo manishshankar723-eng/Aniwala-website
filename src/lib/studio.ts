@@ -131,14 +131,32 @@ export async function getClients(): Promise<Client[]> {
  * two different documents, and "ZBrush" against "Zbrush" silently losing a
  * logo is the kind of thing nobody finds for a month.
  */
-export async function getToolLogos(): Promise<Map<string, string>> {
+export type LogoTreatment = 'asIs' | 'invert' | 'plate';
+
+export interface ToolLogo {
+  src: string;
+  /** Replaces `src` on the light theme when the brand has its own version. */
+  srcLight?: string;
+  /** How the logo is drawn on each theme's badge — see TagListBlock.astro. */
+  onDark: LogoTreatment;
+  onLight: LogoTreatment;
+}
+
+export async function getToolLogos(): Promise<Map<string, ToolLogo>> {
   const entries = await getCollection('tools', live);
   return new Map(
     entries
       .filter((e) => e.data.logo)
       .map((e) => [
         e.data.name.trim().toLowerCase(),
-        imageUrl(e.data.logo as SanityImage, 256),
+        {
+          src: imageUrl(e.data.logo as SanityImage, 256),
+          ...(e.data.logoLight
+            ? { srcLight: imageUrl(e.data.logoLight as SanityImage, 256) }
+            : {}),
+          onDark: e.data.appearance.onDark,
+          onLight: e.data.appearance.onLight,
+        },
       ])
   );
 }
