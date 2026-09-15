@@ -21,11 +21,38 @@
    modern browser User-Agent (an old one gets you .ttf), drop the file in
    public/fonts/, and change the src below. Do not re-add the <link>.
    --------------------------------------------------------------- */
-/* No `font-stretch` descriptor: the width axis was pinned out of these two
-   files — see scripts/pin-font-axes.py. Declaring `75% 100%` on a face that
-   can only draw 100% is a promise the font cannot keep, and the headings ask
-   for 104-118% anyway, which clamped to normal width before and still does.
-   Dropping the axis took the latin face from 128 KB to 76 KB. */
+/* THE DISPLAY FACE. Two axes, and the `font-stretch` descriptor is not
+   decoration: it declares the width range the file can actually draw, which is
+   what lets the browser honour the 104-118% the headings ask for. The range is
+   100..125 rather than Archivo's shipped 62..125 — the condensed half is not
+   used anywhere on the site and carrying it cost 27 KB on the latin face.
+   See scripts/pin-font-axes.py, which is what trims it. */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 100 900;
+  font-stretch: 100% 125%;
+  font-display: swap;
+  src: url('/fonts/archivo-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 100 900;
+  font-stretch: 100% 125%;
+  font-display: swap;
+  src: url('/fonts/archivo-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* Kept as a CHOICE, not as the default — see config/fonts.ts. No
+   `font-stretch` descriptor: the width axis was pinned out of these two files,
+   and declaring a range a face cannot draw is a promise the font cannot keep.
+   Dropping it took the latin file from 128 KB to 76 KB. */
 @font-face {
   font-family: 'Bricolage Grotesque';
   font-style: normal;
@@ -480,24 +507,29 @@ body {
    were only ever used by the 404 page, which now styles itself like every
    other page on the site. */
 :root {
-  /* Display: Bricolage Grotesque. A variable grotesque with real character —
-     odd, slightly awkward terminals — chosen over the neutral geometric sans
-     that every template ships with. Two axes as shipped here: wght 200..800,
-     which the headings use throughout, and opsz 12..96, which the browser
-     varies automatically with font-size.
+  /* Display: Archivo. A neo-grotesque — neutral, and neutral is the point.
+     Bricolage Grotesque was here and was chosen for "real character: odd,
+     slightly awkward terminals". That character is exactly what made the site
+     read as a design blog rather than as a studio: the two references worth
+     copying, Lakshya Digital (Oldschool Grotesk) and ArtStation (Brutal), both
+     set everything in a quiet grotesque and let the work carry the page.
 
-     It HAD a third, wdth 75..100, and that axis is gone from the files in
-     public/fonts — nothing on the site ever requested a width inside its
-     range (see the note below), and it cost 52 KB on the latin face alone.
-     scripts/pin-font-axes.py is what removed it and explains the reasoning. */
-  --font-display: "Bricolage Grotesque", "Archivo", "Helvetica Neue", Arial, sans-serif;
-  /* NOTE: headings carry `font-stretch` values of 104-118% from when the
-     display face was Archivo (wdth 100..125). Bricolage's width axis topped
-     out at 100, so those clamped to normal width and were inert rather than
-     broken — and since the axis has now been pinned out of the file entirely,
-     they are inert for a second reason. They are left in place so the intent
-     survives a future font swap; a face with a real 100..125 range would pick
-     them up again, and would need the axis kept in pin-font-axes.py. */
+     THE 56 `font-stretch` DECLARATIONS ACROSS THE COMPONENTS NOW DO SOMETHING.
+     They ask for 104-118% and were written when this face was Archivo the
+     first time round; under Bricolage, whose width axis topped out at 100 and
+     was then pinned out of the file altogether, every one of them clamped to
+     normal and drew nothing. The note that used to sit here predicted this
+     exactly — "a face with a real 100..125 range would pick them up again, and
+     would need the axis kept in pin-font-axes.py" — and that is what has
+     happened. The headings are drawn slightly extended, as they were designed
+     to be, and the width axis is deliberately kept in the file.
+
+     Two axes: wght 100..900, used from 500 to 800 across the headings with
+     room either side for the CMS weight offset, and wdth 100..125, trimmed
+     from Archivo's shipped 62..125 because nothing here is ever condensed.
+     The trimmed latin file is 61 KB — 15 KB SMALLER than the Bricolage it
+     replaces, despite carrying a live axis that one did not. */
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
   --font-body: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
 
   /* Small labels: eyebrows, chips, badges, meta rows.
@@ -506,8 +538,15 @@ body {
      every section on every page. It reads as a terminal readout, and it is on
      roughly every AI-generated and template landing page of the last two
      years. Pointing labels at their own token means the whole system moves
-     from one line here rather than from 76 edits across 26 files. */
-  --font-label: "Bricolage Grotesque", "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+     from one line here rather than from 76 edits across 26 files.
+
+     THE SAME FACE AS THE DISPLAY TOKEN, which is how both of the studios worth
+     copying do it — Lakshya Digital sets its whole site in Oldschool Grotesk,
+     ArtStation in Brutal. One grotesque carrying headline, button and eyebrow
+     reads as a house style; two different ones read as two decisions. It also
+     means a page that shows a button but no heading no longer downloads a
+     second 76 KB family to set six words in it. */
+  --font-label: "Archivo", "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
 
   /* Mono is now reserved for things that are actually code. */
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;

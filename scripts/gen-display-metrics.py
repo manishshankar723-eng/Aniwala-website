@@ -25,12 +25,23 @@ from fontTools.ttLib import TTFont
 from fontTools.varLib import instancer
 
 ROOT = Path(__file__).resolve().parent.parent
-FONT = ROOT / 'public' / 'fonts' / 'bricolage-grotesque-latin.woff2'
+FONT = ROOT / 'public' / 'fonts' / 'archivo-latin.woff2'
 OUT = ROOT / 'src' / 'config' / 'displayMetrics.ts'
 
 # Must match `.page-hero-title` in PageHero.astro.
+#
+# ARCHIVO HAS NO OPTICAL-SIZE AXIS. Bricolage did, and this measured at
+# opsz 96 because the hero pins `font-optical-sizing: none` to stop glyph
+# widths chasing the size this table chooses. Archivo's axes are wght and
+# wdth, so the pin is now a harmless no-op and there is nothing to instance.
+#
+# WDTH 100 because `.page-hero-title` declares no `font-stretch` and therefore
+# draws at normal width. That is the one number to re-check if it ever gains
+# one: the 56 stretch declarations elsewhere on the site run to 118%, and
+# measuring at 100 while rendering at 118 would underestimate every headline
+# and wrap it — the exact failure this table exists to prevent.
 WGHT = 800
-OPSZ = 96
+WDTH = 100
 
 # Everything a headline can plausibly contain, plus NBSP, which the Studio
 # actively tells editors to type to control where a line breaks.
@@ -42,7 +53,7 @@ CHARS = (
 )
 
 font = instancer.instantiateVariableFont(
-    TTFont(FONT), {'wght': WGHT, 'opsz': OPSZ}, inplace=True
+    TTFont(FONT), {'wght': WGHT, 'wdth': WDTH}, inplace=True
 )
 upem, hmtx, cmap = font['head'].unitsPerEm, font['hmtx'], font.getBestCmap()
 
@@ -79,11 +90,11 @@ OUT.write_text(
  * is here to prevent.
  *
  * GENERATED — do not hand-edit. `python scripts/gen-display-metrics.py`.
- * These are {font["name"].getDebugName(1) or "the display face"} at wght {WGHT}, opsz {OPSZ}: the hero's weight, and its
- * optical size, which the hero pins with `font-optical-sizing: none` for
- * exactly this reason. Left on `auto`, opsz tracks font-size and glyphs grow
- * up to 12.8% wider as the text gets smaller — which would make the size this
- * table chooses change the width it was chosen from.
+ * These are {font["name"].getDebugName(1) or "the display face"} at wght {WGHT}, wdth {WDTH} — the weight the hero
+ * sets and the width it draws at, having no `font-stretch` of its own. Both
+ * have to match `.page-hero-title` exactly: this table converts a headline
+ * into a width, and the page then picks a font-size from it, so a table
+ * measured at one width and rendered at another sizes every headline wrong.
  *
  * IT FAILS SOFT. A stale table, or a character not listed, means the headline
  * is sized a little wrong: slightly small, or wrapped onto a second line the

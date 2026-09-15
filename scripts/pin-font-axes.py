@@ -24,6 +24,13 @@ when the display face was Archivo, whose axis ran 100..125. Bricolage's tops
 out at 100, so every one of them clamps to the default and draws normal width.
 Both `global.css` and `PageHero.astro` already carry notes saying exactly this.
 
+UPDATE: the display face is Archivo again, and its width axis is now LIVE —
+those 104-118% declarations draw what they say. Archivo's entry below
+RESTRICTS `wdth` to 100..125 rather than pinning it, which keeps every one of
+them working and still drops 27 KB of condensed outlines nothing asks for. The
+paragraph above is the history of the Bricolage entry, which is still pinned
+and still unused.
+
 So pinning `wdth` at 100 removes the axis and changes nothing that renders.
 That is the whole argument for this script, and it is why the other two axes
 are LEFT ALONE:
@@ -54,10 +61,30 @@ from fontTools.varLib import instancer
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FONT_DIR = os.path.join(ROOT, "public", "fonts")
 
-# Only the display face has a width axis, and only its width axis is unused.
+# WHAT IS DONE TO WHICH FILE, and the two entries mean different things.
+#
+# A single number PINS the axis: it is removed from the font entirely. A
+# (min, max) pair RESTRICTS it: the axis survives and keeps working, but only
+# across the range given. The second is what the display face needs now.
+#
+# Archivo is the display face and its width axis is LIVE — the 56
+# `font-stretch` declarations across the components ask for 104-118%, and this
+# is the file that has to be able to draw them. So it is restricted, never
+# pinned: Archivo ships 62..125 and nothing on this site is ever condensed, so
+# the bottom half is 27 KB of outlines for a width no page requests. Pinning it
+# instead would silently flatten every heading back to normal width, which is
+# precisely the bug this script's own notes describe from the other direction.
+#
+# Bricolage is no longer the default — it is one of the choices in
+# config/fonts.ts — and its width axis genuinely is unused: the axis only ran
+# 75..100, so the headings' 104-118% clamped to normal whether or not it was
+# there. That one stays pinned.
+#
 # Named explicitly rather than "any axis with one value in the CSS", because
 # that inference is exactly the kind of cleverness that removes `opsz`.
 TARGETS = {
+    "archivo-latin.woff2": {"wdth": (100, 125)},
+    "archivo-latin-ext.woff2": {"wdth": (100, 125)},
     "bricolage-grotesque-latin.woff2": {"wdth": 100},
     "bricolage-grotesque-latin-ext.woff2": {"wdth": 100},
 }

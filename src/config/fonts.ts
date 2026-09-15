@@ -37,6 +37,11 @@ export interface FontChoice {
 
 export const FONT_CHOICES: FontChoice[] = [
   {
+    name: 'archivo',
+    title: 'Archivo — display default',
+    stack: '"Archivo", "Helvetica Neue", Arial, sans-serif',
+  },
+  {
     name: 'bricolage',
     title: 'Bricolage Grotesque',
     stack: '"Bricolage Grotesque", "Archivo", "Helvetica Neue", Arial, sans-serif',

@@ -34,10 +34,28 @@
 // this produced. Outlines make the card exact and independent of what fonts
 // happen to be installed on whatever machine regenerates it.
 //
-// Both families are variable fonts whose DEFAULT instance is the one we want
-// here: Bricolage defaults to wght 800 / opsz 96, Instrument Sans to wght 400.
-// So no variation instancing is needed — which is fortunate, because fontkit
-// drops the cmap when you ask it for one.
+// THE DISPLAY FACE IS READ FROM `scripts/og-display.woff2`, NOT FROM
+// `public/fonts`, and that indirection is the point.
+//
+// fontkit takes a variable font's DEFAULT instance and nothing else — asking it
+// to instance one drops the cmap, which is why this script has never done so.
+// That was free while the display face was Bricolage, whose default already sat
+// at wght 800. Archivo's default is wght 600, so the same code would have set
+// this card in SemiBold beside a site that sets its hero in ExtraBold, and the
+// only symptom would have been a card that looked slightly wrong next to the
+// page it advertises.
+//
+// So a STATIC instance at wght 800 / wdth 100 — the weight and width
+// `.page-hero-title` actually renders at — is committed beside this script. It
+// lives in `scripts/` rather than `public/` deliberately: it is a build input
+// for one JPEG, not an asset, and it must never be shipped to the browser.
+// Regenerate it from the shipped variable file whenever the display face
+// changes:
+//
+//   python -c "from fontTools.ttLib import TTFont; from fontTools.varLib import instancer; //     f=TTFont('public/fonts/archivo-latin.woff2'); //     instancer.instantiateVariableFont(f,{'wght':800,'wdth':100},inplace=True); //     f.flavor='woff2'; f.save('scripts/og-display.woff2')"
+//
+// Instrument Sans is still read from `public/fonts` — its default is wght 400,
+// which is what the card's body copy wants.
 //
 // Run it by hand when the mark, the palette or the wording changes:
 //
@@ -61,7 +79,7 @@ const OUT = asset('public/og-default.jpg');
 /* The provenance record `check-og.mjs` reads. Committed beside the card. */
 const SOURCE = asset('scripts/og-source.json');
 
-const display = fontkit.create(readFileSync(asset('public/fonts/bricolage-grotesque-latin.woff2')));
+const display = fontkit.create(readFileSync(asset('scripts/og-display.woff2')));
 const body = fontkit.create(readFileSync(asset('public/fonts/instrument-sans-latin.woff2')));
 
 /**
