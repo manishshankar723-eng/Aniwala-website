@@ -152,16 +152,25 @@ const isStudioProject = kind === 'Studio project';
           to autoplay and shows its own play button over the tile, which turns
           a gallery of moving work into a grid of paused videos.
         */
+        /*
+          `data-src`, not `src`: deferred to the viewport gate in lib/video.ts
+          rather than fetched the moment the parser arrives. A discipline page
+          holds nine of these and a browser will happily start all nine at
+          once — on a phone that is the entire connection spent on eight tiles
+          nobody has scrolled to yet. The poster is what the tile shows until
+          one is actually approached, and a press on the control bar overrides
+          the wait outright.
+        */
         <video
           class="piece-video"
           data-video="player"
-          src={video.src}
+          data-src={video.src}
           poster={image}
           autoplay
           muted
           loop
           playsinline
-          preload="metadata"
+          preload="none"
           controls
           controlslist="nodownload"
         />

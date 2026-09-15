@@ -164,7 +164,7 @@ const MARK =
   /*
     Navigation is not arrival.
 
-    A client-side swap takes tens of milliseconds, so replaying the full 1.15s
+    A client-side swap takes tens of milliseconds, so replaying the full 0.72s
     fill on every internal link would make a fast site feel slow — the "toll"
     this component's own notes warn about. Same curtain, same mark, roughly a
     third of the running time.
@@ -289,7 +289,11 @@ const MARK =
     bottom: 0;
     height: 0;
     overflow: hidden;
-    animation: ld-rise 1.15s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+    /* PAIRED WITH `MIN` IN THE SCRIPT BELOW — change one and you must change
+       the other. `MIN` has to outlast this or the curtain lifts while the gold
+       is still climbing and the mark never completes, which is the one way
+       this animation can look broken rather than quick. */
+    animation: ld-rise 0.72s cubic-bezier(0.65, 0, 0.35, 1) forwards;
   }
   .ld-reveal .ld-svg {
     inset: auto 0 0 0;
@@ -331,9 +335,28 @@ const MARK =
 
     const started = performance.now();
 
-    /* Long enough for the fill to complete and read, short enough not to be
-       a toll. Must outlast the 1.15s fill or the mark is cut off mid-rise. */
-    const MIN = 1400;
+    /*
+     * Long enough for the fill to complete and read, short enough not to be a
+     * toll. Must outlast the `ld-rise` fill in the stylesheet above, or the
+     * mark is cut off mid-rise.
+     *
+     * IT WAS 1400, AGAINST A 1.15s FILL. That was chosen when the page behind
+     * this curtain was genuinely still arriving — the homepage was pulling a
+     * 15 MB hero loop before it could finish, so the floor was hidden inside a
+     * wait that was happening anyway and cost nothing visible.
+     *
+     * With the video deferred (see lib/video.ts) `load` now fires early, and
+     * the floor stopped being the thing that covers a slow page and became the
+     * slow page. On a phone it was the largest single item left on a full
+     * load, and for all 1400ms of it the document cannot be scrolled — the
+     * curtain sets `overflow: hidden`, so an arrival that LOOKS finished still
+     * refuses to move under a thumb. That is the part that reads as broken.
+     *
+     * 900 keeps the gesture and gives back half a second. The fill moved with
+     * it, in the same proportion, so the mark still completes before the fade
+     * begins and nothing about the choreography changed except its length.
+     */
+    const MIN = 900;
     /* Hard ceiling. If `load` has not fired by now something on the network
        is hanging, and that is not the visitor's problem to wait out.
 

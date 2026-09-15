@@ -6,7 +6,7 @@ import Header from '../components/Header.astro';
 import Loader from '../components/Loader.astro';
 import Search from '../components/Search.astro';
 import PreviewBar from '../components/PreviewBar.astro';
-import { previewMode } from '../lib/sanity/client';
+import { previewMode, sanityConfigured } from '../lib/sanity/client';
 import { getUiCopy, getBrand, getContactDetails } from '../lib/studio';
 import SiteSchema from '../components/SiteSchema.astro';
 import SiteConfig from '../components/SiteConfig.astro';
@@ -314,6 +314,43 @@ const ogImage = ogImageProp ?? new URL('/og-default.jpg', Astro.site).href;
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    {/*
+      Warm the image CDN before the parser has met a single picture.
+
+      EVERY image on this site is a cdn.sanity.io URL — the logo in the header,
+      the still behind the headline, all forty-odd tiles on the homepage — and
+      the browser cannot begin any of them until it has done a DNS lookup, a
+      TCP connect and a TLS handshake with an origin it only learns about by
+      reading the markup. On a desktop that is noise. On a phone it is a
+      quarter of a second of nothing, paid before the LARGEST element on the
+      page has started downloading, which makes it a quarter of a second
+      straight onto LCP.
+
+      FIRST IN THE HEAD, above the stylesheet links and the font preloads,
+      because a resource hint is only worth what it buys in parallelism and
+      every tag above it is a tag that can delay it being acted on.
+
+      DELIBERATELY WITHOUT `crossorigin`, which is the opposite of the
+      Turnstile hint below and is not an oversight. A preconnect opens a
+      socket in a specific mode, and a hint in the wrong one is not merely
+      useless — it warms a connection nothing will use and pays for a second
+      handshake anyway. Fonts are fetched in anonymous-CORS mode, so theirs
+      carries the attribute; a plain <img> is fetched in no-CORS mode, so this
+      one must not. The only image request that does use CORS is the loader's
+      mask, and `lib/loader.ts` inlines that at build time precisely so there
+      is no request to make.
+
+      Only when Sanity is configured: on a clone with no credentials there are
+      no CMS images, and a preconnect to an origin the page never contacts is
+      a socket opened for nothing.
+    */}
+    {sanityConfigured && (
+      <>
+        <link rel="preconnect" href="https://cdn.sanity.io" />
+        <link rel="dns-prefetch" href="https://cdn.sanity.io" />
+      </>
+    )}
 
 {/*
       The browser icon.

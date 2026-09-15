@@ -59,9 +59,40 @@ ErrorDocument 404 /404.html
 
 # --- Caching -----------------------------------------------------
 <IfModule mod_headers.c>
-  # Astro fingerprints everything in /_astro/, so it can cache forever.
+  # WHICH FILES MAY BE CACHED FOREVER, and it is a narrower set than it looks.
+  #
+  # `immutable` is a promise that the bytes at this URL will never change. That
+  # is true of /_astro/, where Astro puts a content hash in every filename: a
+  # changed file is a changed URL, so nothing there can go stale.
+  #
+  # It used to be applied by EXTENSION rather than by path, which quietly
+  # extended the same promise to every image, icon and font at the site root —
+  # /favicon.svg, /apple-touch-icon.png, /icon-512.png, /fonts/*.woff2 and, the
+  # one that actually bit, /og-default.jpg. Those names are stable and their
+  # CONTENTS change. The promise was false, and the cost of a false `immutable`
+  # is that there is no way to withdraw it: replacing the social card left every
+  # returning visitor, every proxy and every CDN edge holding the old one for a
+  # year, and the only fix would have been to rename the file and every tag
+  # that points at it.
+  #
+  # That is not hypothetical. The card was regenerated because it was still
+  # showing a logo the studio had stopped using, and this header is what would
+  # have stopped the new one arriving.
+  #
+  # So the forever bucket is keyed on the path Astro actually fingerprints, and
+  # everything else revalidates daily: one cheap conditional request, a 304 in
+  # the ordinary case, and an asset that can be replaced.
+  #
+  # Wrapped, so a server without mod_setenvif degrades to the daily rule for
+  # everything rather than failing the directive. Slower, never wrong — which
+  # is the correct direction for a cache header to fail in.
+  <IfModule mod_setenvif.c>
+    SetEnvIf Request_URI "^/_astro/" FINGERPRINTED=1
+  </IfModule>
+
   <FilesMatch "\.(js|css|woff2|svg|jpg|jpeg|png|webp|avif|mp4|webm)$">
-    Header set Cache-Control "public, max-age=31536000, immutable"
+    Header set Cache-Control "public, max-age=31536000, immutable" env=FINGERPRINTED
+    Header set Cache-Control "public, max-age=86400, must-revalidate" env=!FINGERPRINTED
   </FilesMatch>
 
   # HTML must revalidate or visitors get a stale site after a deploy.

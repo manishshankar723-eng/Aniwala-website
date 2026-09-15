@@ -148,16 +148,27 @@ const filters = block.showFilter
                 autoplay and paints its own play button over the tile, turning
                 a wall of moving work into a grid of paused videos.
               */
+              /*
+                `data-src`, not `src`. This is a GRID of background loops, so
+                it is the worst case for parse-time fetching on the site: a
+                browser handed six of these starts six of them, in parallel,
+                against the same connection the page is still using. `attach`
+                in lib/video.ts hands out the URLs after `load` and only to the
+                tiles the viewport gate has reached — see the note beside the
+                same attribute in VideoHero. The art is the poster and is
+                already required here, so a tile that is waiting shows its
+                picture rather than a hole.
+              */
               <video
                 class="work-video"
                 data-video="silent"
-                src={w.loop}
+                data-src={w.loop}
                 poster={w.art!.src}
                 autoplay
                 muted
                 loop
                 playsinline
-                preload="metadata"
+                preload="none"
                 tabindex="-1"
               />
             )}

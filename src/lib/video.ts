@@ -68,6 +68,138 @@ const recovered = new WeakSet<HTMLVideoElement>();
 const offscreen = new WeakSet<HTMLVideoElement>();
 
 /**
+ * Videos whose bytes we have actually asked the network for.
+ *
+ * NOTHING ON THIS SITE SHIPS A `src` IN THE MARKUP ANY MORE. Every component
+ * emits `data-src` with `preload="none"`, and `attach()` below is the only
+ * thing that ever turns one into the other. That inversion is the whole point,
+ * and it is not the same as pausing a video or hiding it:
+ *
+ * A `<video autoplay>` carrying a real `src` starts pulling the file the
+ * instant the PARSER reaches it — in parallel with the stylesheet, the two
+ * preloaded faces and the image the headline sits on, on the same connection
+ * and at a priority the page has no way to lower. Pausing it afterwards does
+ * not give those bytes back, because by then they have already been spent.
+ * The decision has to happen BEFORE the URL exists, not after.
+ *
+ * A visitor without JavaScript therefore sees the poster. That is the same
+ * thing `resolveVideo` in lib/pieces.ts degrades to for a malformed URL and
+ * the same thing `VideoHero` degrades to for a refused one — the site's
+ * established answer to "there is no video here", so it needs no new one.
+ */
+const sourced = new WeakSet<HTMLVideoElement>();
+
+/**
+ * Has the PAGE finished loading? Nothing requests a video byte before it has.
+ *
+ * THIS IS THE FIX FOR "the site takes forever to show anything on a phone",
+ * and the mechanism is worth stating because the obvious reading — "video is
+ * heavy, of course it is slow" — points at the wrong lever.
+ *
+ * A hero loop is 100% decoration and 0% content. To the browser's network
+ * scheduler it is neither: it is simply another media fetch competing for the
+ * same few hundred KB/s as the things a reader actually came for. On a desktop
+ * connection that costs nothing and hides the problem completely. On a phone
+ * it is the difference between the headline painting in half a second and
+ * painting in eight — the text was in the HTML the entire time, queued behind
+ * a file nobody had asked to watch.
+ *
+ * So: content first, decoration second, always. `load` is the moment the
+ * page's own resources are done, which makes it the honest line between the
+ * two. The poster is already on screen by then — it is a real element under
+ * the video, and `fadeIn` below crossfades to the moving picture when it
+ * arrives, so the deferral reads as the designed handover rather than as a
+ * delay.
+ *
+ * It is also self-correcting: with no `src` in the markup, a video no longer
+ * delays `load` ITSELF, which it did at `preload="metadata"` — so the event
+ * this waits on now fires early rather than being held open by the very file
+ * it gates. The first-load curtain in Loader.astro lifts on the same event and
+ * gets the same benefit; see the note there.
+ */
+let pageLoaded = typeof document !== 'undefined' && document.readyState === 'complete';
+
+/**
+ * A connection we should not spend a DECORATIVE loop on.
+ *
+ * `saveData` is the visitor saying so outright — Data Saver on Android and
+ * Chrome, and what iOS Low Data Mode surfaces through the same flag. A
+ * full-screen background video is the most obvious thing on the site to
+ * honour it with.
+ *
+ * `effectiveType` is the browser's own measurement of the round trip and
+ * throughput it is currently getting, NOT the radio technology — a phone on
+ * 5G in a lift reports `2g`. That is the number worth reading, because it
+ * describes what this page is actually about to receive.
+ *
+ * ONLY BACKGROUND VIDEO IS REFUSED. A portfolio tile is the content of the
+ * page — somebody on `/portfolio/animation/` came to watch the work, and
+ * deciding on their behalf that they may not is a different and worse failure
+ * than a slow one. Tiles are held to the viewport gate instead, which on a
+ * phone is narrow enough that only what is on screen is ever fetched.
+ *
+ * Not a permanent verdict. `sweep()` re-asks on every event and the `change`
+ * listener in `initVideo` re-asks when the estimate moves, so a visitor who
+ * walks back into signal gets the hero without reloading the page.
+ */
+type Connection = { saveData?: boolean; effectiveType?: string };
+const SLOW = new Set(['slow-2g', '2g', '3g']);
+
+function thrifty(): boolean {
+  const { saveData, effectiveType } =
+    (navigator as Navigator & { connection?: Connection }).connection ?? {};
+  return Boolean(saveData) || SLOW.has(effectiveType ?? '');
+}
+
+/**
+ * Give the element its source, if it is allowed one yet.
+ *
+ * Returns whether the element now has something to play, so `play()` can stop
+ * rather than calling into an element with no source and collecting a
+ * rejection for it.
+ *
+ * `forced` is a gesture: somebody pressed play on a tile's own control bar,
+ * which outranks every policy above it for the same reason `invited` outranks
+ * reduced motion — they asked.
+ */
+function attach(v: HTMLVideoElement, forced = false): boolean {
+  if (sourced.has(v)) return true;
+
+  const tag = v.querySelector<HTMLSourceElement>('source[data-src]');
+  const url = v.dataset.src || tag?.dataset.src;
+
+  /* Nothing deferred here: the element already carries its own `src`, or there
+     is no video at all. Either way there is nothing for this to do, and saying
+     so once stops every later call re-reading the DOM. */
+  if (!url) {
+    sourced.add(v);
+    return true;
+  }
+
+  if (!forced) {
+    if (!pageLoaded) return false;
+    if (!isPlayer(v) && thrifty()) return false;
+  }
+
+  sourced.add(v);
+
+  /* `metadata`, never `auto`. A media element delays the window `load` event
+     until its preload level is satisfied, and `auto` means frames rather than
+     the header — see the note in Loader.astro. By the time this runs `load`
+     has normally fired already, so the level chosen here cannot hold the
+     curtain; leaving it at `auto` would make that true by accident rather
+     than on purpose, and a forced attach can run before `load`. */
+  v.preload = 'metadata';
+  if (tag) tag.src = url;
+  else v.src = url;
+
+  /* Required after writing a <source>: the element only re-runs resource
+     selection when asked. Harmless on the direct-`src` path. */
+  v.load();
+  return true;
+}
+
+/**
  * When the visitor last touched this video. A pause is theirs only if it
  * follows a gesture on the element within a moment.
  *
@@ -137,7 +269,12 @@ function wants(v: HTMLVideoElement): boolean {
  * that actually left heroes frozen on a cold cache.
  */
 function play(v: HTMLVideoElement, retry = true) {
-  if (!wants(v) || !v.paused) return;
+  if (!wants(v)) return;
+  /* Before `v.paused`, not after: an element that has never been given a
+     source is paused AND has nothing to start, so asking it to play collects a
+     rejection for a decision we have already made. */
+  if (!attach(v)) return;
+  if (!v.paused) return;
   const started = v.play();
   if (!started) return;
   started.catch(() => {
@@ -238,7 +375,14 @@ function wire(v: HTMLVideoElement) {
     v.muted = true;
   }
 
-  const gesture = () => touched.set(v, performance.now());
+  /* A press on a tile's own control bar is the visitor asking, which outranks
+     every policy in `attach` — the page may still be loading, the connection
+     may be metered, and neither is our call once somebody has reached for the
+     play button. Same reasoning as `invited` against reduced motion. */
+  const gesture = () => {
+    touched.set(v, performance.now());
+    if (isPlayer(v)) attach(v, true);
+  };
   v.addEventListener('pointerdown', gesture, { passive: true });
   v.addEventListener('keydown', gesture, { passive: true });
 
@@ -303,6 +447,11 @@ function wire(v: HTMLVideoElement) {
    */
   const recover = () => {
     if (!wants(v) || recovered.has(v)) return;
+    /* Nothing to recover from before there is a source to fetch. Without this
+       an element still waiting on `attach` could spend its one retry on a
+       request that was never made, leaving a genuinely stalled fetch later in
+       the page's life with nothing left to try. */
+    if (!sourced.has(v)) return;
     if (v.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) return;
     recovered.add(v);
     v.load();
@@ -327,6 +476,30 @@ function wire(v: HTMLVideoElement) {
  * A generous margin, so a tile is already running by the time it is scrolled
  * to rather than visibly starting once it arrives.
  */
+/**
+ * How far outside the viewport a video may start loading.
+ *
+ * Two viewports is right on a desktop: the margin exists so a tile is already
+ * running by the time it is scrolled to rather than visibly starting once it
+ * arrives, and there the bytes are free.
+ *
+ * On a phone they are not. Two viewports of a one-column grid is most of the
+ * page, so a generous margin there means fetching nearly every video on it at
+ * once — over the one connection that the page, its images and its fonts are
+ * also using. Half a viewport still starts a tile before it is reached at any
+ * plausible scroll speed, and fetches only what somebody is actually
+ * approaching.
+ *
+ * A FUNCTION, re-asked per observer rather than frozen once at module scope.
+ * `teardownVideo` drops the observer on every navigation, so each page asks
+ * again — and a phone turned on its side, or a desktop window dragged narrow,
+ * cannot be left holding the margin the other shape was measured for.
+ */
+const margin = () =>
+  typeof matchMedia === 'function' && matchMedia('(max-width: 820px)').matches
+    ? '50% 0px'
+    : '200% 0px';
+
 function gate(v: HTMLVideoElement) {
   io ??= new IntersectionObserver(
     (entries) => {
@@ -341,7 +514,7 @@ function gate(v: HTMLVideoElement) {
         }
       }
     },
-    { rootMargin: '200% 0px' }
+    { rootMargin: margin() }
   );
   io.observe(v);
 }
@@ -388,6 +561,33 @@ export function initVideo() {
     /* Turning the setting on mid-visit should stop the motion then and there,
        and turning it off should give it back. */
     reducedQuery?.addEventListener('change', sweep);
+
+    /*
+     * The moment the deferral above is waiting for.
+     *
+     * Registered inside the `listening` guard with the rest, so it survives
+     * every client-side swap and is never added twice. After the first page
+     * `pageLoaded` is already true and this costs nothing — a swap fires no
+     * `load`, and none is needed: the flag stays set for the session.
+     */
+    if (!pageLoaded) {
+      window.addEventListener(
+        'load',
+        () => {
+          pageLoaded = true;
+          sweep();
+        },
+        { once: true }
+      );
+    }
+
+    /* A visitor who walks out of a lift, or turns Data Saver off, should get
+       the hero without reloading. Not implemented everywhere — Safari has no
+       Network Information API at all, which `thrifty()` reads as "not slow"
+       and is the right default for a browser that will not say. */
+    (
+      navigator as Navigator & { connection?: { addEventListener?: typeof addEventListener } }
+    ).connection?.addEventListener?.('change', sweep);
   }
 
   sweep();

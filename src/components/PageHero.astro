@@ -150,16 +150,24 @@ const crumbSchema =
     /* Over the picture, under the wash. The wash is what keeps the heading
        readable over whatever gets uploaded, and it has to stay on top of both. */
     video && (
+      /*
+        `data-src`, not `src`. The band's loop is decoration over a picture
+        that is already required above, so it has no business competing with
+        the stylesheet and the LCP image for a phone's connection at parse
+        time. `attach` in lib/video.ts gives it a URL once the page itself has
+        loaded, and `fadeIn` there crossfades it in over the still — see the
+        longer note beside the same attribute in VideoHero.
+      */
       <video
         class="page-hero-video"
         data-video="silent"
-        src={video}
+        data-src={video}
         poster={image!.src}
         autoplay
         muted
         loop
         playsinline
-        preload="metadata"
+        preload="none"
         aria-hidden="true"
         tabindex="-1"
       />

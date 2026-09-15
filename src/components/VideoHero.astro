@@ -84,7 +84,24 @@ const videoType = (() => {
         and the two can never disagree.
       */
       src && poster && (
-        <img class="hero-still" src={poster} alt="" aria-hidden="true" />
+        /*
+          THE LARGEST ELEMENT ON THE HOMEPAGE, so it is told so. With the loop
+          deferred to `lib/video.ts` this still is not a placeholder any more —
+          it is what the hero IS for the first second or two of every visit,
+          and on a metered connection it is what the hero stays. `high` moves
+          it ahead of the forty tiles below the fold that the preload scanner
+          finds in the same pass; `eager` says out loud what its position
+          already implies, so it cannot be lost to a lazy-by-default heuristic.
+        */
+        <img
+          class="hero-still"
+          src={poster}
+          alt=""
+          aria-hidden="true"
+          fetchpriority="high"
+          loading="eager"
+          decoding="async"
+        />
       )
     }
     {
@@ -96,12 +113,28 @@ const videoType = (() => {
           muted
           loop
           playsinline
-          preload="metadata"
+          preload="none"
           poster={poster}
           aria-hidden="true"
           tabindex="-1"
         >
-          <source src={src} type={videoType} />
+          {/*
+            `data-src`, not `src`, and that one letter is the difference
+            between a hero that decorates the page and one that blocks it.
+
+            With a real `src` the browser begins pulling the file the moment
+            the parser reaches this tag — competing with the stylesheet, the
+            preloaded faces and the still right above it, on a phone's one
+            shared connection, at a priority nothing in the page can lower. The
+            loop is decoration; the headline is the page. Deferred, the still
+            paints immediately and `lib/video.ts` attaches this after `load`,
+            crossfading in over it exactly as `fadeIn` was built to.
+
+            See `attach` in lib/video.ts, which is the only thing that ever
+            reads this. Without JavaScript the poster stands, which is already
+            what a refused `src` degrades to above.
+          */}
+          <source data-src={src} type={videoType} />
         </video>
       ) : poster ? (
         <img class="hero-video" src={poster} alt="" aria-hidden="true" />

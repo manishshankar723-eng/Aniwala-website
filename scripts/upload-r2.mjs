@@ -3,6 +3,7 @@
  *
  *   node --env-file=.env scripts/upload-r2.mjs <file> [key]
  *        [--keep-audio] [--no-poster] [--poster-at=<seconds>] [--start=<seconds>]
+ *        [--no-encode] [--crf=<n>] [--max-width=<px>] [--maxrate=<kbps>]
  *   node --env-file=.env scripts/upload-r2.mjs dist/video/home-hero.mp4 video/home-hero.mp4
  *   node --env-file=.env scripts/upload-r2.mjs clip.mp4 video/pieces/kite.mp4 --start=1.6
  *
@@ -28,10 +29,14 @@
 import { createHash, createHmac } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { readFile, unlink } from 'node:fs/promises';
+import { statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
 const KEEP_AUDIO = process.argv.includes('--keep-audio');
+/* Opts out of the delivery encode below. See `encodeForWeb` for why encoding
+   is the DEFAULT and why skipping it is the thing that needs a flag. */
+const NO_ENCODE = process.argv.includes('--no-encode');
 const NO_POSTER = process.argv.includes('--no-poster');
 /* `=` form on purpose. The positional parse below drops every `--` argument
    whole, so a space-separated value would survive as a stray positional and be
@@ -42,11 +47,27 @@ const POSTER_AT = Number(
 const START_AT = Number(
   process.argv.find((a) => a.startsWith('--start='))?.split('=')[1] ?? NaN
 );
+/* The delivery encode's three knobs. The defaults suit a loop that sits behind
+   a scrim or inside a grid cell — see `encodeForWeb`. Raise `--max-width` for a
+   video that is genuinely the subject of a full-screen page. */
+const num = (name, fallback) => {
+  const raw = process.argv.find((a) => a.startsWith(`--${name}=`))?.split('=')[1];
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+const CRF = num('crf', 26);
+const MAX_WIDTH = num('max-width', 1280);
+const MAXRATE = num('maxrate', 2600);
+
+const sizeMb = (bytes) => (bytes / 1024 / 1024).toFixed(2);
+
 const [, , filePath, keyArg] = process.argv.filter((a) => !a.startsWith('--'));
 
 if (!filePath) {
   console.error('Usage: node --env-file=.env scripts/upload-r2.mjs <file> [key]');
   console.error('       [--keep-audio] [--no-poster] [--poster-at=<seconds>]');
+  console.error('       [--no-encode]  upload the master as-is (NOT recommended)');
+  console.error('       [--crf=26] [--max-width=1280] [--maxrate=2600]');
   console.error('       [--start=<seconds>]   trim the front off, poster from the new first frame');
   process.exit(1);
 }
@@ -103,7 +124,7 @@ const TYPES = {
  * cannot; the two are belt and braces and neither makes the other pointless.
  *
  * `-c:v copy`, so there is no re-encode and no generation loss — the same
- * trade `stripAudio` makes below. The cost is that a stream copy can only cut
+ * trade `encodeForWeb` makes below. The cost is that a stream copy can only cut
  * at a KEYFRAME, so the real start lands at or before the second you asked
  * for, sometimes by a second or two. That does not weaken the guarantee: the
  * poster is read from wherever the cut actually landed. It is reported rather
@@ -150,22 +171,61 @@ function trimFront(source) {
 }
 
 /**
- * Drop the audio track, unless asked not to.
+ * Re-encode for the WEB, and drop the audio track.
  *
- * Every player on this site is muted. A hero loop has no controls at all, and
- * a portfolio tile only offers sound when the piece is marked as having some.
- * So an audio track on a silent video is bytes every visitor downloads and
- * nobody can ever hear.
+ * WHY THIS EXISTS, and it is the most expensive line in this repo to get
+ * wrong. This step used to be `-c:v copy` — audio stripped, container
+ * rewritten, video stream passed through untouched — on the reasoning that a
+ * re-encode costs generation loss and a wait for no picture anybody can see.
  *
- * `-c:v copy` is what makes this cheap and safe: the video is not re-encoded,
- * so there is no generation loss and no wait. It rewrites the container
- * without the audio stream and changes nothing else.
+ * That reasoning is sound about QUALITY and silent about SIZE, and size is the
+ * whole problem. A master coming out of an edit is graded for an edit: an
+ * intra-frame codec, or a long-GOP at a bitrate chosen so the next grade still
+ * has room. Nothing about it is wrong. It is simply not a delivery file, and
+ * `copy` published it as one. The three videos on this site went up at 37 MB,
+ * 15 MB and 15 MB — 67 MB of loops, two of them autoplaying on the same page —
+ * and a phone was asked to pull all of it before the page it belonged to could
+ * finish. That is roughly a minute of blank screen on a real connection, and
+ * it reads as "the website is broken" rather than as "a file is large",
+ * because nothing on the page says which.
  *
- * Needs ffmpeg. Without it the file uploads untouched and says so — failing an
- * upload over an optimisation would be the wrong trade.
+ * So the default is inverted. A file that goes to the CDN is ENCODED FOR
+ * DELIVERY here, once, by the one script that puts anything there — rather
+ * than depending on whoever exports it remembering to, which is exactly the
+ * kind of rule that holds for two uploads and then quietly stops.
+ *
+ * WHAT THE SETTINGS ARE FOR:
+ *
+ *   libx264 / yuv420p / High@4.0   The combination every browser and every iOS
+ *     version decodes in hardware. AV1 and VP9 are smaller and neither is safe
+ *     as the ONLY rendition; a second one means a second upload, a second URL
+ *     and a `<source>` list, which is a bigger change than this.
+ *   CRF 26, preset slow   Constant quality rather than a target bitrate: a
+ *     still tile costs almost nothing and a busy one gets what it needs. 26 is
+ *     where a loop behind a scrim stops being distinguishable from its master.
+ *     `slow` buys roughly 15% at upload time nobody is watching.
+ *   -maxrate / -bufsize   The ceiling CRF alone does not give. Without it one
+ *     violent second can spike past what a phone can pull in real time and the
+ *     video stalls mid-loop — which `lib/video.ts` then spends its one `load()`
+ *     recovering from, having been told nothing about why.
+ *   scale to 1280   A background loop sits behind a gradient scrim, and a
+ *     portfolio tile is a third of a grid. Neither has ever resolved 1080
+ *     lines. This is the single biggest saving here.
+ *   -g 48   A keyframe every two seconds, so a loop restarts and a scrub lands
+ *     without decoding from the top.
+ *   +faststart   The moov atom moved to the FRONT. Without it a browser has to
+ *     read to the end of the file before it can play a frame, which on a large
+ *     file is indistinguishable from the file being broken.
+ *
+ * `--no-encode` opts out, for a file that has already been through this or one
+ * where generation loss genuinely matters. It takes the old path exactly:
+ * audio stripped by stream copy, everything else untouched.
+ *
+ * Needs ffmpeg. Without it the file uploads as-is and SAYS SO — failing an
+ * upload over an optimisation would be the wrong trade, but so would letting a
+ * 37 MB master reach the CDN without anybody being told.
  */
-async function stripAudio(source) {
-  if (KEEP_AUDIO) return { file: source, note: 'audio kept (--keep-audio)' };
+async function encodeForWeb(source) {
   if (!/\.(mp4|webm|mov|m4v)$/i.test(source)) return { file: source };
 
   let hasAudio;
@@ -178,21 +238,70 @@ async function stripAudio(source) {
       ).trim()
     );
   } catch {
-    return { file: source, note: 'ffmpeg not found, uploading as-is' };
+    return { file: source, note: 'ffmpeg NOT FOUND - uploading the master as-is' };
   }
-  if (!hasAudio) return { file: source, note: 'no audio track' };
 
-  const out = path.join(os.tmpdir(), `r2-silent-${Date.now()}${path.extname(source)}`);
+  const audio = KEEP_AUDIO && hasAudio ? ['-c:a', 'aac', '-b:a', '128k'] : ['-an'];
+
+  /* The old behaviour, kept whole behind the flag. */
+  if (NO_ENCODE) {
+    if (!hasAudio || KEEP_AUDIO) return { file: source, note: 'not re-encoded (--no-encode)' };
+    const copy = path.join(os.tmpdir(), `r2-silent-${Date.now()}${path.extname(source)}`);
+    try {
+      execFileSync(
+        'ffmpeg',
+        ['-y', '-v', 'error', '-i', source, '-an', '-c:v', 'copy', '-movflags', '+faststart', copy],
+        { stdio: 'ignore' }
+      );
+      return { file: copy, temp: true, note: 'audio stripped, not re-encoded (--no-encode)' };
+    } catch {
+      return { file: source, note: 'could not strip audio, uploading as-is' };
+    }
+  }
+
+  const before = statSync(source).size;
+  const out = path.join(os.tmpdir(), `r2-web-${Date.now()}.mp4`);
+
   try {
     execFileSync(
       'ffmpeg',
-      ['-y', '-v', 'error', '-i', source, '-an', '-c:v', 'copy', '-movflags', '+faststart', out],
+      [
+        '-y', '-v', 'error', '-i', source,
+        '-c:v', 'libx264',
+        '-profile:v', 'high', '-level', '4.0',
+        '-pix_fmt', 'yuv420p',
+        '-preset', 'slow',
+        '-crf', String(CRF),
+        '-maxrate', `${MAXRATE}k`, '-bufsize', `${MAXRATE * 2}k`,
+        /* `-2` keeps the height even, which yuv420p requires; `min(...,iw)`
+           never UPscales a source already smaller than the cap. */
+        '-vf', `scale='min(${MAX_WIDTH},iw)':-2`,
+        '-g', '48', '-keyint_min', '48', '-sc_threshold', '0',
+        ...audio,
+        '-movflags', '+faststart',
+        out,
+      ],
       { stdio: 'ignore' }
     );
-    return { file: out, temp: true, note: 'audio stripped' };
   } catch {
-    return { file: source, note: 'could not strip audio, uploading as-is' };
+    return { file: source, note: 'could not re-encode, uploading as-is' };
   }
+
+  const after = statSync(out).size;
+
+  /* A master that was ALREADY a delivery file can come out bigger. Publishing
+     the larger of the two is the one outcome this function exists to prevent,
+     so the smaller wins and says which. */
+  if (after >= before) {
+    return { file: source, note: `already leaner than a re-encode (${sizeMb(before)} MB), left as-is` };
+  }
+
+  const saved = Math.round((1 - after / before) * 100);
+  return {
+    file: out,
+    temp: true,
+    note: `re-encoded ${sizeMb(before)} -> ${sizeMb(after)} MB (${saved}% smaller), max ${MAX_WIDTH}px, CRF ${CRF}`,
+  };
 }
 
 /**
@@ -315,8 +424,8 @@ function posterFrame(source, forced) {
 /* Trim first, then strip: stripping rewrites the container, so doing it the
    other way round would throw away the faststart the trim just added. */
 const trimmed = trimFront(filePath);
-const stripped = await stripAudio(trimmed?.file ?? filePath);
-const body = await readFile(stripped.file);
+const prepared = await encodeForWeb(trimmed?.file ?? filePath);
+const body = await readFile(prepared.file);
 const key = (keyArg ?? path.basename(filePath)).replace(/^\/+/, '');
 const ext = path.extname(key).toLowerCase();
 const contentType = TYPES[ext] ?? 'application/octet-stream';
@@ -400,7 +509,7 @@ const signature = createHmac('sha256', signingKey).update(stringToSign).digest('
 
 const mb = (body.length / 1024 / 1024).toFixed(2);
 console.log(`\n  ${filePath}`);
-console.log(`  ${mb} MB, ${contentType}${stripped.note ? `  (${stripped.note})` : ''}`);
+console.log(`  ${mb} MB, ${contentType}${prepared.note ? `  (${prepared.note})` : ''}`);
 console.log(`  -> ${BUCKET}/${key}\n`);
 
 const response = await fetch(`https://${host}${canonicalUri}`, {
@@ -437,14 +546,14 @@ if (trimmed) {
  *
  * Trimmed: the prepared file at t=0, so the poster IS the first frame and the
  * handover cannot be seen at all. Untrimmed: the original, scored as described
- * on `posterFrame` — `stripped.file` would do equally well, since dropping an
+ * on `posterFrame` — `prepared.file` would do equally well, since dropping an
  * audio track changes nothing about the pictures, but the original is certain
  * to still be on disk.
  *
  * This has to run BEFORE the temp files are removed, which is why the cleanup
  * moved down here from beside the upload.
  */
-const poster = trimmed ? posterFrame(stripped.file, 0) : posterFrame(filePath);
+const poster = trimmed ? posterFrame(prepared.file, 0) : posterFrame(filePath);
 if (poster) {
   console.log(`  Poster frame at ${poster.at.toFixed(2)}s:`);
   console.log(`  ${poster.file}`);
@@ -452,8 +561,8 @@ if (poster) {
   console.log('  discipline’s Tile image, or a hero block’s Still image.\n');
 }
 
-if (stripped.temp) await unlink(stripped.file).catch(() => {});
-if (trimmed?.temp && trimmed.file !== stripped.file) {
+if (prepared.temp) await unlink(prepared.file).catch(() => {});
+if (trimmed?.temp && trimmed.file !== prepared.file) {
   await unlink(trimmed.file).catch(() => {});
 }
 
