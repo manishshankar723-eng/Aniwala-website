@@ -111,12 +111,19 @@ Empty output from the first means nothing has changed since the deploy. After
 deploying, editors with the Studio already open should hard-reload
 (Ctrl+Shift+R) to drop the cached bundle.
 
-### Going live on aniwala.com
+### Live on aniwala.com
 
-The site currently serves from **staging.aniwala.com**. `aniwala.com` is still
-the old WordPress install, so everything below is the list of things that are
-correct for staging today and silently wrong the moment the Astro build
-replaces it.
+**The cutover happened on 14 September 2026.** `aniwala.com` serves this build
+from `public_html/`; the WordPress install is gone. `staging.aniwala.com` is
+the last staging build, frozen inside `public_html/staging/` (the deploy's
+rsync excludes that folder) and **behind a password** set in hPanel → Advanced
+→ Password Protect Directories. The rule lives in the staging folder's own
+`.htaccess`, so deploys never touch it — re-checked after a deploy on
+15 September 2026: both `aniwala.com/staging/` and `staging.aniwala.com` answer
+401.
+
+The list below was the cutover checklist. Every item still describes
+something that breaks silently if it drifts, so it stays.
 
 - **`SITE_URL` on the Edge Functions.** It is the origin `submit`, `moderate`
   and `schedule` will accept, *and* it builds the Approve/Reject and
@@ -134,8 +141,8 @@ replaces it.
   that is not on the page.
 - **`TURNSTILE_SITE_KEY` in the GitHub Actions secrets**, not only in `.env`. A
   production build without it falls back to posting directly to PostgREST under
-  the anon key — which is a closed door once the cutover in section 7 of
-  `supabase/schema.sql` has been run.
+  the anon key — and that door is **closed**: section 7 of `supabase/schema.sql`
+  has been run, so such a build ships three forms that fail every submission.
 - **The CSP travels with the build.** `public/.htaccess` is copied into `dist/`,
   so every header under *Headers* below starts applying the moment `dist/`
   reaches `public_html`. Confirm them against the live host afterwards; on
@@ -324,6 +331,26 @@ is the one that matters most: it is read by the person about to press Approve,
 so a link in it that goes somewhere unexpected is worth more to an attacker
 than one on the public site.
 
+**An email that goes to an address a stranger chose carries nothing that
+stranger typed.** Escaping stops markup and does nothing about words. The
+booking acknowledgement is sent the moment a public form is submitted, with no
+person in between, so it goes to the booker only — no CC — with fixed copy and
+a time parsed out of validated columns. It used to CC up to ten guests and
+repeat the name and topic back, which let anyone send ten strangers a message
+of their own from the studio's verified domain. Emails that repeat a
+stranger's words (the confirmation, the decline) are sent only after a person
+at the studio has read the request and pressed a button. Keep it that way.
+
+**A timezone from a form is validated before it is used.** `visitor_tz` is free
+text, and an unknown zone makes every `Intl` date call throw. `validTz()` in
+`_shared/util.ts` falls back to the studio's zone; without it one bad value
+stopped the booking notification from being sent at all.
+
+**The mail bill is capped in `notify`, not by the rate limiter.** See
+the rate-limiting part of *Setting up Supabase* — the short version is that a
+database ceiling low enough to protect a free Resend tier was low enough for
+one person with twenty solved captchas to close the forms for a day.
+
 **A media or embed URL is checked in code, not only by the CSP.**
 `findUnsafeHref` walks keys ending in `href` — every link on a CMS-built page,
 and no media field. So `isSafeMediaSrc` in `src/config/urls.ts` guards the hero
@@ -364,6 +391,12 @@ enforced in `content.config.ts` for every href-bearing field, including the
 `href`. `scripts/check-links.mjs` is the backstop for anything reaching the
 HTML another way. Add to the allowlist deliberately; never widen the backstop
 to make a build pass.
+
+A path must not start with a **second slash in disguise**. `//evil.com` is an
+absolute URL on another site, and so are `/\evil.com` (a browser reads `\` as
+`/`) and `/` + tab + `/evil.com` (a browser deletes tabs and newlines before
+parsing). The `/` branch of the allowlist refuses all three. None of them runs
+a script; each is a link off the site that reads as a path in the Studio.
 
 `z.url()` is **not** a substitute — it accepts `javascript:alert(1)` and
 `data:text/html,...` as valid URLs.
@@ -410,6 +443,73 @@ in GitHub Actions secrets.
 
 `SANITY_READ_TOKEN` should be a **Viewer** token. It only ever needs to read
 drafts for previews, and a Viewer token cannot alter the site if it leaks.
+
+### Settings that live outside this repo
+
+Half of this site's security is dashboard state that no build checks and no
+diff shows. It was last reviewed on **15 September 2026**; each line says what
+must stay true and why. Re-check them after anyone new gets access to an
+account, and whenever something here stops working.
+
+**Supabase**
+
+- **Email sign-ups are disabled** (Authentication → Sign In / Providers →
+  "Allow new users to sign up" off). The site has no logins. An open sign-up
+  hands anybody an `authenticated` JWT for no purpose. Verify from outside:
+  `curl -H "apikey: <anon key>" https://<ref>.supabase.co/auth/v1/settings`
+  shows `"disable_signup":true`.
+- **`authenticated` holds no grants on the three form tables** — section 4 of
+  `schema.sql` revokes them. Supabase grants every `public` table to that role
+  by default, including TRUNCATE, which RLS does not govern.
+- **anon has no INSERT** — section 7 of `schema.sql`, now active in the file
+  so a re-run cannot reopen it. All three forms go through `submit`.
+- **`MAIL_DAILY_BUDGET`** (Edge Function secret, default 90) caps the emails
+  `notify` sends in 24 hours. Raise it if the Resend plan is upgraded.
+
+**Hostinger**
+
+- **SSH accepts a password and cannot be made key-only** on this shared plan,
+  and the account's username, server address and port are public in this
+  repository's git history. So the FTP/SSH password (hPanel → Files → Change
+  Password) is a long random string held only in a password manager — it was
+  rotated on 15 September 2026, because the old one had crossed the network
+  unencrypted in early FTP deploys. Deploys never use it; they use the SSH key.
+- **hPanel login has two-factor authentication on.** The hPanel login can
+  reset that password, open the File Manager and change DNS — it is the key
+  above every other key here.
+- **Exactly one SSH key** under Advanced → SSH Access: the deploy key,
+  `SHA256:4xradlDr6q9YvzUPPEmGQM8IqDaLPMu2apfjXU7vQQY` (also printed by every
+  deploy run).
+- **No additional FTP accounts** (Files → FTP Accounts). The "Create a new FTP
+  account" form on that page makes another login with write access to
+  `public_html` — it is not where the password is changed.
+- **`public_html/staging` is password protected** (Advanced → Password Protect
+  Directories). It is a frozen build whose forms still write to the live
+  database. Both addresses must answer 401.
+
+**GitHub**
+
+- **The Sanity publish webhook uses a fine-grained token** created on the
+  account that owns the repository, scoped to this repository only, with
+  Contents: Read and write, and a one-year expiry. When it expires, publishing
+  in the Studio silently stops deploying — set a reminder. No classic token
+  should exist for this purpose. A Sanity API token with Editor rights can
+  read webhook headers, which is exactly why this one must be narrow.
+- **Repository secrets are exactly what the workflows read**: `BACKUP_*`,
+  `GA_MEASUREMENT_ID`, `SANITY_DATASET`, `SANITY_PROJECT_ID`,
+  `SANITY_READ_TOKEN`, `SSH_HOST`, `SSH_KEY`, `SSH_PORT`, `SSH_USER`,
+  `SUPABASE_ANON_KEY`, `SUPABASE_URL`, `TURNSTILE_SITE_KEY`. The old `FTP_*`
+  secrets are deleted.
+- **Repository visibility.** While the repository is public, anyone signed in
+  to GitHub can download the nightly backup artifacts (encrypted — only the
+  passphrase protects them) and read every workflow log. Making it private
+  loses nothing: the gitleaks step in `deploy.yml` replaces GitHub's free
+  secret scanning.
+
+**Sanity**
+
+- **The `production` dataset is Private** — checked by `check-dataset.mjs` on
+  every build, see *Where the boundaries actually are*.
 
 ## Styling
 
@@ -1440,15 +1540,18 @@ limited, so your own maintenance never locks you out.
 
 ### Turnstile — the layer in front of the rate limiter
 
-**Optional, and off until you add the keys.** With `TURNSTILE_SITE_KEY` unset
-the three forms behave exactly as they always did: straight to PostgREST under
-the anon key, protected by RLS and the rate limiter. Set it and they post
-through the `submit` Edge Function, which verifies a Cloudflare Turnstile token
-before writing anything — so automated traffic never reaches the database.
+**Live, and no longer optional on this project.** With `TURNSTILE_SITE_KEY` set
+— as it is in CI — the three forms post through the `submit` Edge Function,
+which verifies a Cloudflare Turnstile token before writing anything, so
+automated traffic never reaches the database.
 
-That fallback exists because the site, the Edge Functions and the Cloudflare
-account are three separate deploys that do not land at the same moment. A build
-made before the keys exist has to keep working, or the forms go dark in the gap.
+With it unset, the code still falls back to posting straight to PostgREST under
+the anon key. That fallback existed for the rollout, because the site, the Edge
+Functions and the Cloudflare account are three separate deploys that do not
+land at the same moment. **On this project it now fails**: the cutover in step 5
+below has been run, anon has no INSERT, and a build without the site key ships
+forms that refuse every submission. On a fresh project the fallback still does
+its original job until step 5.
 
 `submit` holds the service role key, which bypasses RLS *and* the column grants
 in section 4 of the schema. That is why it copies fields through an explicit
@@ -1470,11 +1573,12 @@ as well**, or it will be silently dropped.
    Setting it in only one place is the failure nobody notices: the widget
    appears locally while the live site quietly keeps taking the fallback path.
 4. Deploy the site, then **submit a real form on the host that is actually
-   serving it and confirm it arrives.** That is `staging.aniwala.com` today —
-   `aniwala.com` is still the old WordPress install, so a test there proves
-   nothing about this.
+   serving it and confirm it arrives.** That is `aniwala.com`.
 5. Only once that works, run the cutover in section 7 of `supabase/schema.sql`
    to remove anon's INSERT grants. Doing it earlier breaks every live form.
+   **Done on this project** (verified 15 September 2026), and the revokes are
+   now active in the file, so a whole-file re-run keeps the door closed. On a
+   fresh project, comment them out for the first run.
 
    Verify it landed, and that the comments **SELECT** grant survived — a bare
    `revoke all` here would take it with everything else and the blog thread
@@ -1491,7 +1595,8 @@ as well**, or it will be silently dropped.
    comments SELECT 5, applications INSERT 15). Afterwards it should be one:
    `comments | SELECT | 5`. These are **column** grants, so they do not appear
    in `role_table_grants` at all — that view answers empty and looks alarming.
-   To roll back, re-run section 4 of the schema.
+   To roll back, run **only** section 4 of the schema — the whole file ends
+   with section 7 and would revoke them again.
 
 The CSP already names `challenges.cloudflare.com` in both `script-src` and
 `frame-src`. The widget renders in an iframe, so it needs both — with only the
@@ -1710,7 +1815,7 @@ What happens now, end to end:
 ```
 visitor picks a slot, adds guests   ->  enquiries row  ->  notify
         |                                                    |
-        |<--- "we have your request" (them + their guests) ---|
+        |<------ "we have your request" (them only) ----------|
                                                              |
                      "Confirm / Cannot make it" (you) <------|
                               |
@@ -1744,7 +1849,9 @@ fills what is empty, so nothing you have edited is touched.
 
 **Guests.** The booking form has an *Add guests* line. Anyone added is invited
 alongside the person who booked — the same email, the same calendar
-invitation. The form takes five; the function takes ten in total, so you can
+invitation. **Guests hear nothing until you press Confirm**: the instant "we
+have your request" acknowledgement goes to the booker alone, because a guest
+list a stranger typed is a list of strangers. The form takes five; the function takes ten in total, so you can
 add a colleague or two yourself on the confirmation screen. `MAX_GUESTS` in
 `supabase/functions/_shared/util.ts` is the number that actually binds.
 

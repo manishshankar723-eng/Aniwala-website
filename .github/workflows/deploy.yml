@@ -105,11 +105,12 @@ jobs:
       # The Turnstile SITE key — public, and baked into the bundle like the
       # anon key above. Its secret half lives only on the Edge Functions.
       #
-      # Absent, the build is still correct: the forms fall back to posting
-      # straight to PostgREST, which is what they did before Turnstile
-      # existed. That is also the quiet failure worth watching for — set it
-      # locally, see the widget, and ship a production build without it, and
-      # the live forms silently keep taking the unverified path.
+      # REQUIRED ON THIS PROJECT, and absent it is no longer a correct build.
+      # Without it the forms fall back to posting straight to PostgREST under
+      # the anon key — and the Turnstile cutover (section 7 of
+      # supabase/schema.sql) has revoked anon's INSERT, so that path answers
+      # 401 and every booking, application and comment is refused. The build
+      # passes and the site looks fine; only a real submission shows it.
       TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
 
       # The GA4 measurement id, baked into the HTML at build time like the two
@@ -325,7 +326,12 @@ jobs:
     # staging.aniwala.com still lives INSIDE this folder, at
     # public_html/staging/, and survives every deploy only because the rsync
     # below excludes `/staging/`. Nothing deploys TO staging any more, so it
-    # stays frozen at its last build. The pre-upload check still refuses to
+    # stays frozen at its last build — and behind a PASSWORD, set in hPanel ->
+    # Advanced -> Password Protect Directories, because its forms still write
+    # to the live database. That rule lives in public_html/staging/.htaccess,
+    # which the exclude protects too; it survived its first deploy on
+    # 15 September 2026 (both staging addresses answered 401 afterwards).
+    # The pre-upload check still refuses to
     # run if this folder looks like a WordPress install, which is what makes
     # a mistaken target fail loudly rather than delete a site.
     #
@@ -398,14 +404,20 @@ jobs:
       #
       # NOTE, IF YOU ARE READING THIS AFTER THE FACT: these values WERE public
       # in this file's history, and making the repository private does not
-      # retract that. Treat the address, port and username as known, confirm
-      # PASSWORD authentication is disabled for the account, and rely on the
-      # key — which was never here.
+      # retract that. Treat the address, port and username as known.
       #
-      # FTP_HOST, FTP_USER and FTP_PASS are no longer read by anything here.
-      # Delete them once a deploy has succeeded, and rotate the FTP password:
-      # it crossed the internet in the clear on every deploy made before
-      # `protocol: ftps` was set.
+      # PASSWORD AUTHENTICATION CANNOT BE TURNED OFF on this shared plan — the
+      # server still answers `Permission denied (publickey,password)`, checked
+      # 15 September 2026. So what stands behind the public username is the
+      # account password: a long random string in a password manager, rotated
+      # that day — and two-factor authentication must stay on for the hPanel
+      # login, which can reset it. This job never uses the password; it uses the key, which was
+      # never here.
+      #
+      # FTP_HOST, FTP_USER and FTP_PASS are deleted from the repository
+      # secrets, and the FTP password they held (which crossed the internet in
+      # the clear on every deploy made before `protocol: ftps` was set) is the
+      # one rotated above.
       # ------------------------------------------------------------------
       - name: Set up the deploy key and pin the server
         env:
@@ -589,10 +601,10 @@ jobs:
           #
           # `/staging/` IS THE STAGING SITE. staging.aniwala.com is served out
           # of public_html/staging/, INSIDE the production document root, so
-          # the day REMOTE_DIR moves to public_html/ this --delete would treat
-          # the whole staging copy as stale and remove it — the build has no
-          # `staging/` folder to match it against. Harmless while REMOTE_DIR is
-          # the staging folder itself, which is why it can be here already.
+          # without this --delete would treat the whole staging copy as stale
+          # and remove it — the build has no `staging/` folder to match it
+          # against. It would take the staging password with it: the hPanel
+          # protection is an .htaccess inside that folder.
           #
           # ANCHORED with a leading slash, unlike the lines around it. Unanchored,
           # `staging/` matches at any depth, so a future page such as

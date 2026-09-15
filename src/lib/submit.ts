@@ -19,6 +19,12 @@
  *
  * So: unset TURNSTILE_SITE_KEY is byte-for-byte the old behaviour. Setting it
  * is the switch, and it can be flipped without touching this file.
+ *
+ * ON THIS PROJECT THE SWITCH IS THROWN FOR GOOD. The cutover in schema.sql
+ * section 7 has revoked anon's INSERT, so the first path now answers 401 and a
+ * build without TURNSTILE_SITE_KEY ships forms that refuse everything. The
+ * fallback is kept for a fresh project mid-rollout, which is the only place it
+ * still does its job.
  */
 import { publicConfig } from './clientConfig';
 import { insertRow, SupabaseError } from './supabase';

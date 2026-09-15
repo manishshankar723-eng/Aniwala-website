@@ -788,9 +788,10 @@ const initials = hostName
          * worked. Casing cannot drift between a `getElementById` and an `id`
          * attribute the way it can between a form name and an object key.
          */
-        /* `submitForm` picks the path — straight to PostgREST under the anon
-           key, or through the Turnstile-verified `submit` Edge Function once
-           TURNSTILE_SITE_KEY is set. See lib/submit.ts. */
+        /* `submitForm` picks the path — through the Turnstile-verified
+           `submit` Edge Function when TURNSTILE_SITE_KEY is set, which it must
+           be on this project, or the anon-key fallback that the cutover has
+           since closed. See lib/submit.ts. */
         await submitForm('enquiry', form, {
           name,
           email,

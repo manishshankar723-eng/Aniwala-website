@@ -694,7 +694,23 @@ order by event_object_table;
 
 
 -- ---------------------------------------------------------------------
--- 7. THE TURNSTILE CUTOVER  —  COMMENTED OUT ON PURPOSE. DO NOT RUN YET.
+-- 7. THE TURNSTILE CUTOVER  —  APPLIED. ACTIVE ON PURPOSE.
+--
+-- STATUS: run on production, and verified from outside on 15 September 2026
+-- — a direct insert with the anon key returns 42501, and anon's only
+-- remaining grant is SELECT on five columns of `comments`.
+--
+-- THE THREE REVOKES BELOW ARE NO LONGER COMMENTED OUT, and that is the fix
+-- for a trap rather than a tidy-up. This file is meant to be re-run whole
+-- (see the header, and README's booking setup), and section 4 above still
+-- GRANTS anon its insert columns. While these lines were comments, every
+-- re-run silently reopened the direct-to-PostgREST door that the cutover
+-- closed — no error, the forms kept working, and Turnstile quietly became
+-- optional again. Running last, they win: a whole-file run now ends in the
+-- same state production is in.
+--
+-- The history of how it was switched on, kept because the order still
+-- matters if this project is ever rebuilt from scratch:
 --
 -- Once every form posts through the `submit` Edge Function, the anon role
 -- has no remaining reason to write to these tables, and taking the grants
@@ -719,15 +735,19 @@ order by event_object_table;
 --   3. supabase functions deploy submit --no-verify-jwt
 --   4. Put TURNSTILE_SITE_KEY in .env AND in the GitHub Actions secrets.
 --   5. Deploy the site. CONFIRM a real submission works on aniwala.com.
---   6. Only then, uncomment and run the three statements below.
+--   6. Only then, run the three statements below.
 --
--- To roll back, re-run section 4 of this file: it restores exactly these
--- grants. Keep that in mind rather than reconstructing them by hand.
+-- ON A FRESH PROJECT, those steps still apply: a build without
+-- TURNSTILE_SITE_KEY posts straight to PostgREST, and these revokes make
+-- that fail. Comment them out for the first run, then restore them at step 6.
+--
+-- To roll back, run ONLY section 4 of this file — not the whole file, which
+-- now ends here and would revoke the grants again.
 -- ---------------------------------------------------------------------
 
--- revoke insert on public.enquiries    from anon;
--- revoke insert on public.comments     from anon;
--- revoke insert on public.applications from anon;
+revoke insert on public.enquiries    from anon;
+revoke insert on public.comments     from anon;
+revoke insert on public.applications from anon;
 
 -- The comment SELECT grant must SURVIVE this: reading approved comments is
 -- how the blog thread renders, and it has nothing to do with submitting one.

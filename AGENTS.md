@@ -30,7 +30,9 @@ server. Do not work around a failing check — they are load bearing:
   enforced in `src/content.config.ts`. A `javascript:` href is live XSS here,
   because the CSP must carry `script-src 'unsafe-inline'` for Astro's
   pre-paint theme script. Add a scheme deliberately; never widen the scan in
-  `scripts/check-links.mjs` to make a build pass.
+  `scripts/check-links.mjs` to make a build pass. The `/` branch refuses a
+  disguised second slash — `/\evil.com` and `/<TAB>/evil.com` both resolve off
+  the site.
 - **Studio validation is not a security boundary.** `validation:` rules in
   `studio/schemas/` run in the Studio UI only — the Content Lake API ignores
   them, so any write token skips them. Anything that must be true of CMS
@@ -53,6 +55,15 @@ server. Do not work around a failing check — they are load bearing:
   so the temptation under pressure is to reach for a wildcard.
 - **`supabase/schema.sql`** — RLS and the column grants are the only thing
   protecting form data. Read that file's header before changing a policy.
+  Section 7 (the Turnstile cutover) is ACTIVE, not commented out: section 4
+  still grants anon its insert columns, so a whole-file re-run without
+  section 7 silently reopens direct-to-PostgREST inserts and makes Turnstile
+  optional. Roll back by running section 4 alone. It also revokes everything
+  from `authenticated` — Supabase's default grants include TRUNCATE, which RLS
+  does not govern, and the site has no logins.
+- **`TURNSTILE_SITE_KEY` is required, not optional.** With anon's INSERT
+  revoked, a build without it ships forms that refuse every submission — and
+  the build still passes.
 
 - **Anything untrusted that reaches an EMAIL is an output boundary too.**
   `supabase/functions/notify` and `schedule` build HTML out of values a stranger
@@ -63,6 +74,30 @@ server. Do not work around a failing check — they are load bearing:
   value breaking out of its attribute and says nothing about where the link
   goes. The moderation email is the one that matters most, because it is read
   by the person about to press Approve.
+
+- **An email sent to an address a stranger chose carries nothing they typed.**
+  The booking acknowledgement in `notify` goes out with no human in the loop,
+  so it goes to the booker only — no CC — with fixed copy and a parsed time.
+  Echoing the name field or CC'ing the guest list made it a way to send
+  strangers arbitrary text from the studio's verified domain; escaping does
+  nothing about words. Emails that echo input (confirm, decline) are sent only
+  after a person presses a button. Timezones from a form go through
+  `validTz()` — an unknown zone makes every `Intl` call throw.
+
+- **The mail bill is capped in `notify` (`mailBudget`, default 90/day), NOT by
+  the rate limiter.** Past the budget, submissions are saved and mirrored but
+  not emailed, with one alert. Do not lower the daily ceilings in
+  `schema.sql` section 5 to protect the Resend quota again: a ceiling low
+  enough for that let one person with twenty solved captchas close the forms
+  for a day. Change a ceiling there and change `DAILY_CEILING` in
+  `functions/backup/index.ts` too.
+
+- **Half the security is dashboard state no build checks** — Supabase
+  sign-ups disabled, the staging password in hPanel, the fine-grained GitHub
+  token in the Sanity webhook, the Hostinger password and 2FA. README →
+  *Settings that live outside this repo* lists each one and why. Never print a
+  webhook's headers or a token's value while checking one of these: print the
+  token TYPE (`github_pat_` / `ghp_`) and nothing else.
 
 - **A media or embed URL from the CMS is checked in CODE, not only by the CSP.**
   `findUnsafeHref` in `src/config/urls.ts` walks keys ending in `href` — that is
