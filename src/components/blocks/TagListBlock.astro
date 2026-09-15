@@ -34,6 +34,8 @@ interface Props {
     anchor?: string;
     source?: 'capabilities' | 'serviceTools' | 'enquiryTypes' | 'custom';
     items?: string[];
+    /** Hide names that have no logo in Studio → Tools, instead of drawing pills. */
+    logosOnly?: boolean;
     linkLabel?: string;
     linkHref?: string;
     /** Pixels per second. Unset means the default below. */
@@ -47,7 +49,7 @@ const { block } = Astro.props;
    the shared studio tools, every tool named on any service page (derived, so
    it cannot disagree with the individual pages), or a list for this page only.
 */
-const items =
+const listed =
   block.source === 'custom'
     ? (block.items ?? [])
     : block.source === 'serviceTools'
@@ -58,6 +60,19 @@ const items =
 
 const logos = await getToolLogos();
 const logoFor = (name: string) => logos.get(name.trim().toLowerCase());
+
+/*
+ * "Only show tools with a logo" drops the pills from THIS strip and nowhere
+ * else — the names are still the service's own list. Ignored for the enquiry
+ * types, which are never tools and never have logos: switched on there, it
+ * would empty the strip and the section would vanish for no visible reason.
+ * If every name is filtered out, `items` is empty and the section renders
+ * nothing, which is the same rule an empty list already follows.
+ */
+const items =
+  block.logosOnly && block.source !== 'enquiryTypes'
+    ? listed.filter((t) => logoFor(t))
+    : listed;
 
 /*
  * HOW MANY COPIES OF THE LIST, and why it is not simply two.

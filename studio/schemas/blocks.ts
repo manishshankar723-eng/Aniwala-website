@@ -430,6 +430,31 @@ export const tagListBlock = defineType({
     }),
 
     /**
+     * Logos only.
+     *
+     * The strip's names come from wherever the list already lives — a
+     * service's Tools field, say — and a Tool document only attaches a logo to
+     * one of them. So deleting a tool's logo in Studio → Tools does NOT take
+     * the name off the strip: it falls back to a text pill, on purpose, so a
+     * tool is never silently dropped. That surprised the person who deleted
+     * six empty logo rows expecting their names to go.
+     *
+     * This is the switch for a strip that should be a wall of logos. It hides
+     * the pills HERE only; the names stay in the service pages' own tool lists,
+     * which is where a tool with no logo still belongs. Off by default, so no
+     * existing strip changes by itself.
+     */
+    defineField({
+      name: 'logosOnly',
+      title: 'Only show tools with a logo',
+      type: 'boolean',
+      description:
+        'Hides any tool without a logo in Studio → Tools from this strip. The names still appear in each service page’s own tool list. Off: tools without a logo show as text.',
+      initialValue: false,
+      hidden: ({ parent }) => parent?.source === 'enquiryTypes',
+    }),
+
+    /**
      * How fast the strip scrolls.
      *
      * PIXELS PER SECOND, deliberately, where the marquee block next door
