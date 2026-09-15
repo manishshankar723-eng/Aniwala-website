@@ -117,7 +117,27 @@ const sourced = new WeakSet<HTMLVideoElement>();
  * it gates. The first-load curtain in Loader.astro lifts on the same event and
  * gets the same benefit; see the note there.
  */
-let pageLoaded = typeof document !== 'undefined' && document.readyState === 'complete';
+/*
+ * A FUNCTION, RE-ASKED EVERY TIME — never a flag captured at module init.
+ *
+ * This was `let pageLoaded = document.readyState === 'complete'` plus a `load`
+ * listener to flip it, and it was broken in the one way that matters: it never
+ * let a single video play.
+ *
+ * `ClientRouter` dispatches the FIRST `astro:page-load` from inside its own
+ * `window.addEventListener('load', ...)` handler. So the order on a cold
+ * arrival is: this module evaluates (readyState `interactive`, flag captured
+ * as false) -> `load` fires -> the router's handler runs -> `astro:page-load`
+ * -> `initVideo` -> "the flag says the page has not loaded, so register a
+ * `load` listener and wait". Waiting for an event that fired a moment ago and
+ * will not fire again. The flag stayed false for the life of the page, every
+ * `attach` refused, and the heroes sat on their posters forever.
+ *
+ * The trap is that the snapshot was taken at a different time from when it was
+ * read, so re-reading is the entire fix. `readyState` is the browser's own
+ * answer and it is never stale.
+ */
+const pageLoaded = () => document.readyState === 'complete';
 
 /**
  * A connection we should not spend a DECORATIVE loop on.
@@ -177,7 +197,7 @@ function attach(v: HTMLVideoElement, forced = false): boolean {
   }
 
   if (!forced) {
-    if (!pageLoaded) return false;
+    if (!pageLoaded()) return false;
     if (!isPlayer(v) && thrifty()) return false;
   }
 
@@ -565,21 +585,18 @@ export function initVideo() {
     /*
      * The moment the deferral above is waiting for.
      *
-     * Registered inside the `listening` guard with the rest, so it survives
-     * every client-side swap and is never added twice. After the first page
-     * `pageLoaded` is already true and this costs nothing — a swap fires no
-     * `load`, and none is needed: the flag stays set for the session.
+     * Normally DEAD CODE, and deliberately kept anyway. `initVideo` is driven
+     * by `astro:page-load`, which the router fires from its own `load`
+     * handler — so by the time this runs `pageLoaded()` is already true and
+     * there is nothing to wait for.
+     *
+     * It exists for the arrangement where that is not true: a host that fires
+     * the event earlier, or a direct call to `initVideo` from somewhere else.
+     * Then this re-sweeps once the page is done and the videos start. It is
+     * one listener, registered at most once, and it is the difference between
+     * "the ordering changed" and "the videos silently never play again".
      */
-    if (!pageLoaded) {
-      window.addEventListener(
-        'load',
-        () => {
-          pageLoaded = true;
-          sweep();
-        },
-        { once: true }
-      );
-    }
+    if (!pageLoaded()) window.addEventListener('load', sweep, { once: true });
 
     /* A visitor who walks out of a lift, or turns Data Saver off, should get
        the hero without reloading. Not implemented everywhere — Safari has no
