@@ -355,6 +355,25 @@ grant select (id, created_at, post_slug, author_name, body) on public.comments t
 -- author_email is absent from the SELECT list on purpose. It is stored so
 -- you can reply to someone, and it can never be read back by the website.
 
+/*
+ * AND FROM `authenticated`, which nothing on this site uses.
+ *
+ * Supabase grants every table in `public` to BOTH API roles by default, and
+ * the revokes above only ever named anon — so `authenticated` still held
+ * SELECT, INSERT, UPDATE, DELETE and TRUNCATE on all three tables. RLS kept
+ * the first four empty, because no policy names that role. TRUNCATE is the one
+ * RLS does not govern at all: it is a table privilege, checked before any row
+ * policy exists to apply. Anybody holding an authenticated JWT was one exposed
+ * code path away from emptying every lead and application in a statement.
+ *
+ * The site has no logins, email sign-ups are disabled in the dashboard
+ * (Authentication -> Providers -> Email), and auth.users is empty — so the
+ * role has no legitimate business here, and it gets exactly what anon gets
+ * for reading: nothing. `submit`, `moderate`, `schedule` and `backup` write as
+ * service_role, which these grants do not touch.
+ */
+revoke all on public.enquiries, public.comments, public.applications from authenticated;
+
 revoke all on public.applications from anon;
 grant insert (
   kind, role_slug, role_title, discipline, desired_role,
@@ -543,20 +562,16 @@ begin
   end if;
 
   /*
-   * Ceiling three: everybody, per DAY. This is the one that actually bounds
-   * the mail bill, and its absence was a hole in the two above.
+   * Ceiling three: everybody, per DAY.
    *
-   * An HOURLY ceiling limits the rate and not the total. At 40 an hour,
-   * enquiries alone can produce 960 notification emails in a day and roughly
-   * 29,000 in a month — so a script running flat out still walks through a
-   * free Resend tier (about 3,000 a month, and about 100 a day) in a little
-   * over a day, which is precisely the outcome sections 5 exists to prevent.
-   * Rate limiting without a total is a slower leak, not a plugged one.
+   * An HOURLY ceiling limits the rate and not the total — at 40 an hour a
+   * script running flat out still puts 960 rows a day into a table. This
+   * bounds the total.
    *
-   * The daily numbers on the triggers below add up to well under the daily
-   * allowance, and every one of them is several times real traffic. A studio
-   * site does not receive thirty genuine enquiries in a day; if it ever does,
-   * raise this deliberately rather than discovering it was already raised.
+   * It no longer bounds the MAIL bill, and must not be lowered to do so again:
+   * that is capped in `notify` (see the note on the triggers below), which
+   * keeps saving submissions after it stops emailing about them. A low
+   * ceiling here refuses real people; a low budget there only delays an email.
    */
   if daily_max is not null then
     select count(*) into n
@@ -579,25 +594,26 @@ $$;
 /*
  * Limits per table: (per address, window in minutes, per window, PER DAY).
  *
- * Ceilings on abuse, not targets — every number is several times what real
- * use looks like. The daily column is the one sized against the mail plan:
+ * Ceilings on abuse, not targets — every number is many times what real use
+ * looks like.
  *
- *   enquiries      20/day  x2  \
- *   comments       30/day       >  90 a day worst case, all three combined,
- *   applications   20/day      /   inside a free Resend tier (~100/day).
+ * THESE ARE NO LONGER SIZED AGAINST THE MAIL PLAN, and they used to be. The
+ * daily column was once 20 / 30 / 20 so that the emails the three tables could
+ * cause stayed inside a free Resend tier. That made a daily ceiling do two
+ * jobs — cap the bill AND refuse the submission — and the second is what an
+ * attacker wants: one person solving twenty Turnstile challenges closed the
+ * contact form to every real client for a day. A refused lead is lost; an
+ * unmailed one is only late.
  *
- * ENQUIRIES COUNT TWICE, and that is why their ceiling came down from 30.
- * A booking now produces two emails, not one: the notification to the studio
- * and the acknowledgement to the person who booked, so they know a real
- * request landed rather than staring at a page that says so. At the old 30 a
- * day, enquiries alone could reach 60 emails and the three tables together
- * 110 — over the free daily allowance, at which point REAL enquiries stop
- * being delivered with nothing to say they have. Twenty is still several
- * times any day this site has ever had.
+ * The mail bill is now capped in the `notify` function (`mailBudget` in
+ * functions/_shared/util.ts), which saves every submission and stops EMAILING
+ * past the budget. So these ceilings only bound how much junk a determined
+ * caller can put in the tables, and can sit far above real traffic. Blocking
+ * the forms for a day now takes 150 solved challenges, not 20.
  *
- * The invite that goes out when you press Confirm is not in this arithmetic.
- * It is sent by a person clicking a button in their own inbox, not by anything
- * a stranger can trigger, and there is one of them per booking you agreed to.
+ * Change a daily number here and change DAILY_CEILING in
+ * functions/backup/index.ts too, or the morning tripwire measures pressure
+ * against a limit that is no longer the limit.
  *
  * Applications keep a 24-hour window rather than an hour: somebody may
  * genuinely apply for two or three roles in one sitting, so the per-address
@@ -607,17 +623,17 @@ $$;
 drop trigger if exists enquiries_rate_limit on public.enquiries;
 create trigger enquiries_rate_limit
   before insert on public.enquiries
-  for each row execute function public.enforce_rate_limit('3', '60', '40', '20');
+  for each row execute function public.enforce_rate_limit('3', '60', '40', '150');
 
 drop trigger if exists comments_rate_limit on public.comments;
 create trigger comments_rate_limit
   before insert on public.comments
-  for each row execute function public.enforce_rate_limit('5', '60', '60', '30');
+  for each row execute function public.enforce_rate_limit('5', '60', '60', '150');
 
 drop trigger if exists applications_rate_limit on public.applications;
 create trigger applications_rate_limit
   before insert on public.applications
-  for each row execute function public.enforce_rate_limit('5', '1440', '20');
+  for each row execute function public.enforce_rate_limit('5', '1440', '100');
 
 /*
  * Housekeeping. The log only ever needs the current window, and nothing reads

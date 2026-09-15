@@ -1,8 +1,14 @@
 /**
- * Put a file in the R2 bucket and print its public URL.
+ * Put a file in the R2 bucket, print its public URL, and write a poster.
  *
- *   node --env-file=.env scripts/upload-r2.mjs <file> [key] [--keep-audio]
+ *   node --env-file=.env scripts/upload-r2.mjs <file> [key]
+ *        [--keep-audio] [--no-poster] [--poster-at=<seconds>] [--start=<seconds>]
  *   node --env-file=.env scripts/upload-r2.mjs dist/video/home-hero.mp4 video/home-hero.mp4
+ *   node --env-file=.env scripts/upload-r2.mjs clip.mp4 video/pieces/kite.mp4 --start=1.6
+ *
+ * What each flag does, and why the poster is scored rather than taken from
+ * frame 0, is on `trimFront` and `posterFrame` below and in README.md under
+ * Video → Uploading.
  *
  * WHY THIS SIGNS THE REQUEST BY HAND rather than using @aws-sdk/client-s3.
  *

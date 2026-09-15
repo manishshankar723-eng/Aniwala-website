@@ -717,6 +717,93 @@ export async function meetingRoomFor(id: string, secret: string): Promise<string
 export const studioName = (): string => Deno.env.get('STUDIO_NAME') ?? 'Aniwala Studios';
 
 /**
+ * A timezone a stranger sent, or null if the runtime does not know it.
+ *
+ * `visitor_tz` is free text in a public form, and every reading of an unknown
+ * zone throws a RangeError rather than falling back — `toLocaleTimeString`
+ * with `timeZone: 'Mars/Olympus'` is an exception, not a UTC time. In `notify`
+ * that exception was thrown while building the acknowledgement, BEFORE the
+ * studio's own email was sent, so a booking with a bad zone never reached
+ * anybody. Callers fall back to `studioTz()`.
+ */
+export function validTz(value: unknown): string | null {
+  if (typeof value !== 'string' || !value) return null;
+  try {
+    new Intl.DateTimeFormat('en-GB', { timeZone: value });
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* The daily mail budget                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * How many emails a stranger may cause in 24 hours.
+ *
+ * WHY THIS LIVES HERE AND NOT IN THE RATE LIMITER
+ *
+ * The daily ceilings in schema.sql section 5 used to be sized against the
+ * Resend plan, which made them do two jobs: cap the mail bill, and refuse the
+ * submission. The second is the expensive half. At 20 enquiries a day, one
+ * person solving 20 Turnstile challenges closed the contact form to every real
+ * client until the window rolled — the lead was refused, not merely unmailed.
+ *
+ * So the bill is capped here instead, where it is actually spent. Past the
+ * budget a submission is still SAVED — in Supabase, and mirrored into the
+ * Studio — it just is not emailed, and the studio gets one email saying so.
+ * The database ceilings are then free to sit far above real traffic.
+ *
+ * Default 90 fits inside Resend's free ~100 a day with room for the alert and
+ * for the invitations `schedule` sends, which a person triggers and are not
+ * counted. On a paid plan: supabase secrets set MAIL_DAILY_BUDGET=...
+ */
+export function mailBudget(): number {
+  const n = Number(Deno.env.get('MAIL_DAILY_BUDGET'));
+  return Number.isFinite(n) && n > 0 ? n : 90;
+}
+
+/* An enquiry can be a booking, which is a notification AND an acknowledgement.
+   Counted as two whether or not it had a slot: over-counting only closes the
+   budget early, under-counting is the bill it exists to cap. */
+const MAIL_WEIGHT: Record<string, number> = { enquiries: 2, comments: 1, applications: 1 };
+
+export const mailWeight = (table: string): number => MAIL_WEIGHT[table] ?? 1;
+
+/**
+ * Emails the intake has asked for in the last 24 hours, including the row that
+ * is being handled right now.
+ *
+ * Read off `submission_log`, which the rate-limit trigger writes for every
+ * accepted web submission and nothing else — so the dashboard and the service
+ * role doing something deliberate never spend the budget.
+ *
+ * NULL WHEN IT CANNOT BE MEASURED, and callers treat that as "send". Getting a
+ * lead in front of a person is what the mail is for; a failed count must not
+ * be the thing that silences it.
+ */
+export async function mailDemandLast24h(): Promise<number | null> {
+  const url = Deno.env.get('SUPABASE_URL');
+  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!url || !key) return null;
+
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  try {
+    /* One column of at most a few hundred rows — the daily ceilings bound it. */
+    const res = await fetch(`${url}/rest/v1/submission_log?select=kind&at=gt.${since}`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+    });
+    if (!res.ok) return null;
+    const rows = (await res.json()) as Array<{ kind: string }>;
+    return rows.reduce((n, r) => n + mailWeight(r.kind), 0);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The studio's own timezone, for the second line of every "when".
  *
  * Defaults to IST because that is where the studio is; an env var rather than

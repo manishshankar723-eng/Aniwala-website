@@ -242,8 +242,22 @@ jobs:
               process.exit(0);
             }
 
+            /* `mail` is the email budget in notify, not a form. At 100% the
+               forms are still ACCEPTING submissions but nobody is emailed
+               about them — so it fails the run too, with its own message. */
+            if (p.mail) {
+              const m = p.mail;
+              console.log(`  mail: ${m.accepted24h}/${m.ceiling} emails asked for in 24h (${m.pctOfCeiling}% of budget)`);
+              if (m.pctOfCeiling >= 100) {
+                console.error("::error::The daily MAIL BUDGET is spent — submissions are being saved but NOT emailed.");
+                console.error("Read the last day of submissions in the Studio. Raise MAIL_DAILY_BUDGET only if the traffic is genuine.");
+                process.exit(1);
+              }
+            }
+
             let worst = 0;
             for (const [kind, v] of Object.entries(p)) {
+              if (kind === "mail") continue;
               console.log(`  ${kind}: ${v.accepted24h}/${v.ceiling} accepted in 24h (${v.pctOfCeiling}% of ceiling)`);
               worst = Math.max(worst, v.pctOfCeiling);
             }

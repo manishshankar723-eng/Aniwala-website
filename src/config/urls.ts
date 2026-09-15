@@ -39,15 +39,22 @@
  * set" and drop the link entirely. Whether a field may be blank is each
  * schema's business, and none of them changed when this check arrived.
  *
- * `\/(?!\/)` RATHER THAN `\/`, which is not fussiness. A protocol-relative
- * `//evil.com` starts with a slash and reads as a path to anyone reviewing it
- * in the Studio, but the browser treats it as an absolute URL on another
- * origin and sends the visitor there. It cannot run a script, so it is not the
- * hole the rest of this file is about — it is just a link off the site wearing
- * a path's clothes, and there is no reason to accept one. A genuine external
- * link is written `https://`.
+ * `\/(?![\/\\\t\n\r])` RATHER THAN `\/`, which is not fussiness. A
+ * protocol-relative `//evil.com` starts with a slash and reads as a path to
+ * anyone reviewing it in the Studio, but the browser treats it as an absolute
+ * URL on another origin and sends the visitor there. It cannot run a script,
+ * so it is not the hole the rest of this file is about — it is just a link off
+ * the site wearing a path's clothes, and there is no reason to accept one. A
+ * genuine external link is written `https://`.
+ *
+ * The second slash has THREE disguises, not one, and the lookahead refuses all
+ * of them. A browser's URL parser treats `\` as `/` in an http(s) URL, so
+ * `/\evil.com` is `//evil.com`; and it deletes tabs and newlines before parsing
+ * at all, so `/<TAB>/evil.com` is too. Refusing any of those straight after
+ * the first slash is enough — whatever follows, the value is no longer a
+ * slash-slash in any reading.
  */
-export const SAFE_HREF = /^(https?:\/\/|mailto:|tel:|\/(?!\/)|#)/i;
+export const SAFE_HREF = /^(https?:\/\/|mailto:|tel:|\/(?![\/\\\t\n\r])|#)/i;
 
 /** Whether a value is safe to put in an `href`. Blank counts as safe. */
 export const isSafeHref = (value: unknown): boolean =>
@@ -74,10 +81,11 @@ export const UNSAFE_HREF_MESSAGE =
  * single layer underneath. Same argument as SAFE_HREF above: the CSP is the
  * backstop, not the check.
  *
- * `\/(?!\/)` for the same reason SAFE_HREF uses it — `//evil.com/x.mp4` reads
- * as a path and is an absolute URL on another origin.
+ * `\/(?![\/\\\t\n\r])` for the same reason SAFE_HREF uses it — `//evil.com/x.mp4`,
+ * `/\evil.com/x.mp4` and `/<TAB>/evil.com/x.mp4` all read as paths and are all
+ * absolute URLs on another origin.
  */
-export const SAFE_MEDIA_SRC = /^(https?:\/\/|\/(?!\/))/i;
+export const SAFE_MEDIA_SRC = /^(https?:\/\/|\/(?![\/\\\t\n\r]))/i;
 
 /** Whether a value is safe to put in a media `src`. Blank counts as unset. */
 export const isSafeMediaSrc = (value: unknown): boolean =>

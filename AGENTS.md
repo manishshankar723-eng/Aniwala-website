@@ -138,6 +138,35 @@ and will drift.
 site ships no React. `studio/package.json` has an `overrides` block with a
 comment explaining why one pin must **not** be moved to the next major.
 
+**A push does not deploy the Studio.** `.github/workflows/deploy.yml` builds and
+ships the website only; neither of its jobs touches `studio/`. A change under
+`studio/schemas/` or `studio/components/` is live only after
+`cd studio && npm run deploy`. So one change can have three halves that ship
+three ways — site code by push, Studio code by `npm run deploy`, content by
+Publish or a dataset script — and it is easy to finish one and report all three.
+Say which halves are done.
+
+- **The deploy is gated by `npm run check`** (`studio/scripts/check-schema.mjs`),
+  which catches an unregistered type or an undefined field group — both compile
+  under `sanity build` and then take the whole Studio down at runtime. The root
+  `npm run verify` does NOT type-check the Studio; run
+  `cd studio && npx tsc --noEmit` as well.
+- **Verify a deploy from `studio/dist`, not from memory.** It is exactly what was
+  uploaded. `find studio/schemas studio/components -newer studio/dist/index.html`
+  empty means nothing changed since; `grep -rl "<string>" studio/dist` confirms a
+  specific change shipped.
+- **Deleting a schema field does not delete its data.** The values stay in the
+  Content Lake and the Studio renders them as unknown-field warnings, whose
+  obvious "fix" is to put the field back. Clear them with a script that covers
+  `drafts.*` too — a draft is its own document, and `scripts/unset-sound.mjs` is
+  the pattern: dry run, one transaction, patch array members by `_key`, never
+  by index.
+- **A custom option on a field needs declaration merging**, not a cast. Sanity's
+  `StringOptions` is a closed type; `posterField` is added with
+  `declare module 'sanity'` in `components/R2VideoInput.tsx`, beside the code
+  that reads it, so a misspelt option in a schema is a type error rather than a
+  panel that silently never appears.
+
 ## Documentation
 
 Full documentation: https://docs.astro.build

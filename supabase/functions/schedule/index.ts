@@ -65,6 +65,7 @@ import {
   fmtWhen,
   studioTz,
   studioName,
+  validTz,
   meetingRoomFor,
   type CalendarEvent,
 } from '../_shared/util.ts';
@@ -238,7 +239,9 @@ Deno.serve(async (req) => {
        invitation, in this case. Treated as no time at all. */
     const parsed = booking.slot_utc ? new Date(booking.slot_utc) : null;
     const start = parsed && !Number.isNaN(parsed.getTime()) ? parsed : null;
-    const visitorTz = booking.visitor_tz || studioTz();
+    /* Validated: an unknown zone throws on first use, which took the whole
+       confirmation screen down with a 500. See `validTz`. */
+    const visitorTz = validTz(booking.visitor_tz) ?? studioTz();
     const studio = recipientFor(booking.enquiry_type);
     /* Never invite somebody twice: the booker and the studio are already
        addressees, and a duplicate reads as a second, conflicting invitation. */

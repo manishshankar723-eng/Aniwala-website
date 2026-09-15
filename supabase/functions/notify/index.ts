@@ -48,8 +48,12 @@ import {
   fmtWhen,
   studioTz,
   studioName,
+  validTz,
   bookingSecret,
   BOOKING_TTL_SECONDS,
+  mailBudget,
+  mailWeight,
+  mailDemandLast24h,
   type Mail,
 } from '../_shared/util.ts';
 
@@ -166,7 +170,9 @@ Deno.serve(async (req) => {
          "Invalid Date" rather than failing — including into the subject line
          of an email to a client. */
       const start = parsed && !Number.isNaN(parsed.getTime()) ? parsed : null;
-      const visitorTz = (record.visitor_tz as string) || studioTz();
+      /* Validated, not just defaulted: an unknown zone throws on first use,
+         and that used to happen before the studio's email went out. */
+      const visitorTz = validTz(record.visitor_tz) ?? studioTz();
 
       /*
        * No signing secret means no buttons — NOT no notification.
@@ -252,27 +258,41 @@ Deno.serve(async (req) => {
       };
 
       if (start) {
+        /*
+         * NOTHING A STRANGER TYPED IS IN THIS EMAIL, and nobody but the
+         * address on the form receives it.
+         *
+         * It goes out the moment a public form is submitted, with no person in
+         * between, to an address the submitter chose. It used to CC every
+         * guest and repeat the name and topic fields back — which made it a
+         * way to send ten strangers a message of your own, in the studio's
+         * name, from the studio's verified domain: put the pitch in the name
+         * field and the victims in the guest list. Escaping stops markup; it
+         * does nothing about words. The cost was spam complaints against the
+         * sending domain, and a Resend account suspended over them stops the
+         * lead notifications too.
+         *
+         * So the acknowledgement carries only what the site produced: fixed
+         * copy, and a time and duration parsed out of validated columns.
+         * Guests hear about the call from the invitation `schedule` sends —
+         * after a person at the studio has read the request and pressed
+         * Confirm, which is the check this email never had.
+         */
         ack = {
           to: [email],
-          /* The guests are copied so they know the request exists at all —
-             otherwise the first they hear of the call is an invitation to
-             one they were never told about. */
-          cc: guests,
           subject: `We have your call request — ${studioName()}`,
           replyTo: studio[0],
           html: layout(
             'Thanks — we have your request',
             `<p style="margin:0 0 20px;font-size:15px;line-height:1.6">
-               Hello ${esc(name)}, thank you for asking for a call. Nothing is
-               booked yet: we confirm each one by hand, usually within a working
-               day, and you will get a calendar invitation as soon as we do.
+               Hello, and thank you for asking for a call. Nothing is booked
+               yet: we confirm each one by hand, usually within a working day,
+               and you will get a calendar invitation as soon as we do.
              </p>
 
              <table style="border-collapse:collapse;width:100%">
                ${row('You asked for', fmtWhen(start, duration, visitorTz))}
                ${row('Duration', `${duration} min`)}
-               ${row('About', type)}
-               ${row('Guests', guests.join(', '))}
              </table>
 
              <p style="margin:24px 0 0;font-size:13px;color:#83879a">
@@ -440,7 +460,51 @@ Deno.serve(async (req) => {
       return json(200, { skipped: true, table: payload.table });
     }
 
-    await sendMail(mail);
+    /*
+     * THE DAILY MAIL BUDGET — see `mailBudget` in _shared/util.ts for why the
+     * cap on email lives here and not in the database's rate limiter.
+     *
+     * Over budget, nothing is sent, and the row is still mirrored below: the
+     * submission is saved either way, which is the point of moving the cap out
+     * of the database. The one submission that tips the count over gets a
+     * single alert instead, so the silence that follows is explained rather
+     * than discovered. Two rows crossing at the same instant can each send it
+     * (or neither can, if they race the other way); the backup tripwire
+     * reports a full budget the next morning regardless.
+     */
+    const budget = mailBudget();
+    const demand = await mailDemandLast24h();
+    const overBudget = demand !== null && demand > budget;
+
+    if (overBudget) {
+      console.warn(`mail budget reached (${demand}/${budget} in 24h) — ${payload.table} row saved, not emailed`);
+      if (demand - mailWeight(payload.table) <= budget) {
+        try {
+          await sendMail({
+            to: recipientFor(null),
+            subject: `Daily email limit reached — new submissions are saved, not emailed`,
+            html: layout(
+              'The website has stopped emailing you for today',
+              `<p style="margin:0 0 16px;font-size:15px;line-height:1.6">
+                 The forms have asked for more than ${esc(budget)} emails in the
+                 last 24 hours, which is far above normal and usually means
+                 somebody is sending junk through them.
+               </p>
+               <p style="margin:0 0 16px;font-size:15px;line-height:1.6">
+                 <strong>Nothing is being lost.</strong> Every submission is
+                 still saved in Supabase and appears in the Studio's intake
+                 lists. Emails resume on their own as the 24-hour window moves
+                 on — check the Studio for anything that arrived meanwhile.
+               </p>`
+            ),
+          });
+        } catch (err) {
+          console.error('mail budget alert failed:', err);
+        }
+      }
+    } else {
+      await sendMail(mail);
+    }
 
     /*
      * The acknowledgement is sent SECOND and its failure is swallowed, and
@@ -455,7 +519,7 @@ Deno.serve(async (req) => {
      * The lead reaching a human is what this function exists for. The
      * acknowledgement is the nicety, so it is the one that gives way.
      */
-    if (ack) {
+    if (ack && !overBudget) {
       try {
         await sendMail(ack);
       } catch (err) {
@@ -483,7 +547,7 @@ Deno.serve(async (req) => {
       console.error('Studio mirror failed (the email was sent):', err);
     }
 
-    return json(200, { sent: true });
+    return json(200, { sent: !overBudget });
   } catch (err) {
     // Supabase retries a failed webhook three times with backoff and logs it
     // under Database → Webhooks → Logs, so a real error must surface as 5xx

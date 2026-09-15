@@ -58,6 +58,59 @@ static and would carry on serving the previous build. If an editor says
 Hostinger runs PHP, not Node — it only ever receives finished HTML.
 Never point the workflow at a Node runtime; there isn't one on this plan.
 
+### The third way in: a change to the Studio itself
+
+**Pushing does not deploy the Studio.** The workflow above has two jobs,
+`verify` and `deploy`, and neither touches `studio/` — it builds and ships the
+*website*. The Studio is a separate npm package hosted by Sanity, and the only
+thing that updates it is:
+
+```bash
+cd studio
+npm run deploy      # check-schema.mjs, then sanity build + sanity deploy
+```
+
+So a single change can have up to three halves that ship three different ways,
+and it is easy to finish one and believe you finished all of them:
+
+| What changed | How it ships | Covered by `git push`? |
+| --- | --- | --- |
+| Website code — `src/`, `public/`, `scripts/` | push to `main` → Actions → Hostinger | yes |
+| Studio code — `studio/schemas/`, `studio/components/` | `cd studio && npm run deploy` | **no** |
+| Content — documents, images, field values | Publish, or a script writing to the dataset | n/a — it is already live |
+
+**What skipping the Studio half looks like.** Nothing breaks on the website —
+it reads the dataset over GROQ and never loads a Studio schema. Instead the
+hosted Studio keeps serving its *old* bundle, so editors keep seeing fields
+that no longer do anything, and miss fields that now exist. When the two sound
+fields were deleted, a Studio left undeployed would still have offered **Play
+with sound** on the homepage hero: ticking it would write `sound: true` back
+into the dataset, and the site would ignore it. Confusing rather than
+dangerous — which is exactly the kind of mismatch that gets a "fix" attempted
+later.
+
+**The deploy is gated.** `npm run deploy` runs `studio/scripts/check-schema.mjs`
+first, which fails on a reference to an unregistered type or an undefined field
+group — two faults `sanity build` compiles happily and that then take the whole
+Studio down at runtime. The Studio package is also type-checked separately
+(`cd studio && npx tsc --noEmit`); `npm run verify` at the repo root does not
+cover it.
+
+**Is the deployed Studio current?** `studio/dist` is exactly what the last
+deploy uploaded, so two checks answer it without logging in:
+
+```bash
+# 1. Is any Studio source newer than the last build?
+find studio/schemas studio/components -newer studio/dist/index.html
+
+# 2. Is a specific change actually in the uploaded bundle?
+grep -rl "Poster frame" studio/dist
+```
+
+Empty output from the first means nothing has changed since the deploy. After
+deploying, editors with the Studio already open should hard-reload
+(Ctrl+Shift+R) to drop the cached bundle.
+
 ### Going live on aniwala.com
 
 The site currently serves from **staging.aniwala.com**. `aniwala.com` is still
@@ -166,7 +219,7 @@ scripts/
 ├── check-links.mjs      Fails CI on a broken link, missing asset or scripted href
 ├── check-dataset.mjs    Fails CI if the dataset answers a stranger's query
 ├── build-preview.mjs    A build that shows unpublished drafts
-├── upload-r2.mjs        Puts a file in the R2 bucket. Strips audio unless told not to
+├── upload-r2.mjs        Puts a file in R2. Strips audio, writes a poster, --start trims
 ├── unset-sound.mjs      One-off: clears the deleted `sound` fields from the dataset
 ├── r2-cors.mjs          The bucket's CORS policy, so the Studio may upload
 ├── generate-icons.mjs   Favicon/apple-touch/PWA PNGs from the mark
@@ -180,7 +233,7 @@ supabase/
 ├── schema.sql           Tables, RLS policies, column grants, rate limiter
 ├── mirror-events.sql    One-time: webhooks fire on UPDATE and DELETE too
 └── functions/           submit, notify, moderate, schedule, sign-upload (Deno)
-studio/                  The Sanity Studio. A separate npm package.
+studio/                  The Sanity Studio. A separate npm package, deployed separately.
 ```
 
 ## Checks
@@ -455,6 +508,36 @@ from the Studio and then had nowhere to put a picture, falling back to the flat
 tint with no warning anywhere. `src/config/imageSlots.ts` carries that story at
 length; the short version is that an image belongs to the document it depicts.
 
+**That same upload reaches three places** — it is also what the Studio lists
+under *Images → Service heroes*, which is a filtered view of the service
+documents rather than a separate library:
+
+1. the band behind the title on `/services/<slug>/`;
+2. the tile on the services block when its layout is **Tiles** — full-bleed art
+   with the name and blurb on a scrim, matching the discipline tiles;
+3. the thumbnail on the same block when its layout is **Rows** — a contained
+   picture beside the number, name, tagline and offering chips.
+
+The services block (`ServiceGridBlock.astro`) takes its two layouts from two
+sources on purpose. **Tiles** reads the nav's services dropdown for *which*
+services and in what order, so the homepage and the Services menu can never
+list different disciplines — and joins each nav href to its service document
+by path to pick up the picture, because a nav child is only a label, an href
+and a blurb. **Rows** reads the service documents directly, since only they
+carry taglines and offerings.
+
+**The homepage runs Rows, deliberately.** Both it and the portfolio grid above
+it are six things with pictures, and when both were tile walls the page read as
+saying the same thing twice — the portfolio tiles already carry the service name
+as their kicker, so five of the six service names were on screen before the
+services section began. Same content, different shape. Switch it with the
+block's **Layout** radio.
+
+The homepage block also has its **Anchor** pinned to `services`. The component
+otherwise picks the section id from the layout — `services` for Tiles,
+`disciplines` for Rows — so flipping the radio would silently move `#services`
+and break any link to it.
+
 The six services are **3D Art, 2D Art, Animation, VFX, Integration** and
 **Video Editing**.
 
@@ -657,7 +740,7 @@ an editor had ticked *Has sound worth hearing* — which meant most tiles offere
 no way to hear anything at all. That field has since been deleted outright; see
 **Sound**, below.
 
-Two things make it work, and both were bugs before they were fixed:
+Three things make it work, and all three were bugs before they were fixed:
 
 - **`.piece-inner` gives up its pointer events.** It fills the tile and sits
   over the video, so with it in the way the bar rendered perfectly and ignored
@@ -669,6 +752,16 @@ Two things make it work, and both were bugs before they were fixed:
   the same reason one layer up, and switches to `object-fit: contain` — `cover`
   crops to the tile's shape, which is right on a grid and wrong on a screen
   somebody has just asked to fill with the whole frame.
+- **`.piece-img` sits at `z-index: -1`, beside the video.** `.piece-inner` is
+  `position: relative` with no z-index, so it is not a stacking context and
+  every layer paints in `.piece`'s: negatives first, then everything at `auto`
+  in DOM order. The still had no z-index, which made it `auto` — *above* the
+  video at `-1`, and above the scrim too. A piece with both an image and a video
+  would have shown its poster permanently covering the video it is the poster
+  for. It went unnoticed only because both video pieces had no image; the Studio
+  now offers to fill that field in after every upload, which made the
+  combination real. At `-1` alongside the video, DOM order decides, and the
+  still is written first.
 
 `.piece--player .piece-body` carries bottom padding so the title is not sitting
 under the bar. The bar is only drawn on hover, so that gap is empty most of the
@@ -864,9 +957,27 @@ In the Studio, drop the file on the video field. Or from a terminal:
 ```bash
 node --env-file=.env scripts/upload-r2.mjs <file> [key] [--keep-audio]
                                            [--no-poster] [--poster-at=<seconds>]
+                                           [--start=<seconds>]
 node --env-file=.env scripts/upload-r2.mjs clip.mp4 video/home-hero.mp4
 node --env-file=.env scripts/upload-r2.mjs clip.mp4 video/home-hero.mp4 --poster-at=2.5
+node --env-file=.env scripts/upload-r2.mjs clip.mp4 video/home-hero.mp4 --start=1.6
 ```
+
+| Flag | Does |
+| --- | --- |
+| *(none)* | strips the audio track, adds faststart, uploads, writes `<name>-poster.jpg` beside the source from the highest-contrast frame in the first 15 s |
+| `--keep-audio` | leaves the audio track in |
+| `--no-poster` | skips the still |
+| `--poster-at=<s>` | takes the still from that second instead of scoring |
+| `--start=<s>` | trims the front off (stream copy, snaps to a keyframe), then takes the still from the trimmed file's frame 0 — so the poster and the opening frame are the same bytes |
+
+Values take the `=` form. The positional parse drops every `--` argument whole,
+so a space-separated value would survive as a stray positional and be read as
+the object key.
+
+The script **does not re-encode**. `-c:v copy` throughout, so no generation loss
+and no wait — which also means it cannot make a file smaller. Size is decided
+before upload; see *Encoding a hero loop*.
 
 Uploaded objects carry `Cache-Control: public, max-age=2592000`. R2 sends no
 caching directive of its own, so without one a browser falls back to heuristic
@@ -879,6 +990,66 @@ The script prints the public URL and then `HEAD`s it — a `200` from the upload
 only proves the object landed, and public read is a **separate bucket setting**.
 Re-using a key overwrites the object, so uploading over `video/home-hero.mp4`
 swaps the hero with no Studio edit at all.
+
+#### Encoding a hero loop
+
+**File size is the whole difference between a hero that is simply there and one
+that shows its poster for several seconds.** There is no trick other sites are
+using; their loops are small. The Studio's field note says under about 5 MB, and
+it means it.
+
+The homepage hero was the counter-example. It was a **16.5 MB, 112-second, 1080p
+showreel with an audio track still in it** — the track betrays a Studio drop-zone
+upload, which keeps whatever it is given, rather than `upload-r2.mjs`, which
+strips it. On a cold load (a first visit, an incognito window) the whole of it
+had to arrive before playback, and the poster held the screen meanwhile. It was
+re-encoded to:
+
+| | Resolution | Length | Size |
+| --- | --- | --- | --- |
+| Original | 1920×1080 | 112 s | 16.5 MB, with audio |
+| **Live loop** | 1280×720 | 24 s | **1.26 MB**, silent |
+| Full-length spare | 1280×720 | 110 s | 5.34 MB, silent |
+
+720p costs nothing behind a scrim and a headline. The recipe:
+
+```bash
+ffmpeg -i source.mp4 -ss 1.6 -t 24 -an -vf "scale=1280:-2" \
+  -c:v libx264 -crf 27 -preset slow -profile:v high -pix_fmt yuv420p \
+  -g 50 -movflags +faststart hero-loop.mp4
+```
+
+- **`-ss` after `-i`** is frame-accurate. Before `-i` it snaps to a keyframe.
+- **`-ss 1.6`** cut a fade up from black. The reel's real opening was 1.6 s of
+  near-black, so even instant playback started on black — and did it again on
+  every loop.
+- **`-an`** drops the audio. Nothing on the site can play it.
+- **`-crf 27`** is the size lever; higher is smaller and softer.
+- **`-g 50`** puts a keyframe every 2 s at 25 fps, so seeks and loops restart
+  quickly.
+- **`+faststart`** moves the index to the front so playback can begin before
+  the download ends.
+
+Upload the result with a content hash in the key, and take the poster from its
+first frame:
+
+```bash
+node --env-file=.env scripts/upload-r2.mjs hero-loop.mp4 video/krazzy-4-hero-loop-720-<hash>.mp4 --poster-at=0
+```
+
+Both re-encodes are in the bucket. The 16.5 MB original is untouched, and the
+full-length spare can go back in by pasting its URL into the hero's
+**Background video** field:
+
+```
+video/krazzy-4-hero-loop-720-09d7ed28.mp4   <- live
+video/krazzy-4-hero-full-720-42d2f622.mp4   <- full reel, 720p
+```
+
+**The seam that remains.** A loop is only seamless if its last frame matches its
+first. The live one cuts at 24 s into an unrelated moment — invisible enough
+behind the scrim, but it is the remaining edge if the hero ever needs to be
+flawless.
 
 #### If the drop zone refuses an upload
 
@@ -1077,7 +1248,7 @@ A tool with no logo is not missing from anything — it renders as a text pill.
 
    - URL: `https://api.github.com/repos/<owner>/<repo>/dispatches`
    - Method: `POST`
-   - Headers: `Authorization: Bearer <a GitHub PAT with repo scope>`,
+   - Headers: `Authorization: Bearer <a fine-grained GitHub token, see below>`,
      `Accept: application/vnd.github+json`
    - Body: `{"event_type": "sanity-publish"}`
    - Trigger on: create, update, delete
@@ -1086,6 +1257,20 @@ A tool with no logo is not missing from anything — it renders as a text pill.
    ```
    !(_id in path("drafts.**")) && !(_type in ["submission", "sanity.imageAsset", "sanity.fileAsset"])
    ```
+
+   **THE TOKEN MUST BE FINE-GRAINED AND SCOPED TO THIS ONE REPOSITORY.** A
+   classic token with `repo` scope can read and push to every repository the
+   account owns, and this one sits in a webhook header that every Sanity
+   project administrator can open. Create it at GitHub → Settings → Developer
+   settings → Personal access tokens → **Fine-grained tokens**:
+
+   - Repository access: **Only select repositories** → this repository
+   - Permissions → Repository → **Contents: Read and write** (the dispatches
+     endpoint requires it; nothing else is needed)
+   - Expiration: a year, with a calendar reminder. An expired token fails
+     silently — publishing stops deploying and nothing says why.
+
+   Then delete any classic token that was used here before.
 
    **THE FILTER IS NOT OPTIONAL, and leaving it blank is not a tidiness
    problem.** It is one GROQ boolean expression — the same language the site
@@ -1238,9 +1423,16 @@ RLS permits that, correctly — it is an insert, which is what anon is allowed t
 do. The problem is not the row. It is that every insert fires the `notify`
 webhook and sends an email, so a loop empties a free Resend tier in minutes,
 and once it is empty **real enquiries stop reaching your inbox with nothing to
-tell you.** The trigger enforces two ceilings, per address and global; the
-global one is what protects the mail quota against a run from many addresses.
-Current limits are in the comments of section 5 — all far above real traffic.
+tell you.** The trigger enforces ceilings per address, per hour and per day;
+they bound how many rows a run can create. Current limits are in the comments
+of section 5 — all far above real traffic.
+
+**The mail quota itself is capped in `notify`, not by those ceilings.** Past
+`MAIL_DAILY_BUDGET` emails in 24 hours (default 90, sized for Resend's free
+tier) submissions are still saved and mirrored into the Studio, but not
+emailed, and the studio inbox gets one alert saying so. The morning backup run
+fails when the budget is spent. On a paid Resend plan, raise it:
+`supabase secrets set MAIL_DAILY_BUDGET=500 --project-ref <ref>`.
 
 If you ever need to bulk-import rows, do it from the SQL editor or with the
 service key: requests with no forwarded client address are deliberately not

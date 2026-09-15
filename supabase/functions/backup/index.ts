@@ -49,7 +49,7 @@
  *     single loudest signal available that the secret has gone, and a log with
  *     only failures in it would hide exactly the case that matters.
  */
-import { safeEqual } from '../_shared/util.ts';
+import { safeEqual, mailBudget, mailDemandLast24h } from '../_shared/util.ts';
 
 /**
  * What gets archived, and what deliberately does not.
@@ -70,14 +70,14 @@ const PAGE = 1000;
  * against. Change one there and change it here, or the tripwire below reports
  * pressure against a limit that is no longer the limit.
  *
- *   enquiries    trigger('3', '60', '40', '20')  -> 20/day
- *   comments     trigger('5', '60', '60', '30')  -> 30/day
- *   applications trigger('5', '1440', '20')      -> 20 per 24h window
+ *   enquiries    trigger('3', '60', '40', '150')  -> 150/day
+ *   comments     trigger('5', '60', '60', '150')  -> 150/day
+ *   applications trigger('5', '1440', '100')      -> 100 per 24h window
  */
 const DAILY_CEILING: Record<string, number> = {
-  enquiries: 20,
-  comments: 30,
-  applications: 20,
+  enquiries: 150,
+  comments: 150,
+  applications: 100,
 };
 
 /**
@@ -129,6 +129,19 @@ async function intakePressure(
       accepted24h: total,
       ceiling,
       pctOfCeiling: ceiling > 0 ? Math.round((total / ceiling) * 100) : 0,
+    };
+  }
+
+  /* The mail budget, in the same shape so the workflow reads it with the same
+     loop. At 100% `notify` has stopped emailing: submissions are saved but
+     nobody is being told about them, which is worth a failed run. */
+  const demand = await mailDemandLast24h();
+  if (demand !== null) {
+    const budget = mailBudget();
+    out.mail = {
+      accepted24h: demand,
+      ceiling: budget,
+      pctOfCeiling: Math.round((demand / budget) * 100),
     };
   }
 

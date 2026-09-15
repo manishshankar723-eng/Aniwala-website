@@ -6,7 +6,9 @@ switch already-shipped code on.
 
 Edit at `aniwala.com/admin`. Compiled from the built output on 13 September
 2026 — 67 pages, 41 in the sitemap. Character counts are measured from the live
-HTML, not estimated.
+HTML, not estimated. **The video, poster, service-hero and team items were
+re-checked against the dataset on 14 September 2026**; the other counts are
+still as of the 13th.
 
 After publishing in the Studio, run `npm run restart` before checking locally —
 the dev server caches CMS content until it restarts.
@@ -38,11 +40,17 @@ portfolio that shows no animation.
 - [ ] **Images on the 3 portfolio pieces** · *Portfolio → each piece → Image*
   The tiles currently fall back to a flat colour tint.
 
-- [ ] **Poster frame on the homepage hero video** · *Pages → Home → Hero block → Poster slot*
-  The hero is a **2.3 MB autoplaying MP4 with no poster**, above the fold.
-  Nothing paints in that area until the first frame decodes — this is the
-  homepage's largest-contentful-paint on a phone. — *The field already exists
-  and is empty.*
+- [x] **Poster frame on the homepage hero video** · *Pages → Home → Hero block → Still image*
+  **Done, 14 September.** By then the hero was not the 2.3 MB file this line
+  described but a **16.5 MB, 112-second showreel** with a poster taken from a
+  dark frame of a previous cut. It is now a 1.26 MB 24-second loop, and the
+  poster is that loop's own first frame, so the handover cannot be seen.
+
+  **The field moved.** The still is now **Still image** on the hero block
+  itself. *Poster slot* was an `artwork` document in a different part of the
+  Studio, which is exactly how the still and the video drifted apart; it is
+  still read as a fallback and hides itself on heroes that do not use it.
+  Dropping a new video on the hero offers a poster frame straight away.
 
 - [ ] **Publish pieces for the 3 empty disciplines** · *Portfolio → new piece → Character Design / Concept & 2D Art / Motion Graphics*
   These three galleries are empty. Their pages were unreachable from the
@@ -70,6 +78,13 @@ portfolio that shows no animation.
   poster, and the only thing on screen until the player has a frame. A video
   with no image falls back to flat tint.
 
+  **Wait for the site deploy before adding one to Rolex or Nike Jordans.** Those
+  are the only two video pieces, and neither has an Image. Until the fix for
+  `.piece-img` stacking is live, a piece with both shows its image *covering*
+  the video permanently. The Studio side is already deployed and will happily
+  offer the frame, so this is the one place the two halves being out of step
+  can be seen.
+
   Video takes a direct `.mp4`/`.webm` URL or a Cloudflare Stream id. **Not a
   YouTube or Vimeo link** - the field refuses one, because neither can play as
   a silent background loop.
@@ -78,6 +93,11 @@ portfolio that shows no animation.
   Studio and it uploads straight to Cloudflare R2 - it never goes into Sanity,
   which does not transcode and charges for storage either way.
 
+  A **Poster frame** panel then appears under the drop zone with a frame
+  already picked, a slider, and **Use this frame**, which saves it to the
+  piece's Image. The automatic pick avoids black and not much more — drag to the
+  frame you actually want before saving.
+
   The other route is a terminal, and it is the better one when the file is
   large or has an audio track nothing will ever play:
 
@@ -85,8 +105,14 @@ portfolio that shows no animation.
   node --env-file=.env scripts/upload-r2.mjs clip.mp4 video/pieces/kite.mp4
   ```
 
-  It strips the dead audio (a browser cannot), prints the public URL, and
-  checks the URL actually serves. Paste what it prints into the Video field.
+  It strips the dead audio (a browser cannot), prints the public URL, checks
+  the URL actually serves, and writes `clip-poster.jpg` beside your file. Paste
+  the URL into the Video field and drop the poster on Image.
+  `--poster-at=2.5` picks the frame; `--start=2.5` trims the front off and uses
+  the new first frame, so the poster and the opening match exactly.
+
+  It does not make a file smaller. Keep a background loop under about 5 MB —
+  see *Video → Encoding a hero loop* in README.md for the recipe.
 
   If the drop zone fails, the likeliest cause is the bucket's CORS policy
   rather than anything in the CMS - see *Video -> If the drop zone refuses an
@@ -146,14 +172,22 @@ change.
   animator with a track record is the strongest signal the site could carry, and
   it has none today. — *Person markup is live and waiting on a name.*
 
-- [ ] **Hero image on each of the 6 service pages** · *Services → each service → Hero*
-  All six currently share one site-wide fallback picture, so all six share the
-  generic social card. Uploading a hero gives that service its own card
-  automatically.
+- [x] **Hero image on each of the 6 service pages** · *Services → each service → Hero*
+  **Done — all six have one.** Each now reaches three places from that one
+  upload: the band on the service's own page, its social card, and its
+  thumbnail in the homepage's *Six disciplines* section. Replacing a hero
+  replaces it in all three.
 
 - [ ] **Team members, clients and testimonials** · *Team / Clients / Testimonials*
-  All three collections are empty, and the build warns about each one on every
-  run. These are the pages that convert and the pages that earn links.
+  Clients and testimonials are still empty, and the build warns about both on
+  every run. These are the pages that convert and the pages that earn links.
+
+  Team has **one published member**, and their photo is the problem: it is
+  **200 × 200 pixels**, displayed at roughly 570 px wide, so it renders blurred.
+  Sanity's image CDN upscales without complaint, so the page downloads a 960-px
+  file holding 200 px of real detail. **Re-upload at 1400 × 1050 or larger**
+  (4:3; faces sit high in the crop). A separate sizing bug in the team grid
+  would still soften a good photo on a wide monitor, and is not yet fixed.
 
 ---
 
