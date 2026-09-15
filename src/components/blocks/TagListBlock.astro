@@ -143,13 +143,31 @@ const groups = Array.from({ length: copies }, (_, i) => i > 0);
           {groups.map((isDuplicate) => (
             <ul class="tools-group" aria-hidden={isDuplicate ? 'true' : undefined}>
               {/*
-                The badge image is deliberately NOT `loading="lazy"`. The
+                The badge image is deliberately NOT `loading="lazy"`, and it
+                is deliberately `fetchpriority="low"`. Those are answers to two
+                different questions and it is worth separating them.
+
+                NOT LAZY, for the reason this comment has always given: the
                 track is always moving, so a badge that has not loaded by the
                 time it slides into view pops in mid-scroll — and most of them
-                start outside the overflow, which is exactly where a lazy
-                image decides it is not needed yet. They are a few KB of SVG
-                each and the copies share one request per file, so there is
-                nothing to defer.
+                start outside the overflow, which is exactly where a lazy image
+                decides it is not needed yet. That reasoning still holds and
+                lazy loading here would still be wrong.
+
+                LOW PRIORITY, because the rest of that argument did not. "A few
+                KB of SVG each" was measured at ten files and 58 KB, two of
+                them PNGs at 23 KB and 16 KB, and the strip they belong to
+                starts around nine thousand pixels down the page. Eager and
+                default-priority meant ten requests competing for a phone's one
+                connection while the thing at the top of the page was still
+                arriving.
+
+                `fetchpriority="low"` keeps every badge eager — they all still
+                load, nothing pops in — and simply tells the browser to fetch
+                them after the things somebody is actually looking at. It is
+                the answer to "when", where lazy would have been a wrong answer
+                to "whether". Ignored by browsers that do not support it, which
+                get exactly today's behaviour.
               */}
               {items.map((t) => {
                 const logo = logoFor(t);
@@ -172,6 +190,7 @@ const groups = Array.from({ length: copies }, (_, i) => i > 0);
                           width="128"
                           height="128"
                           decoding="async"
+                          fetchpriority="low"
                         />
                         {/* Only when the brand has its own light version. Both
                             files are in the page and CSS shows one: a theme
@@ -184,6 +203,7 @@ const groups = Array.from({ length: copies }, (_, i) => i > 0);
                             width="128"
                             height="128"
                             decoding="async"
+                            fetchpriority="low"
                           />
                         )}
                       </>

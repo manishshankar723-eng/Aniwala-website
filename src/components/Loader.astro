@@ -374,6 +374,26 @@ const MARK =
 
       root.dataset.loader = 'done';
 
+      /*
+       * CLEARED BEFORE THE EVENT, and this is load-bearing rather than tidy.
+       *
+       * `bootMotion` in Base.astro reads this flag on `astro:page-load` and,
+       * when it is set, waits for the event below instead of starting the
+       * reveals. That worked while the curtain lifted on `load`, because the
+       * router fires `astro:page-load` from its own `load` handler — the flag
+       * was always read before the event was ever dispatched.
+       *
+       * The curtain now lifts EARLIER than `load`, so the order is reversed:
+       * the event fires first, and `bootMotion` then registers a listener for
+       * something that has already happened and waits forever. Same shape as
+       * the bug that stopped every video playing.
+       *
+       * Clearing the flag here is what makes the ordering irrelevant. Whoever
+       * reads it afterwards sees "no curtain pending" and starts immediately,
+       * which is the truth.
+       */
+      (window as any).__aniwalaLoaderPending = false;
+
       /* Motion boot waits on this — see Base.astro. Without it the hero
          reveals play behind the curtain and are over by the time it lifts. */
       window.dispatchEvent(new CustomEvent('aniwala:loader-done'));
@@ -393,10 +413,72 @@ const MARK =
     const elapsed = () => performance.now() - started;
     const afterMin = (fn: () => void) => setTimeout(fn, Math.max(0, MIN - elapsed()));
 
-    if (document.readyState === 'complete') afterMin(finish);
-    else window.addEventListener('load', () => afterMin(finish), { once: true });
+    /*
+     * WHAT THE CURTAIN WAITS FOR, and it is no longer `load`.
+     *
+     * It used to lift on the window `load` event, which sounds right and is
+     * the wrong event entirely. `load` does not mean "the page is ready to
+     * look at" — it means EVERY subresource has arrived: every eager image
+     * anywhere in the document, every `async` third-party script, the lot.
+     *
+     * Measured on a throttled phone, that put first paint at 1.5s and the
+     * curtain at 3.2s. The page was sitting there, laid out, fonts applied,
+     * for one and a half seconds behind an opaque panel — waiting on a
+     * decorative logo strip nine thousand pixels down the page and a captcha
+     * widget for a form nobody had scrolled to. The floor below was never
+     * even the constraint; shortening it changed nothing at all, because
+     * `load` was always later.
+     *
+     * So it waits for the two things that actually decide whether the page
+     * can be looked at:
+     *
+     *   DOM PARSED   the markup exists and the stylesheets that block
+     *                rendering have been applied. Deferred module scripts run
+     *                before this fires, so the page is laid out, not just
+     *                present.
+     *   FONTS SETTLED  `document.fonts.ready`, BUT ON A LEASH. The one thing
+     *                that genuinely reflows a finished layout is a face
+     *                swapping in underneath it, and the curtain is the right
+     *                place to hide that. The two faces that set everything
+     *                above the fold are preloaded in Base.astro, so they are
+     *                normally ready before the DOM is.
+     *
+     *                The leash is not hypothetical caution. `fonts.ready`
+     *                waits for EVERY face the page asks for, and on a blog
+     *                post that includes the mono face used by `code` and
+     *                `pre` — which is below the fold and irrelevant to whether
+     *                the page can be looked at. Waiting for it pushed the
+     *                curtain from 1.4s to 2.0s on exactly the pages that had
+     *                nothing to gain. So the wait is capped: the preloaded
+     *                faces win this race comfortably, and a straggler is left
+     *                to swap in behind a page the reader already has.
+     *
+     * Everything else — images below the fold, the marquee, Turnstile, the
+     * hero video — carries on loading behind a page the visitor can already
+     * read and scroll. Which is the whole point of them being deferred.
+     */
+    const domReady = () =>
+      document.readyState === 'loading'
+        ? new Promise<void>((resolve) =>
+            document.addEventListener('DOMContentLoaded', () => resolve(), { once: true })
+          )
+        : Promise.resolve();
 
-    /* The ceiling runs regardless of `load`. */
+    /* `.catch` before `.then`, so a browser without the Font Loading API — or
+       one whose font promise rejects — still lifts the curtain. A decorative
+       panel must never be the thing that strands somebody. */
+    const FONT_GRACE = 600;
+    const fontsSettled = () =>
+      Promise.race([
+        document.fonts?.ready ?? Promise.resolve(),
+        new Promise((resolve) => setTimeout(resolve, FONT_GRACE)),
+      ]);
+
+    void Promise.all([domReady(), fontsSettled()])
+      .catch(() => undefined)
+      .then(() => afterMin(finish));
+
+    /* The ceiling runs regardless. */
     setTimeout(finish, MAX);
   }
 

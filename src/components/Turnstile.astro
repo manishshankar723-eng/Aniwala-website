@@ -126,6 +126,107 @@ const { class: className } = Astro.props;
         }
       };
 
+      /*
+       * api.js IS FETCHED ON APPROACH, not with the page.
+       *
+       * It is 27.5 KB from a third-party origin, and it used to be a plain
+       * `async` <script> in the markup — so every page carrying a form pulled
+       * it during the first load, competing with the stylesheet and the
+       * headline for a phone's one connection, for a widget that on the
+       * homepage sits below several screens of content and on most visits
+       * renders nothing at all.
+       *
+       * WHAT IS OBSERVED IS THE NEAREST ANCESTOR THAT HAS A BOX, which is not
+       * the widget and is not reliably the form either.
+       *
+       * With `appearance="interaction-only"` the `.cf-turnstile` element is
+       * empty and 0x0 until Cloudflare decides to draw something, so it is not
+       * a trigger. The enclosing form was the obvious next choice and it is
+       * wrong on the page that matters most: the booking form on the homepage
+       * is `display: none` until somebody has picked a date and a slot, so it
+       * measures 0x0 too, the observer never fired, and the script never
+       * loaded at all — the widget could not render and the form would have
+       * rejected every submission.
+       *
+       * So the search walks up until it finds something with real height. On
+       * the homepage that is the booking SECTION, which is visible from the
+       * moment the page renders and gives the whole scroll down to it as lead
+       * time. On a page whose form is plainly visible it stops at the form.
+       * `<body>` is never observed — it always intersects, which would mean
+       * loading on every page immediately and defeat the point.
+       *
+       * 600px of margin, so the fetch, the DNS (already warmed by the
+       * preconnect in Base.astro) and the token are done well before anybody
+       * has finished scrolling to the form, let alone typing in it. `focusin`
+       * is the safety net for every way of reaching a form that is not
+       * scrolling — a skip link, a `#contact` jump, autofill, a keyboard tab
+       * straight down the page.
+       */
+      window.aniwalaTurnstileLoad = function () {
+        if (document.getElementById('cf-turnstile-api')) return;
+        var s = document.createElement('script');
+        s.id = 'cf-turnstile-api';
+        s.src =
+          'https://challenges.cloudflare.com/turnstile/v0/api.js' +
+          '?render=explicit&onload=aniwalaTurnstileInit';
+        s.async = true;
+        s.defer = true;
+        document.head.appendChild(s);
+      };
+
+      window.aniwalaTurnstileWatch = function () {
+        var nodes = document.querySelectorAll('.cf-turnstile');
+        if (!nodes.length) return;
+
+        /* Already loaded — a client-side swap onto a second form. Render the
+           new widgets rather than waiting to fetch a script we have. */
+        if (window.turnstile) {
+          window.aniwalaTurnstileInit();
+          return;
+        }
+
+        var fire = function () {
+          window.aniwalaTurnstileLoad();
+          if (io) io.disconnect();
+          document.removeEventListener('focusin', onFocus, true);
+        };
+        var onFocus = function (e) {
+          var t = e.target;
+          if (t && t.closest && t.closest('form')) fire();
+        };
+        document.addEventListener('focusin', onFocus, true);
+
+        /* Up to the first ancestor with real height, stopping short of
+           <body>. A 0x0 box is not something an observer can be trusted to
+           report on. */
+        var sized = function (el) {
+          var node = el;
+          while (node && node !== document.body) {
+            if (node.getBoundingClientRect().height > 0) return node;
+            node = node.parentElement;
+          }
+          return el;
+        };
+
+        var io = null;
+        if (typeof IntersectionObserver === 'function') {
+          io = new IntersectionObserver(
+            function (entries) {
+              for (var i = 0; i < entries.length; i++) {
+                if (entries[i].isIntersecting) return fire();
+              }
+            },
+            { rootMargin: '600px 0px' }
+          );
+          for (var j = 0; j < nodes.length; j++) {
+            io.observe(sized(nodes[j]));
+          }
+        } else {
+          /* No observer: take today's behaviour rather than no captcha. */
+          fire();
+        }
+      };
+
       /* Guarded: ClientRouter re-runs inline scripts from swapped documents,
          and a listener added on every navigation would render the same widget
          several times over. */
@@ -133,8 +234,13 @@ const { class: className } = Astro.props;
         window.__aniwalaTurnstileBound = true;
         document.addEventListener('astro:page-load', function () {
           window.aniwalaTurnstileInit();
+          window.aniwalaTurnstileWatch();
         });
       }
+
+      /* The first page never sees that event if this script runs after the
+         router has already fired it. Same trap as the loader flag. */
+      if (document.readyState !== 'loading') window.aniwalaTurnstileWatch();
     </script>
   )
 }
@@ -149,15 +255,10 @@ const { class: className } = Astro.props;
     The `id` makes a repeat of this tag a no-op if several forms are on one
     page.
   */
-  TURNSTILE_SITE_KEY && (
-    <script
-      is:inline
-      id="cf-turnstile-api"
-      src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=aniwalaTurnstileInit"
-      async
-      defer
-    />
-  )
+  /* No static <script> any more — `aniwalaTurnstileLoad` above injects this
+     exact tag, with this exact id, when a form comes within reach. The id is
+     still what makes a second form on the same page a no-op. */
+  false
 }
 
 <style>
