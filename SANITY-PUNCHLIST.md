@@ -8,7 +8,8 @@ Edit at `aniwala.com/admin`. Compiled from the built output on 13 September
 2026 — 67 pages, 41 in the sitemap. Character counts are measured from the live
 HTML, not estimated. **The video, poster, service-hero and team items were
 re-checked against the dataset on 14 September 2026**; the other counts are
-still as of the 13th.
+still as of the 13th. **The homepage hero video was re-measured against the
+live site on 16 September 2026** and had changed again — see below.
 
 After publishing in the Studio, run `npm run restart` before checking locally —
 the dev server caches CMS content until it restarts.
@@ -43,14 +44,50 @@ portfolio that shows no animation.
 - [x] **Poster frame on the homepage hero video** · *Pages → Home → Hero block → Still image*
   **Done, 14 September.** By then the hero was not the 2.3 MB file this line
   described but a **16.5 MB, 112-second showreel** with a poster taken from a
-  dark frame of a previous cut. It is now a 1.26 MB 24-second loop, and the
+  dark frame of a previous cut. It was cut to a 1.26 MB 24-second loop, and the
   poster is that loop's own first frame, so the handover cannot be seen.
+
+  **The video has been swapped again since.** The poster half of this item is
+  still done; the file it sits in front of is not the one described above. See
+  the next line.
 
   **The field moved.** The still is now **Still image** on the hero block
   itself. *Poster slot* was an `artwork` document in a different part of the
   Studio, which is exactly how the still and the video drifted apart; it is
   still read as a fallback and hides itself on heroes that do not use it.
   Dropping a new video on the hero offers a poster frame straight away.
+
+- [ ] **Hero video is 96 seconds long, so 6.16 MB** · *Pages → Home → Hero block → Background video*
+  One paste, and it is the largest single change available to this site.
+  Measured on the live homepage on 16 September 2026: the hero loop is
+  `video/pieces/new-video-2d49a7833b4b45a1.mp4` and accounts for **93% of the
+  page's entire weight** — 6.16 MB of a 6.65 MB page.
+
+  Nothing is wrong with the encode. It is 1280×720, silent, faststart correct,
+  keyframed every 0.8 s, and the bitrate is a well-behaved 512 kbps. It is only
+  long. A hero loop is watched for a few seconds and then scrolled past, so
+  ninety-six seconds of it is paid for by every visitor and seen by almost
+  none.
+
+  | | Size | vs. live |
+  | --- | --- | --- |
+  | 96 s (live) | 6.16 MB | — |
+  | Trimmed to 30 s | 1.87 MB | −70% |
+  | Trimmed to 20 s | 1.28 MB | −79% |
+  | Trimmed to 15 s | 911 KB | −85% |
+
+  Re-encoding at 30 fps instead saves 12% and costs a generation of quality —
+  length is the only lever worth pulling. **The 24-second cut is still in the
+  bucket** and needs no new upload at all:
+
+  ```
+  https://pub-5bcaef0bed5a45e1bb7c8c42238fa677.r2.dev/video/krazzy-4-hero-loop-720-09d7ed28.mp4
+  ```
+
+  Paste that into **Background video** and the page drops to about 1.7 MB. If
+  the current footage is the one you want to keep, re-cut it to 20 s with the
+  recipe in the README (*Encoding a hero loop*) and re-upload — but take a new
+  poster with it, or the still and the first frame will not match.
 
 - [ ] **Publish pieces for the 3 empty disciplines** · *Portfolio → new piece → Character Design / Concept & 2D Art / Motion Graphics*
   These three galleries are empty. Their pages were unreachable from the

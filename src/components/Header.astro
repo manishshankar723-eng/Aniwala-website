@@ -81,9 +81,32 @@ const isCurrent = (href?: string) =>
         )
       }
       {
+        /*
+         * THE SPACE BETWEEN THESE TWO SPANS IS LOAD BEARING.
+         *
+         * They are adjacent element nodes, so without it the link's text
+         * content is "ANIWALAStudios" — one word, with no gap anywhere in it.
+         * Nothing shows that on screen, because `.brand-text` is a flex
+         * column and the two lines are separated by layout rather than by
+         * text, so the run-together only exists for anything that READS the
+         * element rather than looking at it.
+         *
+         * Which is what broke: the `aria-label` below names this link
+         * "Aniwala Studios — home", and an accessible name is required to
+         * contain the element's visible text. "aniwalastudios" is not inside
+         * "aniwala studios — home" — the space is the whole difference — so
+         * the link failed `label-content-name-mismatch`. The practical cost
+         * is voice control: "click Aniwala Studios" has to hit the thing that
+         * visibly says Aniwala Studios.
+         *
+         * A whitespace-only run between flex items is not rendered, so this
+         * changes the text and nothing else. It does mean the CMS label and
+         * the CMS wordmark have to stay in agreement — a rebrand that edits
+         * one and not the other puts this back.
+         */
         brand.showWordmark && (
           <span class="brand-text">
-            <span class="brand-name">{brand.wordmark}</span>
+            <span class="brand-name">{brand.wordmark}</span>{' '}
             <span class="brand-sub">{brand.wordmarkSub}</span>
           </span>
         )
@@ -579,10 +602,26 @@ const isCurrent = (href?: string) =>
   .nav-link--parent {
     padding-right: 0.3rem;
   }
+  /*
+   * The padding is a HIT TARGET before it is spacing, and the left value is
+   * the one doing the work.
+   *
+   * At 0.1rem left / 0.65rem right this measured 23.2px wide (1.6 + an 11.2px
+   * caret + 10.4), which is under the 24x24 minimum in WCAG 2.5.8 — by eight
+   * tenths of a pixel, which is exactly the kind of miss that survives every
+   * review until something measures it. Height was never the problem: the
+   * 0.55rem top and bottom give 28.8px.
+   *
+   * Rebalanced rather than grown, so the pair still reads as one nav item:
+   * 0.3rem left and 0.6rem right is 25.6px wide and moves the caret 3.2px
+   * further from its label, which is the entire visible consequence. Widening
+   * to the right instead would have pushed the target toward the NEXT nav
+   * item and traded a size failure for a spacing one.
+   */
   .nav-caret-btn {
     display: inline-flex;
     align-items: center;
-    padding: 0.55rem 0.65rem 0.55rem 0.1rem;
+    padding: 0.55rem 0.6rem 0.55rem 0.3rem;
     border: 0;
     border-radius: 0.375rem;
     background: none;

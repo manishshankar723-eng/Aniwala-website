@@ -110,9 +110,15 @@ const ui = await getUiCopy();
         background: #f5f5f3;
         color: #16171b;
       }
+      /* #828a9f, not #6d7285. Hardcoded for the same reason the rest of this
+         page is — it renders out of a moderation email with nothing behind it
+         — and lifted for the same reason `--color-ink-faint` was: 4.09:1 on
+         this background is under AA for 12.8px text. This is the page someone
+         reads before pressing Approve, so it is the last one that should be
+         hard to read. */
       .foot {
         margin: 1.75rem 0 0;
-        color: #6d7285;
+        color: #828a9f;
         font-size: 0.8rem;
       }
     </style>

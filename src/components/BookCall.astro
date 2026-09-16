@@ -156,7 +156,28 @@ const initials = hostName
       <div class="bk-dow" aria-hidden="true">
         {weekdayLabels.map((d) => <span>{d}</span>)}
       </div>
-      <div class="bk-grid" id="bk-grid" role="grid" aria-label={booking.a11yGrid}></div>
+      {/*
+        `role="group"`, and it used to be `role="grid"`.
+
+        A grid is a promise about KEYBOARD BEHAVIOUR, not a description of a
+        layout. ARIA requires its children to be rows containing gridcells,
+        and a screen reader that is told this is a grid offers arrow-key
+        navigation across it — two-dimensional movement, one tab stop for the
+        whole widget, a roving tabindex. None of that is implemented here:
+        the days are a flat run of <button>s, each its own tab stop, laid out
+        in seven columns by CSS. So the role was announcing an interaction
+        model that did not exist, which is worse than announcing nothing.
+
+        `group` is the honest one. It keeps the label — the reason the role
+        was here at all, since a bare <div> cannot carry an accessible name —
+        and makes no claim about how to move inside it. Every day button
+        already has a full date as its own label ("Monday, 15 September"), so
+        nothing is lost by moving through them one at a time.
+
+        If this ever does want the grid pattern, it needs the rows and cells
+        AND the roving tabindex together; half of it is what was here.
+      */}
+      <div class="bk-grid" id="bk-grid" role="group" aria-label={booking.a11yGrid}></div>
 
       <label class="bk-tz">
         <span class="bk-tz-label">{booking.timezoneLabel}</span>

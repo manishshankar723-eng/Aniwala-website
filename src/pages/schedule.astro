@@ -156,10 +156,15 @@ const ui = await getUiCopy();
         border-color: #e4c24c;
         outline: none;
       }
+      /* #828a9f, not #6d7285, and hardcoded on purpose like everything else
+         on this page: it has to render from an email with no stylesheet and
+         no CMS behind it. The old grey was 4.09:1 on this background — under
+         AA for text this size. Kept in step with `--color-ink-faint` in
+         global.css by hand, which is the price of being self-contained. */
       .hint {
         margin: 0;
         font-size: 0.78rem;
-        color: #6d7285;
+        color: #828a9f;
       }
       .err {
         margin: 0 0 1rem;
@@ -200,7 +205,7 @@ const ui = await getUiCopy();
       }
       .foot {
         margin: 1.5rem 0 0;
-        color: #6d7285;
+        color: #828a9f;
         font-size: 0.8rem;
       }
     </style>

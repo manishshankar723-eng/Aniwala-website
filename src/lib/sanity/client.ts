@@ -143,10 +143,25 @@ export interface SanityImage {
  * from one URL, with no build step. That is the image pipeline this site was
  * missing entirely — `public/` held originals at full size and served them to
  * phones untouched.
+ *
+ * `fit('max')` is what stops the CDN inventing pixels. Sanity's default fit
+ * scales a source UP to the width it is asked for, and every caller here asks
+ * for a width chosen against a layout rather than against the file: the header
+ * mark is a 100px upload requested at 320px, and the CDN duly returned 320px
+ * of blur — 8.8KB of it, for a logo that renders at 38px. `max` makes a width
+ * a CEILING instead of an instruction, so a request can never cost more than
+ * the detail that actually exists.
+ *
+ * It is set here rather than at the call sites because the rule is not a
+ * layout decision: there is no picture on this site that is improved by being
+ * enlarged on the way out of the CDN. `iconUrl`, `webpUrl` and `ogImageUrl`
+ * set their own fit and are deliberately unaffected — a social card has to be
+ * exactly 1200x630 whatever was uploaded, and an undersized one is better
+ * upscaled than rejected by the scraper.
  */
 export function imageUrl(source: SanityImage, width: number, quality = 80): string {
   if (!builder || !source?.asset) return '';
-  return builder.image(source).width(width).quality(quality).auto('format').url();
+  return builder.image(source).width(width).fit('max').quality(quality).auto('format').url();
 }
 
 /** A `srcset` across the widths the layouts actually use. */

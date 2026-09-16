@@ -19,7 +19,7 @@ the uptime; if the server is older than the edit, that is the answer.
 ## Before pushing
 
 ```
-npm run verify      # dataset check + astro check + build + link check.
+npm run verify      # dataset + social card + astro check + build + link check.
                     # Exactly what CI runs.
 ```
 
@@ -110,6 +110,81 @@ server. Do not work around a failing check — they are load bearing:
   resolves to `attacker.example`. The CSP refuses both. It is the backstop, not
   the check.
 
+- **The CSS is inside the document on purpose.**
+  `build.inlineStylesheets: 'always'` in `astro.config.mjs`. Putting it back to
+  `'auto'` restores the slowest thing this site had. Measured on a PageSpeed
+  run of the homepage: the document finished at 511ms and NOTHING painted until
+  1230ms. Four `<link rel=stylesheet>` tags were discovered together at 521ms,
+  three landed by 673ms, and `Blocks.css` — 8.8KB over the wire — did not
+  arrive until 1196ms, having lost one h2 connection to two preloaded fonts and
+  a dozen CDN images. First paint followed it by 34ms and LCP followed first
+  paint by 99ms. The curtain in `Loader.astro`, the fonts and the GSAP chain
+  are all downstream of that and none of them was ever the constraint — the
+  page simply had nothing to paint. It is not even a byte trade: the homepage
+  document goes 32.1KB to 47.5KB gzipped, against 22.9KB of stylesheet requests
+  removed. What it costs is cross-page CSS caching, which this site does not
+  need; sessions here start cold.
+
+- **A palette token has a contrast floor, and the social card reads the
+  palette.** `--color-ink-faint` was `#61677a` on a `#0b0c10` ground — 3.47:1,
+  under the 4.5:1 that the 11.52px footer type needs — and the light theme's
+  was worse at 3.38:1. Both are lifted. Do not quieten either one back down
+  without measuring it. Separately, `scripts/check-og.mjs` FAILS THE BUILD when
+  `public/og-default.jpg` was painted in colours `global.css` no longer uses:
+  it parses the first `:root` block, so any palette edit is also a card edit.
+  Regenerate with
+  `npm i --no-save sharp fontkit && node --env-file=.env scripts/generate-og-image.mjs && npm i`
+  and commit `public/og-default.jpg` and `scripts/og-source.json` together.
+
+- **`imageUrl` never upscales.** `.fit('max')` in `src/lib/sanity/client.ts`
+  makes a requested width a CEILING rather than an instruction. Sanity's
+  default fit enlarges a source smaller than the ask, and every width here is
+  chosen against a layout rather than against the file — the header mark is a
+  100x88 upload requested at 320px, which cost 8.9KB to deliver 4.3KB of real
+  detail. `iconUrl`, `webpUrl` and `ogImageUrl` set their own fit and must keep
+  it: a social card has to be exactly 1200x630 whatever was uploaded, and an
+  undersized one is better upscaled than refused by the scraper.
+
+## Accessibility
+
+**`npm run verify` does not check any of this.** It is caught by Lighthouse or
+it is not caught. Four rules, each of which was broken once:
+
+- **An ARIA role is a promise about BEHAVIOUR, not a description of a layout.**
+  The booking calendar carried `role="grid"` over a flat run of `<button>`s. A
+  grid requires `row` children containing `gridcell`s, and it makes a screen
+  reader offer arrow-key movement, one tab stop for the whole widget and a
+  roving tabindex — none of which existed. It is `role="group"` now, which
+  keeps the label and claims nothing about how to move inside it. Half the grid
+  pattern is worse than none of it; if it ever wants the real one, the rows,
+  the cells and the roving tabindex ship together. This single element was also
+  the entire `agentic-browsing` category score, which has only two weighted
+  audits.
+
+- **An accessible name must CONTAIN the element's visible text.** The brand
+  link's two wordmark spans were adjacent with no whitespace, so its text
+  content was `ANIWALAStudios` — a run-together nothing shows on screen,
+  because `.brand-text` is a flex column and the gap between the lines is
+  layout rather than text. The `aria-label` said "Aniwala Studios — home",
+  which does not contain `aniwalastudios`. The cost is voice control: "click
+  Aniwala Studios" has to hit the thing that visibly says it. The `{' '}`
+  between those spans is load bearing, and it works because a whitespace-only
+  run between flex items is not rendered.
+
+- **24x24 CSS pixels is the floor for anything clickable.** The header's caret
+  button was 23.2px wide — eight tenths of a pixel short, which is exactly the
+  kind of miss that survives every review until something measures it. Widen a
+  small target INTO its own padding rather than toward its neighbour: the same
+  audit also fails a target that is large enough but sits too close to the next
+  one, so growing it the wrong way trades one failure for another.
+
+- **Contrast is a token-level question, not a component-level one.** The footer
+  is where PageSpeed caught `--color-ink-faint`; it was not where the problem
+  was. `src/pages/schedule.astro` and `src/pages/moderate.astro` hardcode their
+  own palette deliberately — they render out of an email with no CMS and no
+  stylesheet behind them — so they inherit no token fix and had to be lifted by
+  hand. They are the two files to re-check whenever a text colour moves.
+
 ## Video
 
 **Every autoplaying video goes through `src/lib/video.ts`**, booted from
@@ -157,6 +232,19 @@ and will drift.
   one left the other in a document nobody opened. `posterSlot` is read as a
   fallback and hides itself on heroes that do not use it; do not file anything
   new that way.
+
+- **A hero loop is a SIZE budget, and it has already regressed once.** The
+  README works through the 16.5MB original that was cut down to a 24s, 1.26MB
+  loop, and the Studio's field note says to stay under about 5MB. The homepage
+  hero is currently `video/pieces/new-video-2d49a7833b4b45a1.mp4`, and it is
+  1280x720, silent, faststart correct, keyframed every 0.8s, with CRF doing its
+  job at 512kbps — every part of the recipe followed except one. It is **96
+  seconds long, so 6.16MB**, which is 93% of the whole page's weight. Duration
+  is the only lever that matters here: halving 60fps to 30 saves 12%, while
+  trimming to 20s saves 79%. The 1.26MB loop is still in the bucket at
+  `video/krazzy-4-hero-loop-720-09d7ed28.mp4`, one paste away. Check the LENGTH
+  of anything going into a hero's Background video field — nothing in the build
+  does, and a long loop fails silently by simply being slow.
 
 - **A poster and the frame the video opens on must match, or be crossfaded.**
   The `poster` attribute is swapped for the first decoded frame instantly and
