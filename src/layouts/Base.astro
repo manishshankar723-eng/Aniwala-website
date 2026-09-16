@@ -373,18 +373,36 @@ const ogImage = ogImageProp ?? new URL('/og-default.jpg', Astro.site).href;
       the touch icon and visibly nothing else, which read as "the CMS field
       does nothing". It belongs beside `favicon.svg` instead, as the non-SVG
       fallback it was always meant to be.
+
+      THE 192 IS FOR GOOGLE, and it is not a duplicate of the 32.
+
+      A favicon shown beside a search result has to be square and a MULTIPLE
+      OF 48px — 48, 96, 144, 192. Google picks from the `<link rel="icon">`
+      tags and `/favicon.ico`, and nothing else; the sizes in
+      `site.webmanifest` are not a documented source for it. With only the 32
+      and the 180 declared (180 is 48 × 3.75), every candidate on the page was
+      the wrong size and the result rendered with a blank placeholder where
+      the icon goes.
+
+      192 rather than 48 because `png192` is already built for the manifest in
+      `lib/studio.ts` — same URL, no new plumbing, and the larger source is
+      the better one to hand a resizer. It does not disturb the tab: a browser
+      picks the declared size CLOSEST to what it needs, so 32 still wins at
+      tab size and this only competes on a high-DPI display, where winning is
+      the point.
     */}
     {
       brand.icon ? (
         <>
           {brand.icon.svg && <link rel="icon" type="image/svg+xml" href={brand.icon.svg} />}
           <link rel="icon" type="image/png" sizes="32x32" href={brand.icon.png32} />
+          <link rel="icon" type="image/png" sizes="192x192" href={brand.icon.png192} />
           <link rel="apple-touch-icon" sizes="180x180" href={brand.icon.png180} />
         </>
       ) : (
         <>
           <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-          <link rel="alternate icon" href="/favicon.ico" sizes="32x32" />
+          <link rel="alternate icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
           <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         </>
       )
