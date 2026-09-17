@@ -76,10 +76,16 @@ const SPAN_CLASS = {
  *
  * There is no longer a `sound` field on a piece to consult: the native bar
  * always carries a volume control, so whether there is audio to hear is a
- * question about the FILE, not about the interface. `upload-r2.mjs` still
- * strips the track by default, which is why most of these are silent.
+ * question about the FILE, not about the interface. `upload-r2.mjs` strips the
+ * track unless it is passed `--keep-audio`, which is why most of these are
+ * silent — and a browser greys the volume button out entirely on a file with
+ * no audio STREAM. So a tile that will not unmute is a file uploaded without
+ * the flag, not a lock in here; re-upload it with one before going looking.
  *
- * MUTED ON ARRIVAL, EVERY ARRIVAL, and unmutable from there. `data-video`
+ * MUTED ON ARRIVAL, EVERY ARRIVAL — and the visitor's to unmute from there.
+ * That last clause is the whole difference between a tile and a hero: a hero
+ * is wallpaper and is held silent for the life of the page, while a tile IS
+ * the work, and the bar in front of it is a real offer. `data-video`
  * marks the tile as a player rather than as wallpaper, which buys it three
  * things from `lib/video.ts`: the mute is re-applied on every navigation, so a
  * browser restoring the volume a visitor left behind cannot start a page with

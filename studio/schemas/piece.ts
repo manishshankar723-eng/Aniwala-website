@@ -114,10 +114,15 @@ export default defineType({
       components: { input: R2VideoInput },
       /* Where the drop zone files the still it offers after an upload. On a
          piece the Image above IS the poster, so there is nowhere else it
-         could go. See components/PosterCapture.tsx. */
-      options: { posterField: 'image' },
+         could go. See components/PosterCapture.tsx.
+
+         `playsAudio` is the ONE field on the site that sets it: a tile carries
+         the browser's control bar, so a visitor may unmute this. The hero and
+         the discipline loop are held silent and must not claim otherwise —
+         see the option's note in components/R2VideoInput.tsx. */
+      options: { posterField: 'image', playsAudio: true },
       description:
-        'A video URL. For R2: run `node --env-file=.env scripts/upload-r2.mjs <file> video/pieces/<name>.mp4` and paste the URL it prints. For Cloudflare Stream: paste the video id or its embed URL. Leave blank for a piece that is not a video.',
+        'A video URL. For R2: run `node --env-file=.env scripts/upload-r2.mjs <file> video/pieces/<name>.mp4` and paste the URL it prints — add `--keep-audio` if this piece is meant to be heard, because the script strips the track by default and the tile’s volume button is greyed out without one. For Cloudflare Stream: paste the video id or its embed URL. Leave blank for a piece that is not a video.',
       validation: (Rule) =>
         Rule.custom((v: string | undefined) => {
           if (!v) return true;

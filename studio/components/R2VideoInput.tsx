@@ -51,6 +51,17 @@ declare module 'sanity' {
   interface StringOptions {
     /** Sibling image field the poster panel writes to. Omit and no panel. */
     posterField?: string;
+    /**
+     * Does anything on the site ever play this field's audio?
+     *
+     * A portfolio tile ships the browser's own control bar and a visitor may
+     * unmute it. A hero or a discipline loop is `data-video="silent"` and is
+     * held muted for the life of the page. The upload warning below is the
+     * OPPOSITE advice in those two cases, so it is declared per field rather
+     * than inferred from the document type — a player added somewhere new has
+     * to say so here, and the type is what makes forgetting visible.
+     */
+    playsAudio?: boolean;
   }
 }
 
@@ -175,6 +186,10 @@ export function R2VideoInput(props: StringInputProps) {
      field. A video field with no target simply never offers the panel —
      better than guessing at a field name and patching something else. */
   const posterField = schemaType.options?.posterField;
+  /* Default false: silence is what every field here did before the portfolio
+     tile grew a control bar, and it is the safe half of the warning to get
+     wrong. */
+  const playsAudio = schemaType.options?.playsAudio ?? false;
   const documentId = useFormValue(['_id']) as string | undefined;
   const posterPath = useMemo(
     () => (posterField ? siblingPath(path, posterField) : null),
@@ -201,13 +216,32 @@ export function R2VideoInput(props: StringInputProps) {
         /*
          * Said, not fixed. Removing a track means rewriting the container and
          * a browser has no ffmpeg, so the honest thing is to name the cost and
-         * the one command that removes it. Every player on this site is muted,
-         * so this audio is bytes nobody can ever hear.
+         * the one command that changes it.
+         *
+         * WHICH ADVICE IS RIGHT DEPENDS ON THE FIELD, and this block used to
+         * give one answer to every field: that nothing on the site plays
+         * audio, so strip it. That stopped being true when the portfolio tile
+         * got the browser's own control bar, and the wrong half is the
+         * expensive one — a tile uploaded through the advice it used to give
+         * shows a volume button the browser greys out, which reads as the SITE
+         * refusing to unmute rather than as a file with nothing in it.
          */
-        if (audio) {
+        if (playsAudio) {
+          /* `undefined` is "could not tell" — a webm, say — and says nothing.
+             Only an explicit no is worth warning about. */
+          if (audio === false) {
+            setWarning(
+              'This file has no audio track, so the tile shows a volume button that the browser ' +
+                'greys out. If it is meant to be heard, re-upload it with ' +
+                '`scripts/upload-r2.mjs <file> <key> --keep-audio` — the script strips the ' +
+                'track unless you ask.'
+            );
+          }
+        } else if (audio) {
           setWarning(
-            'This file has an audio track. Nothing on the site plays it, so it is dead weight — ' +
-              'upload with scripts/upload-r2.mjs to strip it.'
+            'This file has an audio track and this field is a silent loop — the site holds it ' +
+              'muted for the life of the page, so the track is bytes nobody can ever hear. ' +
+              'Upload with scripts/upload-r2.mjs to strip it.'
           );
         }
 
@@ -274,7 +308,7 @@ export function R2VideoInput(props: StringInputProps) {
         setProgress(null);
       }
     },
-    [projectId, configuredToken, onChange]
+    [projectId, configuredToken, onChange, playsAudio]
   );
 
   const busy = progress !== null;
