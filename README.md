@@ -214,7 +214,7 @@ src/
 ├── lib/
 │   ├── sanity/          client.ts, loader.ts, portableText.ts
 │   ├── studio.ts        Every CMS accessor the templates call
-│   ├── motion.ts        Lenis + GSAP/ScrollTrigger, lazily imported
+│   ├── motion.ts        Lenis + GSAP/ScrollTrigger; also where a page starts
 │   ├── video.ts         Every autoplaying video: kept playing, kept silent
 │   ├── copy.ts          Token substitution, ldJson, inlineHtml escaping
 │   ├── supabase.ts      Minimal PostgREST client (no SDK)
@@ -594,6 +594,116 @@ account, and whenever something here stops working.
 
 - **The `production` dataset is Private** — checked by `check-dataset.mjs` on
   every build, see *Where the boundaries actually are*.
+
+## Motion and scroll
+
+`src/lib/motion.ts` owns the whole animation layer: Lenis for smooth scrolling,
+GSAP + ScrollTrigger for the `data-reveal` entrances, and the in-page anchor
+behaviour. `Base.astro` calls `initMotion` on `astro:page-load` and
+`teardownMotion` on `astro:before-swap`, so it is rebuilt once per page the same
+way `video.ts` is. GSAP, ScrollTrigger and Lenis are ~130KB and are imported
+*dynamically*, behind the reduced-motion check, so a visitor who has asked their
+OS for reduced motion never downloads any of it.
+
+### The bug it fixes: the next page opened halfway down
+
+Click "Privacy Policy" in the footer and the privacy page opened **at its
+footer**. The same for every link followed from partway down a page. It read as
+Astro failing to reset the scroll, and it was not.
+
+Astro does its part. Instrumenting `window.scrollTo` and the router lifecycle
+shows the reset landing exactly where it should, and the new page sitting at the
+top through both router events:
+
+```
++   73ms  astro:before-swap                       y=2605
++  161ms  scrollTo({top: 0, behavior: instant})           ← Astro, correct
++  169ms  astro:after-swap                        y=0
++  200ms  astro:page-load                         y=0
++  690ms  scrollTo(0, 2605)                              ← ScrollTrigger
+FINAL   y=2605
+```
+
+That last call is `ScrollTrigger.refresh()`, running from `initMotion` once the
+reveals have been built. A refresh reverts pinned elements to measure them,
+which moves the page under the reader, so ScrollTrigger records the scroll
+offset first and restores it afterwards. Inside one document that is correct and
+invisible. Across a `ClientRouter` swap it is **a different document's number**,
+and it wins because it happens last.
+
+Half a second is long enough that the page visibly loaded at the top first and
+then jumped — which is why it looked like the reset had never happened at all.
+
+**Two pieces of state survive the swap, and clearing either alone does nothing.**
+The first attempt at this did only the second, and measured as no change at all:
+
+1. **The cached scroll value.** Reading `scrollY` forces a layout, so
+   ScrollTrigger caches it and re-reads only when a counter says the cache is
+   dirty. `clearScrollMemory()` does not make it dirty — it increments the
+   global counter *and* the entry's own counter, so the two stay level, the
+   cache still reads clean, and it is still holding the previous page's offset.
+   A probe taken on the new page, with the real `scrollY` at 0, read
+   `rec=0 cacheID=466 v=2605`. Writing the position through ScrollTrigger's own
+   scroll function is what actually replaces `v`, and it costs nothing visible —
+   it sets the scroll to where the page already is.
+2. **The recorded position `refresh()` restores.** Cleared *after* (1), because
+   it re-records from it.
+
+So `teardownMotion` ends with, in this order:
+
+```ts
+ScrollTrigger.getScrollFunc(window)(window.scrollY);
+ScrollTrigger.clearScrollMemory();
+```
+
+`clearScrollMemory` is called with no argument deliberately: passing a string
+also writes `history.scrollRestoration`, and that belongs to Astro, which keeps
+it `manual` and restores the offset itself on back/forward.
+
+Teardown runs twice per navigation and the **second** one is the one that
+matters — `initMotion` calls it before building anything, which is after the
+router has already put the scroll at 0, so both values are corrected against the
+position the new page actually has.
+
+### What not to do instead
+
+Resetting the scroll by hand on `astro:after-swap` is the obvious one-liner and
+it breaks two things that work today:
+
+- **Back and forward** must restore the offset the visitor left. They do, and
+  through the same teardown: on a traverse the router restores the old offset
+  *before* `initMotion` runs, so those two lines record that instead.
+- **A link to `/contact/#book`** must land on the booking widget, not at the
+  top. `landOnHash` and `initAnchors` handle arriving with a fragment and
+  clicking one; a blanket reset fights both.
+
+### Checking it
+
+`npm run verify` does not cover any of this — like Accessibility, it is caught
+in a browser or not at all. The check that matters: load a page, scroll it **with
+the wheel**, click an internal link, and read `scrollY` about four seconds later
+(the restore lands ~500ms after `astro:page-load`, so an immediate read passes a
+broken build). Scrolling with `window.scrollTo` in a test is **not** a
+reproduction — a programmatic jump can leave the cache in step and hide the bug
+entirely, which makes it easy to call something fixed when it is not.
+
+Worth checking together, because a fix for one breaks the others: forward
+navigation lands at 0, back restores the previous offset, forward again returns
+to 0, a cross-page `#book` link and a direct load of `/contact/#book` both land
+on the widget, and no `data-reveal` element is left stuck at opacity 0.
+
+### The ticker callback is a leak, not a feel
+
+`gsap.ticker.add` had no matching `remove`, so `initMotion` added one callback
+per navigation and never dropped one — an unbounded pile of closures called
+every frame for the rest of the session. It is removed on teardown now.
+
+It did **not** make scrolling feel stiffer, which is worth writing down because
+that is the natural guess. Lenis advances by `time - this.time`, so the second
+and later calls within a frame carry a timestamp it has already seen and advance
+by zero. Measured against the live site before the fix: 142-158 frames to settle
+a wheel scroll on a cold load, 151 after five swaps. No drift. Nobody should go
+hunting a scroll symptom here.
 
 ## Styling
 
@@ -2266,6 +2376,11 @@ safe.
 - Animate only `transform` and `opacity`. Anything else drops frames.
 - Every motion feature must no-op under `prefers-reduced-motion`.
   `src/lib/motion.ts` handles this centrally — keep it that way.
+- Where a page starts after a click is also `src/lib/motion.ts`, not Astro. The
+  router resets the scroll correctly; ScrollTrigger used to put the previous
+  page's offset back half a second later. See *Motion and scroll* before
+  touching `teardownMotion` — and never "fix" a scroll position with a reset on
+  `astro:after-swap`, which breaks back/forward and `#book`.
 - Images go through `astro:assets` so they build to AVIF/WebP.
   Never `<img src="/big.jpg">`.
 - Video never lives on the web server. Sanity, Cloudflare R2 or Cloudflare

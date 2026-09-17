@@ -185,6 +185,51 @@ it is not caught. Four rules, each of which was broken once:
   stylesheet behind them — so they inherit no token fix and had to be lifted by
   hand. They are the two files to re-check whenever a text colour moves.
 
+## Scroll
+
+**Where a page starts is ScrollTrigger's decision, not Astro's.** Every internal
+link is a `ClientRouter` swap, and the router does its part: it scrolls to the
+top at `moveToLocation`, about 100ms in, and a trace shows the new page still at
+0 through `astro:after-swap` and `astro:page-load`. Then, half a second later,
+the `ScrollTrigger.refresh()` in `initMotion` put the PREVIOUS page's offset
+back. Every link followed from halfway down a page opened the next one halfway
+down; it was reported as "the privacy policy opens at the footer", and it was
+never an Astro bug.
+
+- **Two pieces of ScrollTrigger state survive the swap, and clearing either one
+  alone changes NOTHING.** `refresh()` reverts pins to measure them, which moves
+  the page, so it records the offset first and puts it back after — right inside
+  one document, a different document's number after a swap. That record is taken
+  from a CACHED scroll value, and `clearScrollMemory()` does not invalidate the
+  cache: it bumps the global counter and the entry's own counter together, so
+  they stay level, the cache still reads clean, and it is holding the old page's
+  number. So `teardownMotion` writes the real position through
+  `ScrollTrigger.getScrollFunc(window)` FIRST and clears the memory SECOND. Both
+  lines, in that order. The first attempt at this did only the second and
+  measured as having changed nothing at all.
+
+- **Do not reach for a scroll-to-top on `astro:after-swap` instead.** It looks
+  like the obvious one-liner and it breaks two things that currently work: back
+  and forward have to restore the offset the visitor left, and a link to
+  `/contact/#book` has to land on the widget rather than at the top. Both are
+  downstream of the same teardown — on a back/forward the router restores the
+  old offset before `initMotion` runs, so the same two lines record THAT.
+
+- **`npm run verify` does not check any of this**, the same as Accessibility
+  above. It takes a real browser: load a page, scroll it with the WHEEL, click
+  an internal link, and read `scrollY` about four seconds later. Scrolling with
+  `window.scrollTo` in a test is not a reproduction — a programmatic jump can
+  leave the cache in step and hide the bug, which makes it easy to call
+  something fixed when it is not.
+
+- **The GSAP ticker callback is removed on teardown, and that is a leak, not a
+  feel.** `gsap.ticker.add` had no matching `remove`, so it piled up one
+  callback per navigation forever. It does NOT stiffen scrolling, tempting as
+  that guess is: Lenis advances by `time - this.time`, so the second and later
+  calls in a frame carry a timestamp it has already seen and advance by zero.
+  Measured against the live site before the fix — 142-158 frames to settle a
+  wheel cold, 151 after five swaps. Do not go looking for a scroll symptom here.
+
 ## Video
 
 **Every autoplaying video goes through `src/lib/video.ts`**, booted from

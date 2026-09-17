@@ -31,6 +31,9 @@ let gsap: Gsap | null = null;
 let ScrollTrigger: ScrollTriggerType | null = null;
 let lenis: LenisType | null = null;
 
+/** The GSAP ticker callback that drives Lenis, held so teardown can remove it. */
+let tick: ((time: number) => void) | null = null;
+
 /**
  * Set by teardownMotion, cleared by initMotion. A view transition can swap the
  * document while the dynamic import is still in flight; without this the
@@ -82,7 +85,22 @@ export function initMotion() {
     lenis = new Lenis({ lerp: 0.08, wheelMultiplier: 1 });
     lenis.on('scroll', ScrollTrigger!.update);
 
-    gsap!.ticker.add((time) => lenis?.raf(time * 1000));
+    /*
+     * Held so teardown can remove it. `gsap.ticker.add` had no matching
+     * `remove`, so this added one callback PER NAVIGATION and never dropped
+     * one — an unbounded pile of closures called on every frame for the rest
+     * of the session.
+     *
+     * It does NOT change how scrolling feels, which is worth writing down
+     * because the obvious guess is that it would. Lenis advances by
+     * `time - this.time`, so the second and later calls in a frame carry a
+     * timestamp it has already seen, advance by zero and do nothing. Measured
+     * against the live site before the fix: 142-158 frames to settle a wheel
+     * on a cold load, 151 after five swaps. So this is a leak to close, not a
+     * bug anyone could feel — do not go looking for a scroll symptom here.
+     */
+    tick = (time) => lenis?.raf(time * 1000);
+    gsap!.ticker.add(tick);
     gsap!.ticker.lagSmoothing(0);
 
     initReveals();
@@ -425,8 +443,53 @@ export function teardownMotion() {
   // Null before the engine has ever loaded — on a reduced-motion visit it
   // never loads at all, and teardown still runs on every navigation.
   ScrollTrigger?.getAll().forEach((t) => t.kill());
+
+  /*
+   * FORGET WHERE THE LAST PAGE WAS SCROLLED TO.
+   *
+   * This is why clicking "Privacy Policy" in the footer opened the privacy
+   * page AT the footer, and the same for every other link followed from
+   * halfway down a page. Astro was never at fault: the router scrolls to the
+   * top ~100ms in, at `moveToLocation`, and a trace shows the new page sitting
+   * at 0 through `astro:after-swap` and `astro:page-load`. Then, half a second
+   * later, ScrollTrigger scrolled it back down.
+   *
+   * TWO PIECES OF STATE SURVIVE THE SWAP, and clearing either one alone is not
+   * enough — the first fix attempt cleared only the second and changed nothing.
+   *
+   *   1. The cached scroll VALUE. Reading `scrollY` costs a layout, so
+   *      ScrollTrigger caches it and re-reads only when a counter says the
+   *      cache is dirty. `clearScrollMemory` bumps the global counter AND the
+   *      entry's own, so they stay level and the cache still reads "clean" —
+   *      holding the PREVIOUS page's offset. Writing the position through
+   *      ScrollTrigger's own scroll function is what actually replaces it, and
+   *      it is a no-op on the page (it sets the scroll to where it already is).
+   *
+   *   2. The recorded position that `refresh()` restores. A refresh reverts
+   *      pins to measure them, which moves the page, so it notes the offset
+   *      first and puts it back after — correct within one document, and a
+   *      different document's number after a swap. It re-records from (1),
+   *      which is why (1) has to be right before this is cleared.
+   *
+   * Runs twice per navigation, and the second one is the one that matters:
+   * `initMotion` calls teardown before it builds anything, which is after the
+   * router has already put the scroll at 0 — so both are corrected against the
+   * position the new page actually has. On a back/forward the router restores
+   * the old offset before this point, so the same two lines record THAT, and
+   * the restore stays correct.
+   *
+   * `clearScrollMemory` is called with no argument on purpose: a string
+   * argument also writes `history.scrollRestoration`, which is Astro's to own.
+   */
+  if (ScrollTrigger) {
+    ScrollTrigger.getScrollFunc(window)(window.scrollY);
+    ScrollTrigger.clearScrollMemory();
+  }
+
   rescue?.disconnect();
   rescue = null;
+  if (tick) gsap?.ticker.remove(tick);
+  tick = null;
   lenis?.destroy();
   lenis = null;
 }
