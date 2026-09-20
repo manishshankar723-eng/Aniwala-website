@@ -167,9 +167,21 @@ server. Do not work around a failing check — they are load bearing:
   (`#0b0c10`: 11 red, 12 green, 16 BLUE) does not read as near-black at the
   16px a tab renders. It reads as a navy tile, and it was reported as "why is
   the logo blue". So leave the field empty unless an upload can beat a mark
-  that repaints itself. `public/icon-*.png` is the opposite case and stays
-  opaque gold-on-ground deliberately: iOS composites a transparent touch icon
-  onto its own background and it comes out looking broken.
+  that repaints itself.
+
+- **The generated icons are opaque, and their two colours are not a free
+  choice.** `favicon.ico` and `public/icon-*.png` come out of
+  `scripts/generate-icons.mjs`, and a bitmap has no styling layer for a media
+  query to attach to — only `favicon.svg` can flip with the theme. So these
+  are fixed, and both halves were wrong once: the mark was GOLD, which
+  nothing else on the site does (the header, the social card and
+  `favicon.svg` all draw it white), and the ground was `#0b0c10`, whose blue
+  channel is its largest and which therefore reads as navy at 16px. They are
+  `#ffffff` on `#000000` now. Opaque is the part that must not change — iOS
+  composites a transparent touch icon onto its own background and it comes
+  out looking broken. `favicon.ico` is served `max-age=604800`, so a change
+  here takes a week to reach anyone who already has it, on top of the
+  browser's own favicon cache; check in a private window, not a hard refresh.
 
 ## Accessibility
 

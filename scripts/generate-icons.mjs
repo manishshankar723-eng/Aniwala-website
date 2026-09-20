@@ -8,9 +8,26 @@
 // wrong mark can only ever be wrong in one place.
 //
 // favicon.svg itself flips its fill with prefers-color-scheme, because it sits
-// on the browser's own tab strip. These cannot: iOS composites the
-// apple-touch-icon onto its own background and a transparent one comes out
-// looking broken. So they get the brand ground and the gold mark, always.
+// on the browser's own tab strip. These cannot: a bitmap has no styling layer
+// for a media query to attach to, and iOS composites the apple-touch-icon onto
+// its own background, where a transparent one comes out looking broken. So
+// they are opaque, and they are one fixed pair of colours forever.
+//
+// WHICH PAIR IS NOT A FREE CHOICE, and both halves were wrong once.
+//
+// The mark was GOLD. Nothing else on the site presents the logo that way —
+// the brand asset is `Aniwala logo white.png`, the header draws it white, the
+// social card draws it white, and `favicon.svg` fills it white on a dark tab
+// strip. The gold was invented here and nowhere else, so the tab was the one
+// place the mark did not look like the mark.
+//
+// The ground was `#0b0c10`, the brand ground, which is the right instinct and
+// the wrong colour for something rendered at 16 CSS pixels. `#0b0c10` is 11
+// red, 12 green, 16 BLUE. At a size where the tile is a handful of pixels and
+// nothing else is there to give it context, that cast is all the eye has to go
+// on and it reads as navy — reported, twice, as "why is the logo blue". True
+// black has no hue to read, which is the entire reason it is used here and not
+// in the stylesheet, where the ground stays `#0b0c10`.
 import sharp from 'sharp';
 import { readFileSync, writeFileSync } from 'node:fs';
 //
@@ -47,8 +64,12 @@ const BOX = source.match(/viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/)?.s
 if (!MARK || !BOX) throw new Error('No path or 4-value viewBox found in public/favicon.svg');
 const [VX, VY, VW, VH] = BOX;
 
-const GROUND = '#0b0c10';
-const GOLD = '#e4c24c';
+/* Deliberately NOT the palette tokens — see the note at the top of the file.
+   `#000000` rather than `--color-ground` because a hue this faint is invisible
+   at every size except the one that matters, and `#ffffff` because that is how
+   the mark is drawn everywhere else on the site. */
+const GROUND = '#000000';
+const MARK_FILL = '#ffffff';
 
 // Fit the mark inside `size` less `pad` on each edge, then centre what is left
 // over on BOTH axes. The mark is wider than it is tall, so it is the width
@@ -73,7 +94,7 @@ const svg = (size, pad, radius, bg) => {
 <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
   ${bg ? `<rect width="${size}" height="${size}" rx="${radius}" fill="${GROUND}"/>` : ''}
   <g transform="translate(${dx} ${dy}) scale(${scale})">
-    <path d="${MARK}" fill="${GOLD}" fill-rule="evenodd"/>
+    <path d="${MARK}" fill="${MARK_FILL}" fill-rule="evenodd"/>
   </g>
 </svg>`;
 };
@@ -114,7 +135,7 @@ for (const j of jobs) {
  * file's entire job. Inside an ICO a BMP carries DOUBLE the real height in its
  * header (an XOR image plus an AND transparency mask) and its rows run bottom
  * to top. The mask is all zeros here — every pixel is opaque, since these sit
- * on the brand ground.
+ * on a solid tile.
  */
 const ICO_SIZES = [16, 32, 48];
 

@@ -458,6 +458,32 @@ const isCurrent = (href?: string) =>
   :global(:root[data-theme='light']) .brand-icon--light {
     display: block;
   }
+
+  /*
+   * ...and back to the DARK mark over the video hero, whichever theme is on.
+   *
+   * The rule above swaps the pair on `data-theme` alone, which is right
+   * everywhere the header sits on the page's own ground and wrong in the one
+   * place it does not. That scrim is dark in BOTH themes — see the override
+   * near the top of this block that forces the nav and the wordmark to
+   * #f4f4f2 over it. The wordmark survived because it is TEXT and inherits
+   * `color`; so did the inline SVG fallback, which paints with
+   * `currentColor`. An uploaded <img> is neither. It knows only what
+   * `data-theme` says, so light mode put the black mark on the black scrim
+   * and the logo simply was not there — invisible in exactly one theme, on
+   * exactly one page type, which is why it outlived the swap being fixed.
+   *
+   * Scoped with the same two :not()s as the colour override so it lifts at
+   * the same instant: once `.is-scrolled` gives the header a solid
+   * background, or the drawer opens, the theme's own colours take over and
+   * the light theme wants its black mark back.
+   */
+  .site-header.is-overlay--video:not(.is-scrolled):not(.menu-open) .brand-icon--dark {
+    display: block;
+  }
+  .site-header.is-overlay--video:not(.is-scrolled):not(.menu-open) .brand-icon--light {
+    display: none;
+  }
   .brand-text {
     display: flex;
     flex-direction: column;
