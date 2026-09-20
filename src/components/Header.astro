@@ -936,14 +936,34 @@ const isCurrent = (href?: string) =>
       };
       sync();
       theme.addEventListener('click', () => {
-        const light = document.documentElement.dataset.theme === 'light';
-        const next = light ? 'dark' : 'light';
-        document.documentElement.dataset.theme = next;
+        const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+        /*
+         * What gets stored is an OVERRIDE of the operating system, so when
+         * the press lands back on what the OS was already asking for, the
+         * override is REMOVED rather than written.
+         *
+         * Without that the store is write-only and the first press is
+         * permanent: someone on a light machine presses once to look at
+         * dark, and from then on the site ignores their OS forever — it
+         * cannot follow them back when they switch to dark in the evening,
+         * because a stored 'dark' looks identical to a deliberate choice to
+         * defy a light OS. Clearing it puts them back on "whatever this
+         * machine says", which is the state they arrived in and the only
+         * one the toggle otherwise has no way to reach.
+         */
+        const osTheme = window.matchMedia?.('(prefers-color-scheme: light)').matches
+          ? 'light'
+          : 'dark';
         try {
-          localStorage.setItem('aniwala-theme', next);
+          if (next === osTheme) localStorage.removeItem('aniwala-theme');
+          else localStorage.setItem('aniwala-theme', next);
         } catch {
           /* private mode — the choice just will not persist */
         }
+        /* Applied through the head script's resolver rather than set
+           directly, so the attribute always reflects what a reload would
+           produce from the storage state just written. */
+        (window as any).__aniwalaTheme?.apply();
         sync();
       });
     }

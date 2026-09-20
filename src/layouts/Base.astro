@@ -568,13 +568,89 @@ const ogImage = ogImageProp ?? new URL('/og-default.jpg', Astro.site).href;
       Must be inline and in <head>: it runs before first paint, so a visitor
       who chose light does not get a flash of the dark theme. A deferred or
       bundled script would paint dark first, then correct itself.
+
+      EVERYTHING INSIDE THE <script> SHIPS, on all 67 pages, in the head,
+      ahead of first paint — a block comment in there is bytes on the wire,
+      unlike this one, which Astro strips before it reaches the HTML. So the
+      reasoning lives here and the script keeps one-line pointers back to it.
+      (Which is also why this block cannot contain a literal star-slash: it
+      would close early, and the compiler error names the NEXT line.)
+
+      THREE theme states, not two.
+
+      `aniwala-theme` in localStorage means "this visitor pressed the toggle"
+      — an explicit choice, which outranks everything. ABSENT, the site
+      follows the operating system through prefers-color-scheme, so a visitor
+      who runs their machine in light mode is handed the light theme on
+      arrival without touching anything.
+
+      Stored as an OVERRIDE rather than as a theme, and that distinction is
+      the whole design. If the toggle simply wrote the resulting theme, the
+      first press would pin the site forever: someone on a light OS presses
+      once to look at dark, and the site can never follow them back when they
+      switch their machine to dark for the evening — because a stored 'dark'
+      is indistinguishable from a deliberate choice to defy a light OS. The
+      override is cleared by pressing back to whatever the OS is already
+      asking for, which is the only way the toggle can reach "follow my
+      machine" again. See the click handler in Header.astro.
+
+      `dark` is still the brand default and still what :root carries, so a
+      browser too old for matchMedia, or one reporting no-preference, lands
+      on dark exactly as it did before.
+
+      The `change` listener is registered HERE rather than in the header's
+      script because this file runs once per full page load and never again
+      on a ClientRouter swap. `document` survives a swap, so the same
+      listener added from an `astro:page-load` handler would stack one copy
+      per navigation. The button is looked up at fire time for the same
+      reason — the one in the DOM now is not the one that was there at load.
     */}
     <script is:inline define:vars={{ announceId: announce.id }}>
       (function () {
-        try {
-          if (localStorage.getItem('aniwala-theme') === 'light') {
-            document.documentElement.dataset.theme = 'light';
+        /* Stored override first, else the OS. See the block above. */
+        var lightMq = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)');
+
+        function resolveTheme() {
+          var chosen = null;
+          try {
+            chosen = localStorage.getItem('aniwala-theme');
+          } catch (e) {
+            /* private mode: no override is readable, so the OS decides */
           }
+          if (chosen === 'light' || chosen === 'dark') return chosen;
+          return lightMq && lightMq.matches ? 'light' : 'dark';
+        }
+
+        function applyTheme() {
+          if (resolveTheme() === 'light') {
+            document.documentElement.dataset.theme = 'light';
+          } else {
+            delete document.documentElement.dataset.theme;
+          }
+        }
+
+        /* The toggle and the after-swap re-assert both call these, so what
+           the theme IS has one definition, in the script that runs first. */
+        window.__aniwalaTheme = { resolve: resolveTheme, apply: applyTheme };
+
+        applyTheme();
+
+        /* Follow the OS while the page is open — a machine on a sunset
+           schedule flips under the visitor, and a load-time-only check would
+           sit in the wrong theme until a reload. */
+        if (lightMq && lightMq.addEventListener) {
+          lightMq.addEventListener('change', function () {
+            applyTheme();
+            var btn = document.getElementById('theme-toggle');
+            var copy = window.__aniwalaHeader;
+            if (!btn || !copy) return;
+            var light = document.documentElement.dataset.theme === 'light';
+            btn.setAttribute('aria-pressed', String(light));
+            btn.setAttribute('aria-label', light ? copy.themeToDark : copy.themeToLight);
+          });
+        }
+
+        try {
           // Collapse the announcement strip before paint if this exact
           // announcement was dismissed — otherwise the bar flashes in and
           // the whole header jumps up as the script catches up.
@@ -674,17 +750,12 @@ const ogImage = ogImageProp ?? new URL('/og-default.jpg', Astro.site).href;
       document.addEventListener('astro:page-load', initVideo);
       document.addEventListener('astro:before-swap', teardownVideo);
 
-      // Re-assert the theme after a swap so it cannot flash back to dark.
+      /* Re-assert the theme after a swap so it cannot flash back to dark.
+         Through the resolver defined in the head script, so "what the theme
+         is" — stored override, else the OS — is answered in one place and
+         this cannot drift out of step with it. */
       document.addEventListener('astro:after-swap', () => {
-        try {
-          if (localStorage.getItem('aniwala-theme') === 'light') {
-            document.documentElement.dataset.theme = 'light';
-          } else {
-            delete document.documentElement.dataset.theme;
-          }
-        } catch {
-          /* private mode — dark default stands */
-        }
+        (window as any).__aniwalaTheme?.apply();
       });
     </script>
   </body>
