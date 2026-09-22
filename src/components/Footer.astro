@@ -89,7 +89,7 @@ const { email, legalName, addressLines, country, mapsUrl, publishedSocials: soci
               {social.map((s) =>
                 s.href ? (
                   <li>
-                    <a href={s.href} rel="noopener">
+                    <a href={s.href} target="_blank" rel="noopener">
                       <SocialIcon icon={s.icon} class="footer-social-icon" />
                       {s.label}
                     </a>
