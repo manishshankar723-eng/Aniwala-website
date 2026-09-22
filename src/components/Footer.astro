@@ -91,7 +91,19 @@ const { email, legalName, addressLines, country, mapsUrl, publishedSocials: soci
                   <li>
                     <a href={s.href} target="_blank" rel="noopener">
                       <SocialIcon icon={s.icon} class="footer-social-icon" />
-                      {s.label}
+                      {s.label}{' '}
+                      {/* These open a new tab, and nothing on screen says so. The
+                          warning belongs in the CONTENT rather than in an
+                          `aria-label`: a label would override the name instead of
+                          extending it, and the name has to keep containing the
+                          visible text for "click LinkedIn" to hit this link. The
+                          `{' '}` above is load bearing for the same reason it is on
+                          the brand mark — without it the name runs together as
+                          "LinkedIn(opens in a new tab)". It costs no layout here:
+                          a whitespace-only run between flex items is not rendered,
+                          and the span is absolutely positioned, so it is not a flex
+                          item and adds no `gap`. */}
+                      <span class="visually-hidden">(opens in a new tab)</span>
                     </a>
                   </li>
                 ) : (
