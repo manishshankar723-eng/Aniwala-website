@@ -8,6 +8,7 @@ import {
   getPostCategories,
 } from '../lib/posts';
 import { getUiCopy } from '../lib/studio';
+import { imageUrl } from '../lib/sanity/client';
 
 /**
  * The rail beside every blog page.
@@ -153,7 +154,20 @@ const blogIndex = allPosts.map((p) => ({
           {recent.map((p) => (
             <li>
               <a href={`/blog/${p.id}/`} style={`--tint:${p.data.tint}`}>
-                <span class="rail-thumb" aria-hidden="true" />
+                {/* Same rules as the cover on PostCard: decorative inside a link
+                    that already says the title, tint underneath while it loads.
+                    240 wide because the thumb is a 60px SQUARE — a 16:9 cover
+                    cropped to fill it needs twice its width in height at 2x. */}
+                <span class="rail-thumb" aria-hidden="true">
+                  {p.data.cover && (
+                    <img
+                      src={imageUrl(p.data.cover, 240)}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  )}
+                </span>
                 <span class="rail-post-body">
                   <span class="rail-post-title">{p.data.title}</span>
                   <time class="rail-post-date" datetime={isoDate(p.data.pubDate)}>
@@ -408,6 +422,12 @@ const blogIndex = allPosts.map((p) => ({
     background:
       radial-gradient(ellipse 80% 70% at 28% 18%, hsl(var(--tint) / 0.9), transparent 72%),
       linear-gradient(148deg, hsl(var(--tint) / 0.6), #0b0c10 78%);
+  }
+  .rail-thumb img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
   .rail-post-body {
     display: flex;
