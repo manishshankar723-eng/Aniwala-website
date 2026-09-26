@@ -60,15 +60,34 @@ try {
 const outDir = new URL('./dist/', import.meta.url);
 
 /** @param {string} pageUrl */
-const isNoindex = (pageUrl) => {
+const readPage = (pageUrl) => {
   try {
     const { pathname } = new URL(pageUrl);
-    const file = new URL(`.${pathname}index.html`, outDir);
-    return /<meta name="robots" content="noindex/.test(readFileSync(file, 'utf8'));
+    return readFileSync(new URL(`.${pathname}index.html`, outDir), 'utf8');
   } catch {
-    return false;
+    return '';
   }
 };
+
+/** @param {string} pageUrl */
+const isNoindex = (pageUrl) => /<meta name="robots" content="noindex/.test(readPage(pageUrl));
+
+/**
+ * `<lastmod>` for a blog post, off the same built HTML.
+ *
+ * Without it Google cannot tell from the sitemap which URL is new, so a
+ * freshly published post waits for Google's own schedule to be noticed. The
+ * post page already prints `article:modified_time` (updatedDate, else
+ * pubDate), so this reads that rather than asking the CMS a second time.
+ *
+ * Pages WITHOUT a real date get no lastmod at all — deliberately not the
+ * build time. Every deploy would then claim every page changed, and Google
+ * stops trusting a site's lastmod once it learns the value means nothing.
+ *
+ * @param {string} pageUrl
+ */
+const lastmodOf = (pageUrl) =>
+  /<meta property="article:modified_time" content="([^"]+)"/.exec(readPage(pageUrl))?.[1];
 
 // https://astro.build/config
 export default defineConfig({
@@ -122,5 +141,14 @@ export default defineConfig({
   /* Order matters: both of these run at `astro:build:done`, and the sitemap
      filter reads the HTML the build has just written. The redirects
      integration touches only .htaccess, so it is independent. */
-  integrations: [sitemap({ filter: (page) => !isNoindex(page) }), redirects()],
+  integrations: [
+    sitemap({
+      filter: (page) => !isNoindex(page),
+      serialize(item) {
+        const lastmod = lastmodOf(item.url);
+        return lastmod ? { ...item, lastmod } : item;
+      },
+    }),
+    redirects(),
+  ],
 });
