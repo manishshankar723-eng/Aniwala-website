@@ -232,7 +232,9 @@ const articleSchema = {
      runs edge to edge on a wide monitor dwarfs the article it belongs to. */
   .post-cover {
     max-width: 1100px;
-    margin: 0 auto 1rem;
+    /* Clear the hero's bottom rule — flush against it, the cover reads as
+       cut off by the line rather than placed below it. */
+    margin: clamp(2rem, 4vw, 3.5rem) auto 1rem;
     padding: 0 1.5rem;
   }
   .post-cover img {
