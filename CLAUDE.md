@@ -94,6 +94,16 @@ server. Do not work around a failing check — they are load bearing:
   display name. Timezones from a form go through
   `validTz()` — an unknown zone makes every `Intl` call throw.
 
+- **The chatbot signs with `CHAT_SECRET` and nothing else.** `sign()` with
+  `MODERATION_SECRET` is what makes an approve link — an HMAC over
+  `${id}:${action}:${exp}` — and a chat signature covers text a stranger
+  steers the model into writing. Sharing the key makes a chat reply a way to
+  mint approve (and, via `bookingSecret()`'s fallback, confirm) tokens.
+  Its knowledge is built in `src/lib/chatKnowledge.ts` through
+  `astro:content`, never by a script querying Sanity: the dataset holds the
+  `submission` mirror of every lead and applicant. `CHATBOT-PLAN.md` §0 has
+  the rest of the review.
+
 - **The mail bill is capped in `notify` (`mailBudget`, default 90/day), NOT by
   the rate limiter.** Past the budget, submissions are saved and mirrored but
   not emailed, with one alert. Do not lower the daily ceilings in

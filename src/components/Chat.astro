@@ -1,0 +1,691 @@
+---
+/**
+ * The chat widget. Behaviour is in `lib/chatWidget.ts`; the design and the
+ * security reasoning are CHATBOT-PLAN.md.
+ *
+ * Base.astro renders it only when `chatShown()` says so: the Studio switch
+ * (Settings → Chat assistant), unless CHAT_ENABLED overrides it, and never
+ * without the Turnstile key and the Supabase URL. A build with it off ships
+ * neither the markup nor the script. Off is the default: no published
+ * document means no widget.
+ *
+ * `transition:persist` keeps ONE copy across ClientRouter swaps — the open
+ * panel, the conversation and the listeners survive navigation, and nothing
+ * re-initialises (CHATBOT-PLAN.md section 12).
+ *
+ * EVERY VISIBLE STRING comes from Settings → Chat assistant, with the defaults
+ * below when a field is empty. The fixed replies the FUNCTION sends (the
+ * refusal, the daily limit) are not here: they are part of a security control.
+ *
+ * SUGGESTIONS answer with fixed text — no model call. With none written in the
+ * Studio, the built-in three are used, and their answers are generated from
+ * the services and open roles so they cannot go stale. An editor's links are
+ * checked HERE, at build time: each must be a page the bot knows about, or the
+ * build fails naming it. The Studio's own check is UI-only (CLAUDE.md).
+ */
+import { TURNSTILE_SITE_KEY } from '../config/site';
+import { buildChatKnowledge } from '../lib/chatKnowledge';
+import { chatShown, getChatSettings } from '../lib/studio';
+import { isSitePath } from '../../supabase/functions/chat/guards.ts';
+
+const enabled = await chatShown();
+const settings = await getChatSettings();
+
+const text = {
+  launcher: settings.launcherLabel.trim() || 'Ask us',
+  title: settings.title.trim() || 'Aniwala assistant',
+  subtitle: settings.subtitle.trim() || 'Automated · replies in seconds',
+  placeholder: settings.placeholder.trim() || 'Ask about services, work or jobs…',
+  footnote:
+    settings.footnote.trim() ||
+    "Automated answers may be imperfect. Please don't share personal details here —",
+  welcome:
+    settings.welcome.trim() ||
+    "Hi! I can answer questions about Aniwala's services, work, process and open roles. What would you like to know?",
+};
+
+let data = '';
+if (enabled) {
+  const { concepts } = await buildChatKnowledge();
+  const titles: Record<string, string> = Object.fromEntries(concepts.map((c) => [c.url, c.title]));
+  titles['/contact/'] = 'Contact';
+  titles['/contact/#book'] = 'Book a call';
+  titles['/about/'] = 'About the studio';
+  titles['/services/'] = 'Services';
+  titles['/portfolio/'] = 'Portfolio';
+  titles['/case-studies/'] = 'Case studies';
+  titles['/blog/'] = 'Blog';
+  const services = concepts.filter((c) => c.type === 'service');
+  const roles = concepts.filter((c) => c.type === 'role');
+
+  const builtIn = [
+    {
+      q: 'What services do you offer?',
+      a: services.length
+        ? `We work across ${services.map((s) => s.title).join(', ')}. Each page below covers what's included and how a project runs.`
+        : 'Everything the studio does is on the services page.',
+      links: services.map((s) => s.url),
+    },
+    {
+      q: 'How do I book a call?',
+      a: 'Pick a time on the contact page — the booking calendar is there — or send a brief with the enquiry form and the team will get back to you.',
+      links: ['/contact/#book', '/contact/'],
+    },
+    {
+      q: 'Are you hiring?',
+      a: roles.length
+        ? `Yes — ${roles.length} open ${roles.length === 1 ? 'role' : 'roles'}: ${roles.map((r) => r.title).join(', ')}.`
+        : 'No roles are open right now, but the careers page takes open applications.',
+      links: [...roles.map((r) => r.url).slice(0, 4), '/careers/'],
+    },
+  ];
+
+  /* An editor's link must be a page the bot has a title for — a typo'd path
+     would be a dead chip, and a dead chip fails silently. So it fails the
+     build instead, the way check-links.mjs does for every other link. */
+  for (const s of settings.suggestions) {
+    for (const link of s.links) {
+      if (!isSitePath(link) || !(link in titles)) {
+        throw new Error(
+          `Chat assistant → suggestion "${s.question}" links to "${link}", which is not a page the chat knows about. ` +
+            `Use one of: ${Object.keys(titles).sort().join(', ')}`
+        );
+      }
+    }
+  }
+  const suggestions = settings.suggestions.length
+    ? settings.suggestions.map((s) => ({ q: s.question, a: s.answer, links: s.links }))
+    : builtIn;
+
+  data = JSON.stringify({ titles, suggestions, siteKey: TURNSTILE_SITE_KEY, welcome: text.welcome });
+}
+---
+
+{
+  enabled && (
+    <div id="chat" class="chat" data-chat={data} transition:persist="chat">
+      <section class="chat-panel" role="dialog" aria-labelledby="chat-title" aria-describedby="chat-sub" hidden>
+        <header class="chat-head">
+          <span class="chat-mark" aria-hidden="true">A</span>
+          <div class="chat-head-text">
+            <p id="chat-title" class="chat-title">{text.title}</p>
+            <p id="chat-sub" class="chat-sub">
+              <span class="chat-dot" aria-hidden="true" />
+              {text.subtitle}
+            </p>
+          </div>
+          <button type="button" class="chat-icon-btn chat-close" aria-label="Close chat">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+          </button>
+        </header>
+
+        <div class="chat-log" role="log" aria-live="polite" aria-label="Conversation" data-lenis-prevent />
+
+        <form class="chat-form">
+          <div class="chat-composer">
+            <label for="chat-input" class="visually-hidden">Your question</label>
+            <textarea
+              id="chat-input"
+              class="chat-input"
+              rows="1"
+              maxlength="500"
+              placeholder={text.placeholder}
+              autocomplete="off"
+            />
+            <button type="submit" class="chat-send" aria-label="Send">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <path
+                  d="M5 12h13M13 6l6 6-6 6"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </button>
+          </div>
+          <p class="chat-foot">
+            {text.footnote}{' '}
+            <a href="/contact/">get in touch</a> for that.
+          </p>
+        </form>
+        <div class="chat-turnstile" />
+      </section>
+
+      <button type="button" class="chat-launcher" aria-expanded="false" aria-label="Open chat">
+        <svg class="chat-launcher-open" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path
+            d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 3.5V16A2.5 2.5 0 0 1 4 13.5z"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linejoin="round"
+          />
+        </svg>
+        <svg class="chat-launcher-close" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+        </svg>
+        <span class="chat-launcher-text">{text.launcher}</span>
+      </button>
+    </div>
+  )
+}
+
+<script>
+  import '../lib/chatWidget';
+</script>
+
+<style>
+  .chat {
+    --chat-radius: 18px;
+    --chat-bot: color-mix(in srgb, var(--color-ink) 7%, var(--color-surface));
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 80; /* above the header (50), below search (90) and the loader (200) */
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 14px;
+    font-size: 0.94rem;
+    line-height: 1.5;
+  }
+
+  /* ---------- launcher ---------- */
+  .chat-launcher {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 52px;
+    min-width: 52px;
+    padding: 0 20px 0 16px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--color-cta);
+    color: var(--color-cta-ink);
+    font: inherit;
+    font-weight: 650;
+    cursor: pointer;
+    box-shadow:
+      0 10px 30px rgb(0 0 0 / 0.28),
+      0 2px 6px rgb(0 0 0 / 0.18);
+    transition:
+      background 0.15s,
+      transform 0.15s,
+      padding 0.15s;
+  }
+  .chat-launcher:hover {
+    background: var(--color-cta-hover);
+    transform: translateY(-1px);
+  }
+
+  /* ---------- the invitation ----------
+     A glow and a pulse ring whenever the chat is CLOSED, so the button keeps
+     inviting a tap. The red dot is different: it reads as "something unread",
+     so it shows only until the chat has been opened once (`is-seen`,
+     remembered in localStorage) — a dot that never clears is a message that
+     never gets read. */
+  .chat-launcher {
+    position: relative;
+  }
+  .chat:not(.is-open) .chat-launcher {
+    box-shadow:
+      0 10px 30px rgb(0 0 0 / 0.28),
+      0 0 0 4px color-mix(in srgb, var(--color-cta) 22%, transparent),
+      0 0 32px 6px color-mix(in srgb, var(--color-cta) 45%, transparent);
+  }
+  .chat:not(.is-open) .chat-launcher::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 2px solid var(--color-cta);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .chat:not(.is-seen) .chat-launcher::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--color-danger);
+    border: 2px solid var(--color-cta);
+    pointer-events: none;
+  }
+  .chat.is-open .chat-launcher::before,
+  .chat.is-open .chat-launcher::after {
+    display: none;
+  }
+  .chat-launcher-close {
+    display: none;
+  }
+  .chat.is-open .chat-launcher {
+    padding: 0;
+  }
+  .chat.is-open .chat-launcher-open,
+  .chat.is-open .chat-launcher-text {
+    display: none;
+  }
+  .chat.is-open .chat-launcher-close {
+    display: block;
+  }
+
+  /* ---------- panel ---------- */
+  .chat-panel {
+    display: flex;
+    flex-direction: column;
+    width: min(400px, calc(100vw - 40px));
+    height: min(620px, calc(100dvh - 110px));
+    background: var(--color-surface);
+    color: var(--color-ink);
+    border: 1px solid var(--color-line);
+    border-radius: var(--chat-radius);
+    box-shadow:
+      0 24px 60px rgb(0 0 0 / 0.35),
+      0 4px 14px rgb(0 0 0 / 0.2);
+    overflow: hidden;
+  }
+  .chat-panel[hidden] {
+    display: none;
+  }
+
+  .chat-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 12px 14px 16px;
+    border-bottom: 1px solid var(--color-line);
+  }
+  .chat-mark {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: var(--color-cta);
+    color: var(--color-cta-ink);
+    font-weight: 800;
+    font-size: 1.05rem;
+  }
+  .chat-head-text {
+    flex: 1;
+    min-width: 0;
+  }
+  .chat-title {
+    margin: 0;
+    font-weight: 700;
+    font-size: 1rem;
+    line-height: 1.25;
+  }
+  .chat-sub {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 2px 0 0;
+    color: var(--color-ink-muted);
+    font-size: 0.78rem;
+  }
+  .chat-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #3fbf7f;
+  }
+  .chat-icon-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--color-ink-muted);
+    cursor: pointer;
+  }
+  .chat-icon-btn:hover {
+    color: var(--color-ink);
+    background: var(--chat-bot);
+  }
+
+  /* ---------- conversation ---------- */
+  .chat-log {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 18px 16px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line-strong) transparent;
+  }
+  .chat-log::-webkit-scrollbar {
+    width: 6px;
+  }
+  .chat-log::-webkit-scrollbar-thumb {
+    background: var(--color-line-strong);
+    border-radius: 3px;
+  }
+
+  .chat-log :global(.chat-row) {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .chat-log :global(.chat-row--you) {
+    justify-content: flex-end;
+  }
+  .chat-log :global(.chat-avatar) {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    background: var(--color-cta);
+    color: var(--color-cta-ink);
+    font-size: 0.72rem;
+    font-weight: 800;
+  }
+  .chat-log :global(.chat-msg) {
+    max-width: 82%;
+    padding: 10px 14px;
+    border-radius: 16px;
+  }
+  .chat-log :global(.chat-msg p) {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .chat-log :global(.chat-row--you .chat-msg) {
+    background: var(--color-cta);
+    color: var(--color-cta-ink);
+    border-bottom-right-radius: 5px;
+  }
+  .chat-log :global(.chat-row--bot .chat-msg) {
+    background: var(--chat-bot);
+    border-bottom-left-radius: 5px;
+  }
+  .chat-log :global(.chat-msg--notice) {
+    color: var(--color-ink-muted);
+  }
+
+  .chat-log :global(.chat-links) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .chat-log :global(.chat-links a) {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 30px;
+    padding: 3px 11px;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 999px;
+    color: var(--color-ink);
+    background: var(--color-surface);
+    text-decoration: none;
+    font-size: 0.83rem;
+    transition: border-color 0.15s;
+  }
+  .chat-log :global(.chat-links a::after) {
+    content: '→';
+    opacity: 0.55;
+  }
+  .chat-log :global(.chat-links a:hover) {
+    border-color: var(--color-accent);
+  }
+  .chat-log :global(.chat-links a.chat-action) {
+    background: var(--color-cta);
+    border-color: var(--color-cta);
+    color: var(--color-cta-ink);
+    font-weight: 650;
+  }
+
+  /* Suggestion chips, under the welcome message. */
+  .chat-log :global(.chat-suggestions) {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin: 10px 0 0 34px;
+  }
+  .chat-log :global(.chat-suggestion) {
+    min-height: 34px;
+    padding: 6px 14px;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--color-ink);
+    font: inherit;
+    font-size: 0.86rem;
+    text-align: left;
+    cursor: pointer;
+    transition:
+      border-color 0.15s,
+      background 0.15s;
+  }
+  .chat-log :global(.chat-suggestion:hover) {
+    border-color: var(--color-accent);
+    background: var(--chat-bot);
+  }
+
+  /* Typing indicator. */
+  .chat-log :global(.chat-typing) {
+    display: inline-flex;
+    gap: 4px;
+    padding: 14px 16px;
+  }
+  .chat-log :global(.chat-typing span) {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--color-ink-muted);
+    opacity: 0.5;
+  }
+
+  /* ---------- composer ---------- */
+  .chat-form {
+    padding: 10px 14px 12px;
+    border-top: 1px solid var(--color-line);
+  }
+  .chat-composer {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    padding: 6px 6px 6px 14px;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 16px;
+    background: var(--color-ground);
+    transition:
+      border-color 0.15s,
+      box-shadow 0.15s;
+  }
+  .chat-composer:focus-within {
+    border-color: color-mix(in srgb, var(--color-accent) 70%, var(--color-line-strong));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent);
+  }
+  .chat-input {
+    flex: 1;
+    min-height: 24px;
+    max-height: 120px;
+    padding: 7px 0;
+    border: 0;
+    outline: none;
+    resize: none;
+    background: transparent;
+    color: var(--color-ink);
+    font: inherit;
+    line-height: 1.45;
+  }
+  /* The composer draws the focus ring; a second one on the field inside it
+     reads as a heavy double border. */
+  .chat-input:focus,
+  .chat-input:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+  .chat-input::placeholder {
+    color: var(--color-ink-faint);
+  }
+  .chat-send {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 38px;
+    height: 38px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--color-cta);
+    color: var(--color-cta-ink);
+    cursor: pointer;
+    transition:
+      background 0.15s,
+      opacity 0.15s;
+  }
+  .chat-send:hover {
+    background: var(--color-cta-hover);
+  }
+  .chat-send:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .chat-foot {
+    margin: 8px 2px 0;
+    color: var(--color-ink-muted);
+    font-size: 0.74rem;
+    line-height: 1.4;
+    text-align: center;
+  }
+  .chat-foot a {
+    color: inherit;
+    text-underline-offset: 2px;
+  }
+
+  .chat-turnstile:empty {
+    display: none;
+  }
+  .chat-turnstile {
+    padding: 0 16px 12px;
+  }
+
+  /* ---------- phones: a bottom sheet ---------- */
+  /* ---------- phones: the same arrangement, sized to the screen ----------
+     The panel opens ABOVE the launcher and the launcher stays put as the close
+     button, exactly as on desktop — one place to open it, one to close it. The
+     height leaves the launcher (52px), the gap and the header clear. */
+  @media (max-width: 520px) {
+    .chat {
+      right: 12px;
+      bottom: 12px;
+      gap: 10px;
+    }
+    .chat-panel {
+      width: calc(100vw - 24px);
+      height: min(560px, calc(100dvh - 150px));
+    }
+    .chat-launcher {
+      height: 48px;
+      min-width: 48px;
+    }
+  }
+
+  /* Locked for the day: the composer greys out, the explanation is in the
+     placeholder and in the reply above it. */
+  .chat.is-limited .chat-composer {
+    opacity: 0.6;
+  }
+  .chat.is-limited .chat-input {
+    cursor: not-allowed;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .chat:not(.is-open) .chat-launcher {
+      animation: chat-glow 2.8s ease-in-out infinite;
+    }
+    .chat:not(.is-open) .chat-launcher::before {
+      animation: chat-ring 2.8s ease-out infinite;
+    }
+    .chat:not(.is-seen) .chat-launcher::after {
+      animation: chat-dot 2.8s ease-in-out infinite;
+    }
+    @keyframes chat-glow {
+      0%,
+      100% {
+        box-shadow:
+          0 10px 30px rgb(0 0 0 / 0.28),
+          0 0 0 4px color-mix(in srgb, var(--color-cta) 18%, transparent),
+          0 0 22px 2px color-mix(in srgb, var(--color-cta) 35%, transparent);
+      }
+      50% {
+        box-shadow:
+          0 10px 30px rgb(0 0 0 / 0.28),
+          0 0 0 6px color-mix(in srgb, var(--color-cta) 28%, transparent),
+          0 0 44px 12px color-mix(in srgb, var(--color-cta) 55%, transparent);
+      }
+    }
+    @keyframes chat-ring {
+      0% {
+        opacity: 0.7;
+        transform: scale(1);
+      }
+      70%,
+      100% {
+        opacity: 0;
+        transform: scale(1.45, 1.8);
+      }
+    }
+    @keyframes chat-dot {
+      0%,
+      60%,
+      100% {
+        transform: scale(1);
+      }
+      30% {
+        transform: scale(1.25);
+      }
+    }
+    .chat-panel {
+      animation: chat-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      transform-origin: bottom right;
+    }
+    @keyframes chat-in {
+      from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.98);
+      }
+    }
+    .chat-log :global(.chat-typing span) {
+      animation: chat-bounce 1.1s infinite ease-in-out;
+    }
+    .chat-log :global(.chat-typing span:nth-child(2)) {
+      animation-delay: 0.15s;
+    }
+    .chat-log :global(.chat-typing span:nth-child(3)) {
+      animation-delay: 0.3s;
+    }
+    @keyframes chat-bounce {
+      0%,
+      80%,
+      100% {
+        transform: translateY(0);
+        opacity: 0.4;
+      }
+      40% {
+        transform: translateY(-4px);
+        opacity: 0.9;
+      }
+    }
+  }
+</style>

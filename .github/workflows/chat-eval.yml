@@ -1,0 +1,70 @@
+name: Chat eval
+
+# The paid half of the chatbot's eval — CHATBOT-PLAN.md section 9.2. Runs the
+# real model against evals/chat/cases.jsonl (plus the held-out cases) on pull
+# requests that change the bot, and never on anything else.
+#
+# `pull_request`, NEVER `pull_request_target`: the target variant runs with
+# the repository's secrets on code from the pull request, which would hand
+# the Vertex credential to whoever opened it. With `pull_request`, PRs from
+# forks and from Dependabot get no secrets, and the job skips below.
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/chat/**'
+      - 'src/lib/chatKnowledge.ts'
+      - 'evals/chat/**'
+      - 'scripts/eval-chat.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SANITY_PROJECT_ID: ${{ secrets.SANITY_PROJECT_ID }}
+      SANITY_DATASET: ${{ secrets.SANITY_DATASET }}
+      SANITY_READ_TOKEN: ${{ secrets.SANITY_READ_TOKEN }}
+      # A SEPARATE, eval-only service account with its own quota, so a leaked
+      # CI credential cannot spend the production budget.
+      EVAL_GCP_SA_KEY: ${{ secrets.EVAL_GCP_SA_KEY }}
+      EVAL_GCP_PROJECT_ID: ${{ secrets.EVAL_GCP_PROJECT_ID }}
+      GCP_REGION: ${{ secrets.EVAL_GCP_REGION }}
+      GEMINI_MODEL: ${{ secrets.EVAL_GEMINI_MODEL }}
+      # Multi-line. The runner prints held-out cases by id only, because
+      # GitHub does not reliably mask a multi-line secret.
+      EVAL_HELDOUT: ${{ secrets.EVAL_HELDOUT }}
+    steps:
+      - name: Skip when the eval credential is not available
+        id: gate
+        run: |
+          if [ -z "$EVAL_GCP_SA_KEY" ] || [ -z "$EVAL_GCP_PROJECT_ID" ] || [ -z "$GEMINI_MODEL" ]; then
+            echo "::notice::No eval credential for this run (fork, Dependabot, or not set up yet) — skipping the model eval."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: steps.gate.outputs.run == 'true'
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - if: steps.gate.outputs.run == 'true'
+        run: npm ci
+
+      # The knowledge file the eval answers from is the one this branch builds.
+      - if: steps.gate.outputs.run == 'true'
+        run: npm run build
+
+      - name: Run the model eval (both knowledge modes, three runs each)
+        if: steps.gate.outputs.run == 'true'
+        run: npm run eval:chat

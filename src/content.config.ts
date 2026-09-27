@@ -4,6 +4,7 @@ import { IMAGE_SLOT_NAMES } from './config/imageSlots';
 import { FONT_CHOICE_NAMES } from './config/fonts';
 import { SOCIAL_ICONS } from './config/contact';
 import { isSafeHref, findUnsafeHref, UNSAFE_HREF_MESSAGE } from './config/urls';
+import { isSitePath } from '../supabase/functions/chat/guards.ts';
 import {
   UI_COPY_FIELDS,
   APPLY_COPY_FIELDS,
@@ -28,6 +29,7 @@ import {
   sanityBuiltPages,
   sanityNavigation,
   sanityLoaderSettings,
+  sanityChatSettings,
   sanityWorkCategories,
   sanityPostCategories,
   sanityBookingSettings,
@@ -955,6 +957,41 @@ const loaderSettings = defineCollection({
 });
 
 /**
+ * The chat assistant's switch and opening line. A singleton, OPTIONAL like
+ * loaderSettings: no document means the widget is hidden, which is the safe
+ * reading of "nobody has turned it on". See studio/schemas/chatSettings.ts.
+ */
+const chatSettings = defineCollection({
+  loader: sanityChatSettings(),
+  schema: z.object({
+    enabled: z.boolean().default(false),
+    welcome: z.string().max(280).default(''),
+    launcherLabel: z.string().max(24).default(''),
+    title: z.string().max(40).default(''),
+    subtitle: z.string().max(60).default(''),
+    placeholder: z.string().max(60).default(''),
+    footnote: z.string().max(160).default(''),
+    /* The suggestion LINKS become <a href> in the widget, so they get the
+       chat's own path rule here — the Studio's check is UI-only (CLAUDE.md).
+       Chat.astro then also requires each to be a page the bot knows about. */
+    suggestions: z
+      .array(
+        z.object({
+          question: z.string().min(1).max(60),
+          answer: z.string().min(1).max(400),
+          links: z
+            .array(z.string().refine(isSitePath, 'Suggestion links must be a path on this site, starting with /.'))
+            .max(4)
+            .default([]),
+        })
+      )
+      .max(4)
+      .default([]),
+    draft: z.boolean().default(false),
+  }),
+});
+
+/**
  * Portfolio disciplines.
  *
  * `services` arrives as plain slugs — the loader dereferences the references
@@ -1258,6 +1295,7 @@ export const collections = {
   builtPages,
   navigation,
   loaderSettings,
+  chatSettings,
   services: servicesCollection,
   careers,
   workCategories,

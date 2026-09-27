@@ -19,8 +19,12 @@
     "check:links": "node scripts/check-links.mjs",
     "check:dataset": "node scripts/check-dataset.mjs",
     "check:og": "node scripts/check-og.mjs",
-    "verify": "node scripts/check-dataset.mjs && node scripts/check-og.mjs && astro check && astro build && node scripts/check-links.mjs",
-    "build:preview": "node scripts/build-preview.mjs"
+    "verify": "node scripts/check-dataset.mjs && node scripts/check-og.mjs && node --experimental-strip-types --test tests/chat.test.ts && astro check && astro build && node scripts/check-links.mjs",
+    "build:preview": "node scripts/build-preview.mjs",
+    "test:chat": "node --experimental-strip-types --test tests/chat.test.ts",
+    "eval:chat": "node --experimental-strip-types scripts/eval-chat.mjs",
+    "chat:usage": "npx supabase db query --linked --project-ref ocxbnnfchqzgkbqlagnq -f supabase/queries/chat-usage.sql",
+    "chat:refused": "npx supabase db query --linked --project-ref ocxbnnfchqzgkbqlagnq -f supabase/queries/chat-refused.sql"
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.4",

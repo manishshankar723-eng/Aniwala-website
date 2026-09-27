@@ -782,6 +782,222 @@ revoke insert on public.applications from anon;
 -- `revoke all` here, which would take it with everything else.
 
 -- ---------------------------------------------------------------------
+-- 8. CHAT — the chatbot's limits and its refused-turn log
+--
+-- CHATBOT-PLAN.md sections 4.5 and 7. Safe to run on its own, and safe to
+-- re-run. NOTHING HERE GRANTS ANYTHING TO anon OR authenticated: the `chat`
+-- Edge Function is the only reader and writer, as service_role.
+--
+-- SEPARATE FROM submission_log ON PURPOSE. `mailDemandLast24h()` in
+-- functions/_shared/util.ts counts every row in submission_log as mail
+-- demand, so chat rows there would stop lead emails; and chat traffic would
+-- fill the forms' daily ceilings. The bot running out closes the bot, never
+-- the forms.
+--
+-- No `notify_insert` trigger on either table (mirror-events.sql): nothing
+-- here is emailed or mirrored into Sanity, and neither table is in the
+-- backup function's TABLES. Do not add one.
+-- ---------------------------------------------------------------------
+
+-- One row per model call: a visitor message, or the one retry it may cause.
+-- `tokens` is the RESERVATION made before the call, which is what bounds the
+-- bill — see chat_take() below.
+create table if not exists public.chat_usage (
+  id           bigserial primary key,
+  at           timestamptz not null default now(),
+  -- HMAC(CHAT_SECRET, address) from the function; never the raw address.
+  addr         text not null check (char_length(addr) between 1 and 64),
+  sid          text not null check (char_length(sid) between 1 and 32),
+  kind         text not null check (kind in ('message', 'retry')),
+  new_session  boolean not null default false,
+  tokens       int not null check (tokens between 0 and 200000)
+);
+
+create index if not exists chat_usage_addr_idx on public.chat_usage (addr, at desc);
+create index if not exists chat_usage_sid_idx  on public.chat_usage (sid, at desc);
+create index if not exists chat_usage_at_idx   on public.chat_usage (at desc);
+
+comment on table public.chat_usage is
+  'Chatbot limits. Written only by chat_take() as service_role; no anon or authenticated access.';
+
+-- Refused turns only, scrubbed of emails and phone numbers before they
+-- arrive, for the weekly eval review. Purged after 30 days.
+create table if not exists public.chat_flags (
+  id        bigserial primary key,
+  at        timestamptz not null default now(),
+  addr      text not null check (char_length(addr) between 1 and 64),
+  sid       text not null check (char_length(sid) between 1 and 32),
+  reason    text not null check (reason in ('off_topic', 'bad_reply')),
+  question  text not null check (char_length(question) <= 500)
+);
+
+create index if not exists chat_flags_at_idx on public.chat_flags (at desc);
+
+comment on table public.chat_flags is
+  'Refused chatbot turns, scrubbed. Visitor text: service_role only, never mirrored, purged at 30 days.';
+
+-- What each model call actually cost, for `npm run chat:usage`: whether the
+-- implicit cache is hitting, what a message really costs, how often retrieval
+-- falls back. NUMBERS ONLY — no address, no session, no text — so it can be
+-- kept for 90 days and read by anyone looking at cost.
+create table if not exists public.chat_calls (
+  id              bigserial primary key,
+  at              timestamptz not null default now(),
+  kind            text not null check (kind in ('message', 'retry')),
+  mode            text not null check (mode in ('selective', 'full')),
+  fallback        boolean not null,
+  outcome         text not null check (char_length(outcome) <= 40),
+  estimate        int check (estimate between 0 and 200000),
+  prompt_tokens   int check (prompt_tokens between 0 and 2000000),
+  cached_tokens   int check (cached_tokens between 0 and 2000000),
+  output_tokens   int check (output_tokens between 0 and 200000),
+  thought_tokens  int check (thought_tokens between 0 and 200000)
+);
+
+create index if not exists chat_calls_at_idx on public.chat_calls (at desc);
+
+comment on table public.chat_calls is
+  'Chatbot token usage per model call. Numbers only; service_role only; purged at 90 days.';
+
+-- RLS on with NO policies, and no grants: a deny for everything that is not
+-- service_role. New tables already start closed (section 4's default
+-- privileges); these revokes say so out loud and cover an older database.
+alter table public.chat_usage enable row level security;
+alter table public.chat_flags enable row level security;
+alter table public.chat_calls enable row level security;
+revoke all on public.chat_usage, public.chat_flags, public.chat_calls from anon, authenticated;
+revoke all on sequence public.chat_usage_id_seq, public.chat_flags_id_seq, public.chat_calls_id_seq
+  from anon, authenticated;
+
+/*
+ * chat_take — check every limit and reserve the tokens, in one statement.
+ *
+ * Returns 'ok', or the name of the limit that was hit. Called by the `chat`
+ * function BEFORE each Vertex call, the retry included, so the daily spend is
+ * bounded by p_daily_tokens × price whatever the traffic does.
+ *
+ * THE ADVISORY LOCK is what makes the budget a budget. Edge Functions run as
+ * many isolates at once; without serialising, two requests both read "under
+ * budget" and both spend. It is transaction-scoped, released when this
+ * returns, and held for a handful of indexed counts.
+ *
+ * THE LIMITS ARE HERE, not in the function, except the daily budget, which is
+ * a Supabase secret (CHAT_DAILY_TOKENS) so it moves without running SQL. The
+ * caller is service_role and is trusted to pass it.
+ *
+ *   sessions  6 new sessions per address per hour
+ *   address   10 messages per address per rolling 24 hours — "one visitor"
+ *             is their address, keyed as an HMAC and IPv6 by /64, so people
+ *             behind one office or mobile-carrier NAT share the ten
+ *   session   12 messages per session (a new one costs a Turnstile solve)
+ *   budget    reserved tokens in the last 24 hours
+ */
+create or replace function public.chat_take(
+  p_addr text,
+  p_sid text,
+  p_kind text,
+  p_new_session boolean,
+  p_tokens int,
+  p_daily_tokens int
+)
+returns text
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  n    int;
+  used bigint;
+begin
+  if p_addr is null or p_sid is null or p_kind not in ('message', 'retry')
+     or p_tokens is null or p_tokens < 0 or p_tokens > 200000
+     or p_daily_tokens is null or p_daily_tokens < 0 then
+    return 'invalid';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('public.chat_take'));
+
+  if p_kind = 'message' then
+    if p_new_session then
+      select count(*) into n from public.chat_usage
+       where addr = p_addr and new_session and at > now() - interval '1 hour';
+      if n >= 6 then return 'sessions'; end if;
+    end if;
+
+    -- Ten typed messages per visitor per rolling 24 hours. The retry a
+    -- message may cause is kind 'retry' and does not count against them;
+    -- the suggestion buttons never reach this function at all.
+    select count(*) into n from public.chat_usage
+     where addr = p_addr and kind = 'message' and at > now() - interval '24 hours';
+    if n >= 10 then return 'address'; end if;
+
+    select count(*) into n from public.chat_usage
+     where sid = p_sid and kind = 'message';
+    if n >= 12 then return 'session'; end if;
+  end if;
+
+  select coalesce(sum(tokens), 0) into used from public.chat_usage
+   where at > now() - interval '24 hours';
+  if used + p_tokens > p_daily_tokens then return 'budget'; end if;
+
+  insert into public.chat_usage (addr, sid, kind, new_session, tokens)
+  values (p_addr, p_sid, p_kind, p_new_session and p_kind = 'message', p_tokens);
+  return 'ok';
+end;
+$$;
+
+/*
+ * PUBLIC MUST BE NAMED. Postgres grants EXECUTE on every new function to
+ * PUBLIC, and anon inherits PUBLIC. Section 4's default-privilege revoke names
+ * anon and authenticated, not PUBLIC — so without the first line this is
+ * callable at /rest/v1/rpc/chat_take with the anon key from the bundle, and a
+ * stranger could spend the whole day's budget in one call.
+ */
+revoke execute on function public.chat_take(text, text, text, boolean, int, int)
+  from public, anon, authenticated;
+grant execute on function public.chat_take(text, text, text, boolean, int, int)
+  to service_role;
+
+-- Housekeeping, on the same terms as section 5's: skipped without pg_cron,
+-- and never able to take the schema run down with it.
+do $$
+begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    perform cron.schedule(
+      'purge-chat-usage',
+      '23 4 * * *',
+      $cron$delete from public.chat_usage where at < now() - interval '2 days'$cron$
+    );
+    perform cron.schedule(
+      'purge-chat-flags',
+      '29 4 * * *',
+      $cron$delete from public.chat_flags where at < now() - interval '30 days'$cron$
+    );
+    perform cron.schedule(
+      'purge-chat-calls',
+      '31 4 * * *',
+      $cron$delete from public.chat_calls where at < now() - interval '90 days'$cron$
+    );
+    raise notice 'Scheduled the chat purges.';
+  else
+    raise notice 'pg_cron is not installed — chat_usage and chat_flags will not be purged automatically.';
+  end if;
+exception when others then
+  raise notice 'Could not schedule the chat purges (%). The chat limits are unaffected.', sqlerrm;
+end
+$$;
+
+-- Run with this section alone to see it (the editor shows only the last
+-- result). Expected: the owner (postgres) and service_role, nothing else. A
+-- row for anon, authenticated or PUBLIC means the budget is spendable by
+-- anyone holding the anon key.
+select grantee, privilege_type
+from information_schema.routine_privileges
+where routine_schema = 'public' and routine_name = 'chat_take'
+order by grantee;
+
+
+-- ---------------------------------------------------------------------
 -- LAST, SO IT IS THE RESULT THE SQL EDITOR SHOWS: what anon may do now.
 --
 -- Expected: ONE row — comments | SELECT | 5. Any INSERT row means direct
@@ -793,6 +1009,7 @@ select table_name, privilege_type, count(*) as columns
 from information_schema.column_privileges
 where grantee = 'anon'
   and table_schema = 'public'
-  and table_name in ('enquiries', 'comments', 'applications', 'submission_log')
+  and table_name in ('enquiries', 'comments', 'applications', 'submission_log',
+                     'chat_usage', 'chat_flags', 'chat_calls')
 group by table_name, privilege_type
 order by table_name, privilege_type;

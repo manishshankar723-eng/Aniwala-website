@@ -504,6 +504,15 @@ export default defineConfig({
                   .title('Loading screen')
               ),
             S.listItem()
+              .title('Chat assistant')
+              .id('chatSettings')
+              .child(
+                S.document()
+                  .schemaType('chatSettings')
+                  .documentId('chatSettings')
+                  .title('Chat assistant')
+              ),
+            S.listItem()
               .title('Menus')
               .id('navigation')
               .child(

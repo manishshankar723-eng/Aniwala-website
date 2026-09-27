@@ -113,6 +113,25 @@ export const FUNCTIONS_BASE_URL = SUPABASE_URL
   ? `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1`
   : '';
 
+/**
+ * An OVERRIDE for the chat widget's switch, which lives in the Studio
+ * (Settings → Chat assistant). Unset — the normal state, and the state in CI —
+ * means the Studio decides.
+ *
+ *   CHAT_ENABLED=1   force it ON: test locally while the live site has it off
+ *   CHAT_ENABLED=0   force it OFF: a build-level kill switch that no Publish
+ *                    can undo
+ *
+ * The widget also needs TURNSTILE_SITE_KEY and SUPABASE_URL, and renders
+ * nothing without them whatever this says. See CHATBOT-PLAN.md.
+ */
+const chatEnv = env('CHAT_ENABLED').toLowerCase();
+export const CHAT_OVERRIDE: 'on' | 'off' | null = ['1', 'true', 'yes', 'on'].includes(chatEnv)
+  ? 'on'
+  : ['0', 'false', 'no', 'off'].includes(chatEnv)
+    ? 'off'
+    : null;
+
 /* ------------------------------------------------------------------ */
 /* Google Analytics 4                                                  */
 /* ------------------------------------------------------------------ */

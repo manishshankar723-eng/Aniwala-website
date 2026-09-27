@@ -7,11 +7,12 @@ import Loader from '../components/Loader.astro';
 import Search from '../components/Search.astro';
 import PreviewBar from '../components/PreviewBar.astro';
 import { previewMode, sanityConfigured } from '../lib/sanity/client';
-import { getUiCopy, getBrand, getContactDetails } from '../lib/studio';
+import { getUiCopy, getBrand, getContactDetails, chatShown } from '../lib/studio';
 import SiteSchema from '../components/SiteSchema.astro';
 import SiteConfig from '../components/SiteConfig.astro';
 import Analytics from '../components/Analytics.astro';
 import { TURNSTILE_SITE_KEY } from '../config/site';
+import Chat from '../components/Chat.astro';
 import '../styles/global.css';
 
 interface Props {
@@ -81,6 +82,7 @@ interface Props {
 
 const ui = await getUiCopy();
 const brand = await getBrand();
+const showChat = await chatShown();
 
 /**
  * The X handle, derived from the social link rather than typed again.
@@ -709,6 +711,9 @@ const ogImage = ogImageProp ?? new URL('/og-default.jpg', Astro.site).href;
     <Header overlay={hero} />
     <slot />
     <Search />
+    {/* Settings → Chat assistant in the Studio, unless CHAT_ENABLED overrides
+        it — see config/site.ts and CHATBOT-PLAN.md. */}
+    {showChat && <Chat />}
 
     <script>
       import { initMotion, teardownMotion } from '../lib/motion';

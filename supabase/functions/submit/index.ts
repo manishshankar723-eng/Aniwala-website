@@ -41,8 +41,8 @@
    `schedule`. Three copies of one list is three chances for one of them to go
    quietly stale, and the stale one is a door left the wrong width. */
 import { allowedOrigin, corsHeaders as cors, isEmail } from '../_shared/util.ts';
-
-const TURNSTILE_VERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+/* Verification and the hostname check are shared with `chat` — one copy. */
+import { verifyTurnstile, clientIp } from '../_shared/turnstile.ts';
 
 /* Exactly the insertable columns listed in schema.sql section 7's rollback
    block (anon itself is granted none — this function writes). Nothing that
@@ -72,13 +72,6 @@ const json = (status: number, body: unknown, origin: string | null) =>
     status,
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...cors(origin) },
   });
-
-/** The visitor's address, as seen by the edge. */
-const clientIp = (req: Request): string =>
-  (req.headers.get('cf-connecting-ip') ??
-    req.headers.get('x-forwarded-for')?.split(',')[0] ??
-    req.headers.get('x-real-ip') ??
-    '').trim();
 
 Deno.serve(async (req) => {
   const origin = allowedOrigin(req);
@@ -119,36 +112,14 @@ Deno.serve(async (req) => {
 
   /* ---------- verify with Cloudflare BEFORE touching the database ---------- */
   const ip = clientIp(req);
-  let verdict: { success?: boolean; hostname?: string; 'error-codes'?: string[] };
-  try {
-    const form_ = new FormData();
-    form_.append('secret', secret);
-    form_.append('response', token);
-    if (ip) form_.append('remoteip', ip);
-    const res = await fetch(TURNSTILE_VERIFY, { method: 'POST', body: form_ });
-    verdict = await res.json();
-  } catch (err) {
-    // Cloudflare being unreachable must not silently become "allowed".
-    console.error('turnstile verify failed:', err);
-    return json(503, { error: 'Could not verify you are human just now. Please try again shortly.' }, origin);
-  }
-
-  if (!verdict.success) {
-    console.warn('turnstile rejected:', verdict['error-codes']);
-    return json(403, { error: 'That verification did not check out. Please try again.' }, origin);
-  }
-
-  /*
-   * WHERE the token was solved, as well as whether. A token is not bound to
-   * our site key's pages by `success` alone — one solved on any page carrying
-   * the key verifies. The Origin check above says who sent this request; this
-   * says the widget was on the same host. Localhost is exempt because
-   * Cloudflare's test keys answer with a fixed placeholder hostname.
-   */
-  const originHost = new URL(origin).hostname;
-  if (originHost !== 'localhost' && verdict.hostname !== originHost) {
-    console.warn('turnstile hostname mismatch:', verdict.hostname);
-    return json(403, { error: 'That verification did not check out. Please try again.' }, origin);
+  /* Success AND the hostname the widget was solved on — see
+     `_shared/turnstile.ts`. Cloudflare being unreachable must not silently
+     become "allowed". */
+  const verdict = await verifyTurnstile({ token, secret, origin, ip });
+  if (!verdict.ok) {
+    return verdict.reason === 'unreachable'
+      ? json(503, { error: 'Could not verify you are human just now. Please try again shortly.' }, origin)
+      : json(403, { error: 'That verification did not check out. Please try again.' }, origin);
   }
 
   /* ---------- build the row from the allowlist ONLY ---------- */

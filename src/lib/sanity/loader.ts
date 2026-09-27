@@ -881,6 +881,36 @@ export const sanityLoaderSettings = (): Loader =>
   });
 
 /* ------------------------------------------------------------------ */
+/* Chat assistant (singleton)                                          */
+/* ------------------------------------------------------------------ */
+export const sanityChatSettings = (): Loader =>
+  sanityLoader({
+    name: 'sanity:chat-settings',
+    type: 'chatSettings',
+    hasBody: false,
+    idFrom: () => 'chatSettings',
+    projection: `_id, enabled, welcome, launcherLabel, title, subtitle, placeholder, footnote,
+      suggestions[]{ question, answer, links }`,
+    toData: (doc, isDraft) => ({
+      enabled: doc.enabled ?? false,
+      welcome: doc.welcome ?? '',
+      launcherLabel: doc.launcherLabel ?? '',
+      title: doc.title ?? '',
+      subtitle: doc.subtitle ?? '',
+      placeholder: doc.placeholder ?? '',
+      footnote: doc.footnote ?? '',
+      suggestions: Array.isArray(doc.suggestions)
+        ? doc.suggestions.map((s: { question?: string; answer?: string; links?: unknown }) => ({
+            question: s.question ?? '',
+            answer: s.answer ?? '',
+            links: Array.isArray(s.links) ? s.links : [],
+          }))
+        : [],
+      draft: isDraft,
+    }),
+  });
+
+/* ------------------------------------------------------------------ */
 /* Navigation — header and footer menus (singleton)                    */
 /* ------------------------------------------------------------------ */
 export const sanityNavigation = (): Loader =>

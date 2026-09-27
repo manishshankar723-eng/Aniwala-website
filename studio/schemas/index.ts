@@ -70,6 +70,7 @@ import uiCopy from './uiCopy';
 import privacyPage from './privacyPage';
 import navigation from './navigation';
 import loaderSettings from './loaderSettings';
+import chatSettings from './chatSettings';
 import bookingSettings from './bookingSettings';
 import careersContent from './careersContent';
 import page from './page';
@@ -106,6 +107,7 @@ export const schemaTypes = [
   privacyPage,
   navigation,
   loaderSettings,
+  chatSettings,
   bookingSettings,
   careersContent,
   page,

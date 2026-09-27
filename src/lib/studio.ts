@@ -23,6 +23,7 @@ import { getCollection, getEntry } from 'astro:content';
 import { imageUrl, iconUrl, isSvgAsset, previewMode, type SanityImage } from './sanity/client';
 import type { SocialIcon } from '../config/contact';
 import { TYPE_ROLES, fontStack } from '../config/fonts';
+import { CHAT_OVERRIDE, SUPABASE_URL, TURNSTILE_SITE_KEY } from '../config/site';
 import {
   UI_COPY_FIELDS,
   type UiCopyField,
@@ -622,6 +623,73 @@ export async function getCareersContent() {
     return missingSingleton('careersContent', 'careersContent', null as never);
   }
   return entry.data as typeof entry.data & ApplyCopy;
+}
+
+/* ------------------------------------------------------------------ */
+/* Chat assistant                                                      */
+/* ------------------------------------------------------------------ */
+
+export interface ChatSuggestion {
+  question: string;
+  answer: string;
+  links: string[];
+}
+
+/** Every string is blank when unset; Chat.astro supplies the defaults. */
+export interface ChatSettings {
+  enabled: boolean;
+  welcome: string;
+  launcherLabel: string;
+  title: string;
+  subtitle: string;
+  placeholder: string;
+  footnote: string;
+  suggestions: ChatSuggestion[];
+}
+
+const NO_CHAT: ChatSettings = {
+  enabled: false,
+  welcome: '',
+  launcherLabel: '',
+  title: '',
+  subtitle: '',
+  placeholder: '',
+  footnote: '',
+  suggestions: [],
+};
+
+/**
+ * The widget's switch and opening line, from Settings → Chat assistant.
+ *
+ * OFF when the document is missing or only a draft outside a preview — the
+ * safe reading of "nobody has published it on". Not `missingSingleton`: a
+ * missing switch is a supported state, not a broken site.
+ */
+export async function getChatSettings(): Promise<ChatSettings> {
+  const entry = await getEntry('chatSettings', 'chatSettings');
+  if (!entry || (entry.data.draft && !previewMode)) return NO_CHAT;
+  const d = entry.data;
+  return {
+    enabled: d.enabled,
+    welcome: d.welcome,
+    launcherLabel: d.launcherLabel,
+    title: d.title,
+    subtitle: d.subtitle,
+    placeholder: d.placeholder,
+    footnote: d.footnote,
+    suggestions: d.suggestions,
+  };
+}
+
+/**
+ * Whether this build shows the widget: the Studio switch, unless CHAT_ENABLED
+ * overrides it (config/site.ts), and never without the keys it cannot work
+ * without.
+ */
+export async function chatShown(): Promise<boolean> {
+  if (!TURNSTILE_SITE_KEY || !SUPABASE_URL) return false;
+  if (CHAT_OVERRIDE) return CHAT_OVERRIDE === 'on';
+  return (await getChatSettings()).enabled;
 }
 
 /* ------------------------------------------------------------------ */

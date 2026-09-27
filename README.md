@@ -555,6 +555,24 @@ account, and whenever something here stops working.
   through `submit`.
 - **`MAIL_DAILY_BUDGET`** (Edge Function secret, default 90) caps the emails
   `notify` sends in 24 hours. Raise it if the Resend plan is upgraded.
+- **`CHAT_SECRET`** signs chat sessions and history, and is used by nothing
+  else — never the same value as `MODERATION_SECRET` or `BOOKING_SECRET`,
+  which sign approve and confirm links (CHATBOT-PLAN.md R1).
+  **`CHAT_DAILY_TOKENS`** (default 2,000,000) is the chatbot's daily ceiling.
+- **`chat_take` is executable by `service_role` only.** The last query in
+  schema.sql section 8 lists who can run it; a row for `anon` or `PUBLIC`
+  means anyone holding the anon key can spend the chat budget.
+
+**Google Cloud (the chatbot)**
+
+- **A project of its own**, holding nothing but Vertex AI, so a leaked key
+  reaches nothing else. One service account, one role:
+  `roles/aiplatform.user`. Its JSON key lives only in the `GCP_SA_KEY`
+  Supabase secret — never in `.env`, never in a chat, never committed.
+- **Vertex quotas lowered** (requests and tokens per minute for the model) to
+  a little above what `CHAT_DAILY_TOKENS` needs. A budget alert only warns; the
+  quota is what stops the bill if the key itself leaks.
+- **A budget alert** on the project, and the key rotated every few months.
 
 **Hostinger**
 
