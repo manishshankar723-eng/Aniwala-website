@@ -194,6 +194,15 @@ if (enabled) {
     line-height: 1.5;
   }
 
+  /* Rise above the footer's bottom row (its legal links) while it is on
+     screen — `--chat-lift` is set per frame by `avoidFooter` in
+     chatWidget.ts. Not while open: the visitor is using the panel then, and
+     lifting it could push its top off the screen. No transition — it tracks
+     the scroll, and easing would make it lag behind the row it avoids. */
+  .chat:not(.is-open) {
+    transform: translateY(calc(-1 * var(--chat-lift, 0px)));
+  }
+
   /* ---------- launcher ---------- */
   .chat-launcher {
     display: inline-flex;

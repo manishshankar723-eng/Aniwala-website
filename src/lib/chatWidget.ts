@@ -520,10 +520,63 @@ function applyPrefill() {
   }
 }
 
+/**
+ * Keep the button off the footer's bottom row.
+ *
+ * The launcher is fixed to the bottom-right corner, which is exactly where the
+ * footer's legal links (the privacy policy among them) sit once the page is
+ * scrolled to the end — so it covered them. While `.footer-base` is on screen
+ * the launcher rises by however much of that row is visible, and settles back
+ * as it scrolls away; it rides just above the row rather than on it.
+ *
+ * NO LEAKS ACROSS NAVIGATION (CLAUDE.md → Scroll). Each page swap brings a new
+ * footer, so the observer is disconnected and re-made on `astro:page-load`;
+ * the scroll and resize listeners are attached ONCE, here, and only do work
+ * while the row is in view.
+ */
+function avoidFooter(root: HTMLElement) {
+  let base: HTMLElement | null = null;
+  let visible = false;
+  let frame = 0;
+  let io: IntersectionObserver | null = null;
+
+  const update = () => {
+    frame = 0;
+    const lift = base && visible ? Math.max(0, window.innerHeight - base.getBoundingClientRect().top) : 0;
+    root.style.setProperty('--chat-lift', `${Math.round(lift)}px`);
+  };
+  const schedule = () => {
+    if (!frame) frame = requestAnimationFrame(update);
+  };
+
+  window.addEventListener('scroll', () => visible && schedule(), { passive: true });
+  window.addEventListener('resize', schedule, { passive: true });
+
+  const watch = () => {
+    io?.disconnect();
+    base = document.querySelector<HTMLElement>('.footer-base');
+    visible = false;
+    schedule();
+    if (!base || !('IntersectionObserver' in window)) return;
+    io = new IntersectionObserver((entries) => {
+      visible = entries.some((e) => e.isIntersecting);
+      schedule();
+    });
+    io.observe(base);
+  };
+  /* Now, for the page already on screen, and after every swap. Re-observing
+     the same footer twice is harmless; missing the first page is not. */
+  watch();
+  document.addEventListener('astro:page-load', watch);
+}
+
 const w = window as unknown as { __aniwalaChat?: boolean };
 if (!w.__aniwalaChat) {
   w.__aniwalaChat = true;
   const root = document.getElementById('chat');
-  if (root) init(root);
+  if (root) {
+    init(root);
+    avoidFooter(root);
+  }
   document.addEventListener('astro:page-load', applyPrefill);
 }
