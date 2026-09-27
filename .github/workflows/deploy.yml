@@ -78,15 +78,20 @@ jobs:
   verify:
     runs-on: ubuntu-latest
 
-    # Job level, not step level. `astro check` syncs the content collections
-    # exactly as `astro build` does, so BOTH need the credentials — putting
-    # them on the build step alone made the type check fail while the build
-    # would have passed, which reads like a type error and is not one.
-    # Anything added later that touches content is covered by default here.
+    # The project id and dataset are job level: they are not secret (both are
+    # in every cdn.sanity.io URL on the site) and `astro check` syncs the
+    # content collections exactly as `astro build` does, so both need them.
+    #
+    # SANITY_READ_TOKEN IS NOT, and that is deliberate. It reads the whole
+    # private dataset — drafts, and the mirrored form submissions — and a job
+    # level value is in the environment of `npm ci`, where every dependency's
+    # install script runs. It is set on exactly the three steps that read it
+    # (the dataset check, the type check, the build). A new step that loads
+    # content needs it added there; it fails loudly without it — the loaders
+    # abort rather than emit an empty site — so nothing ships wrong meanwhile.
     env:
       SANITY_PROJECT_ID: ${{ secrets.SANITY_PROJECT_ID }}
       SANITY_DATASET: ${{ secrets.SANITY_DATASET }}
-      SANITY_READ_TOKEN: ${{ secrets.SANITY_READ_TOKEN }}
 
       # Where the booking, application and comment forms post. Both are baked
       # into the built JavaScript, so they have to be present at BUILD time —
@@ -97,8 +102,8 @@ jobs:
       # repo, not because exposure would matter. Row Level Security is what
       # protects the data — see supabase/schema.sql.
       #
-      # Absent, the build is still correct: the forms render a "not connected"
-      # notice and refuse to submit, rather than losing what somebody typed.
+      # Absent, the forms render a "not connected" notice and refuse to submit,
+      # and a deploy FAILS on it — see "Check the form keys reached this job".
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
@@ -224,6 +229,8 @@ jobs:
       # See the header of scripts/check-dataset.mjs for the whole argument.
       # ------------------------------------------------------------------
       - name: Check the CMS dataset is not serving personal data to strangers
+        env:
+          SANITY_READ_TOKEN: ${{ secrets.SANITY_READ_TOKEN }}
         run: node scripts/check-dataset.mjs
 
       - run: npm ci
@@ -246,33 +253,46 @@ jobs:
           fi
           echo "SANITY_PROJECT_ID is present (${#SANITY_PROJECT_ID} characters)."
 
-      # A WARNING, not an error, and deliberately so: a site with no Supabase
-      # is a valid site — the forms say they are not connected and refuse to
-      # submit. Failing the build over it would block a deploy for something
-      # that is not broken.
+      # The values live in `.env` locally and as repository secrets here, so
+      # the easy mistake is setting them on your own machine, watching the
+      # forms work, and shipping a build where they silently do not.
       #
-      # It is worth saying out loud all the same. The values live in `.env`
-      # locally and as repository secrets here, so the easy mistake is setting
-      # them on your own machine, watching the forms work, and shipping a
-      # build where they silently do not. Nothing else would tell you.
-      - name: Check the Supabase keys reached this job
+      # A FAILURE, not a warning, on anything that deploys. With anon's INSERT
+      # revoked (schema.sql section 7) a build missing any one of these three
+      # ships forms that refuse every submission, and still passes. A pull
+      # request only warns: secrets do not reach a fork's run, and it never
+      # deploys.
+      - name: Check the form keys reached this job
         run: |
-          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
-            echo "::warning::Supabase is not configured in CI — the booking, application and comment forms will render a 'not connected' notice and refuse to submit. Add SUPABASE_URL and SUPABASE_ANON_KEY under Settings -> Secrets and variables -> Actions (Repository secrets)."
+          missing=""
+          [ -z "$SUPABASE_URL" ] && missing="$missing SUPABASE_URL"
+          [ -z "$SUPABASE_ANON_KEY" ] && missing="$missing SUPABASE_ANON_KEY"
+          [ -z "$TURNSTILE_SITE_KEY" ] && missing="$missing TURNSTILE_SITE_KEY"
+          if [ -n "$missing" ]; then
+            msg="Missing:$missing — every form on the site would refuse to submit. Add them under Settings -> Secrets and variables -> Actions (Repository secrets)."
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              echo "::warning::$msg"
+            else
+              echo "::error::$msg"; exit 1
+            fi
           else
-            echo "Supabase is configured (URL ${#SUPABASE_URL} chars, key ${#SUPABASE_ANON_KEY} chars)."
+            echo "Form keys configured (URL ${#SUPABASE_URL}, anon key ${#SUPABASE_ANON_KEY}, Turnstile ${#TURNSTILE_SITE_KEY} chars)."
           fi
 
       # Type and template errors that `astro build` happily ignores: a bad
       # prop type, a missing import, a component called with the wrong shape.
       # This is the check that makes the build gate worth having.
       - name: Type check
+        env:
+          SANITY_READ_TOKEN: ${{ secrets.SANITY_READ_TOKEN }}
         run: npm run check
 
-      # Credentials come from the job-level `env` above. Without them the
+      # Project and dataset from the job-level `env`, the token from this step's. Without them the
       # loaders now abort the build rather than quietly emitting a site with
       # no content — see src/lib/sanity/loader.ts.
       - name: Build
+        env:
+          SANITY_READ_TOKEN: ${{ secrets.SANITY_READ_TOKEN }}
         run: npm run build # outputs ./dist
 
       # Every one of these has been a real bug on this site. The announcement

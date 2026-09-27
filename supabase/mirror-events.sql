@@ -4,6 +4,10 @@
 -- Run this once, whole, in the Supabase dashboard: SQL Editor -> New query
 -- -> paste -> Run. Safe to re-run. Nothing in here needs a secret retyped.
 --
+-- SUPERSEDED by notify-secret-vault.sql, which keeps this file's logic and
+-- moves the secret into Vault. Once that has run, this one finds no secret in
+-- the function source and refuses to change anything — which is correct.
+--
 -- ---------------------------------------------------------------------
 -- WHAT IT IS FOR
 --

@@ -161,7 +161,13 @@ Deno.serve(async (req) => {
     'Content-Type': 'application/json',
     Prefer: 'return=representation',
   };
-  const target = `${supabaseUrl}/rest/v1/comments?id=eq.${encodeURIComponent(id)}`;
+  /*
+   * PENDING ONLY — `approved=eq.false` makes each link act once. A link lives
+   * 30 days and sits in an inbox that may be forwarded; without the filter an
+   * old Reject deletes a comment that has been live for weeks, and an old
+   * Approve re-publishes one somebody took down in the dashboard.
+   */
+  const target = `${supabaseUrl}/rest/v1/comments?id=eq.${encodeURIComponent(id)}&approved=eq.false`;
 
   try {
     if (action === 'approve') {
@@ -173,14 +179,14 @@ Deno.serve(async (req) => {
       if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
 
       const rows = (await res.json()) as unknown[];
-      // Zero rows means the comment was already rejected and deleted. Saying
-      // so is more useful than a generic failure.
+      // Zero rows means it was already handled — approved, or rejected and
+      // deleted. Saying so is more useful than a generic failure.
       if (rows.length === 0) {
         return json(
           404,
           {
             title: 'Nothing to approve',
-            message: 'That comment no longer exists — it was already rejected.',
+            message: 'That comment was already handled — approved or rejected — so this link does nothing now.',
           },
           origin
         );
@@ -199,7 +205,10 @@ Deno.serve(async (req) => {
     if (rows.length === 0) {
       return json(
         200,
-        { title: 'Already gone', message: 'That comment had already been deleted.' },
+        {
+          title: 'Nothing to delete',
+          message: 'That comment was already handled. If it is live and should not be, remove it in the dashboard.',
+        },
         origin
       );
     }

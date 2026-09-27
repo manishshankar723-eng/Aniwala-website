@@ -12,6 +12,7 @@
  */
 import { getCollection, type CollectionEntry } from 'astro:content';
 import { previewMode } from './sanity/client';
+import { isSafeMediaSrc } from '../config/urls';
 import { imageUrl, imageSrcSet, type SanityImage } from './sanity/client';
 
 export interface Piece {
@@ -64,13 +65,9 @@ const FILE_RE = /\.(mp4|webm|ogv|ogg)(\?|#|$)/i;
  * id avoids a filename that happens to contain 32 hex characters being read
  * as a video id.
  *
- * For a Stream value the ORIGIN IS KEPT when there is one, and that is the
- * point. A Stream embed normally lives at `customer-<code>.cloudflarestream.com`,
- * where the code is per-account and nothing in this repo knows it. Reusing the
- * origin off the pasted URL means it never has to: paste the dashboard's embed
- * address and the account's own subdomain comes with it.
- * `iframe.videodelivery.net` is the fallback for a bare id — account-agnostic,
- * so it works without configuration.
+ * A Stream value — a bare id or any pasted embed URL — is reduced to its id and
+ * embedded from `iframe.videodelivery.net`, which is account-agnostic. See the
+ * comment above the return for why the pasted host is never reused.
  *
  * Returns undefined for anything that is neither, so a malformed value shows
  * the still rather than an empty player.
@@ -79,37 +76,29 @@ export function resolveVideo(value: string | undefined): PieceVideo | undefined 
   const v = value?.trim();
   if (!v) return undefined;
 
-  if (/^(https?:\/\/|\/)/i.test(v) && FILE_RE.test(v)) return { kind: 'file', src: v };
+  // isSafeMediaSrc, not a bare `/`: `//evil/x.mp4` and `/\evil/x.mp4` are
+  // other origins, and without it the CSP was the only thing refusing them.
+  if (isSafeMediaSrc(v) && FILE_RE.test(v)) return { kind: 'file', src: v };
 
   const id = v.match(/[0-9a-f]{32}/i)?.[0];
   if (!id) return undefined;
 
   /*
-   * THE SUBDOMAIN IS MATCHED, NOT MERELY THE SUFFIX, and the difference is the
-   * whole value of keeping the origin.
+   * ONLY THE ID IS TAKEN FROM THE VALUE; THE HOST NEVER IS.
    *
-   * `[^/]*cloudflarestream\.com` was a suffix test, and a suffix test on a
-   * hostname accepts two things it was never meant to:
+   * This used to keep the origin off a pasted `customer-<code>.cloudflarestream.com`
+   * URL, and so it needed a host regex — anchored on the subdomain, because a
+   * suffix test also accepts `evilcloudflarestream.com` and, a backslash being
+   * a slash inside a URL authority, `attacker.example\x.cloudflarestream.com`.
+   * It also needed `frame-src https://*.cloudflarestream.com` in the CSP, and
+   * that wildcard trusts EVERY Stream customer's subdomain, not this studio's.
    *
-   *   https://evilcloudflarestream.com/<id>/iframe
-   *     A domain anybody can register this afternoon. There is no dot before
-   *     `cloudflarestream.com`, so it is not a subdomain of anything.
-   *
-   *   https://attacker.example\x.cloudflarestream.com/<id>/iframe
-   *     `[^/]` admits a backslash, and a backslash is a SLASH inside the
-   *     authority of a special scheme — so the browser resolves the host to
-   *     `attacker.example` while this regex reads the string as ending in
-   *     `cloudflarestream.com`.
-   *
-   * Both are refused by `frame-src https://*.cloudflarestream.com` in
-   * public/.htaccess, which is why neither was ever a live hole. That is ONE
-   * layer, and this is the argument `config/urls.ts` already makes about
-   * SAFE_HREF: the CSP is the backstop, not the check. An unrecognised value
-   * falls through to `iframe.videodelivery.net`, which is a working embed
-   * rather than a dead frame.
+   * `iframe.videodelivery.net` plays any Stream video by id, whichever account
+   * it is on, and no content here ever used a customer subdomain. So the id is
+   * the only thing read, the host is fixed, and the CSP names one host exactly.
+   * A value pasted from the dashboard still works: its id is extracted above.
    */
-  const host = v.match(/^https:\/\/((?:[a-z0-9-]+\.)?cloudflarestream\.com)\//i)?.[1];
-  return { kind: 'stream', src: `https://${host ?? 'iframe.videodelivery.net'}/${id}/iframe` };
+  return { kind: 'stream', src: `https://iframe.videodelivery.net/${id}/iframe` };
 }
 
 const flatten = (entry: CollectionEntry<'pieces'>): Piece => {

@@ -332,25 +332,27 @@ create policy "anon can submit applications"
 -- columns it needs, per operation. Postgres then rejects any request that
 -- names a column outside the list, whatever the row policy says.
 --
--- `approved` is deliberately NOT insertable. The column default supplies
--- false and the RLS check confirms it, so there is no path by which a
--- crafted request can publish itself — not even a rejected one.
+-- ANON GETS NO INSERT AT ALL, and nothing in this file grants it one.
+-- Every form posts through the `submit` Edge Function, which writes as
+-- service_role (see section 7). This section used to GRANT anon its insert
+-- columns and rely on section 7, at the very end, to take them back — so a
+-- run that stopped anywhere in between left direct-to-PostgREST inserts
+-- open with no error. On 27 September 2026 exactly that happened: a re-run
+-- of this file reopened all three tables for about two hours. With no grant
+-- here, every prefix of this file ends closed.
+--
+-- The insertable column lists survive as the ROLLBACK in section 7, and they
+-- are still the reference for `FIELDS` in functions/submit/index.ts:
+-- `approved` (comments) and `status`, `confirmed_at`, `meeting_url`,
+-- `invite_seq` (enquiries) are absent from them on purpose. They are the
+-- state the moderation and Confirm buttons write; a submission able to set
+-- them could publish itself, or book a confirmed meeting with its own
+-- joining link, without anybody seeing the request.
 -- ---------------------------------------------------------------------
 revoke all on public.enquiries from anon;
-grant insert (
-  name, email, phone, company, enquiry_type, message,
-  duration_mins, slot_label, slot_utc, visitor_tz, guest_emails, source_path
-) on public.enquiries to anon;
 -- No SELECT grant at all: leads are write-only from the website.
---
--- `status`, `confirmed_at`, `meeting_url` and `invite_seq` are absent from the
--- INSERT list on purpose, for exactly the reason `approved` is absent from the
--- comments one. They are the state the Confirm button writes; a submission
--- that could set them for itself could book a confirmed meeting in your
--- calendar, with its own joining link, without you ever seeing the request.
 
 revoke all on public.comments from anon;
-grant insert (post_slug, author_name, author_email, body) on public.comments to anon;
 grant select (id, created_at, post_slug, author_name, body) on public.comments to anon;
 -- author_email is absent from the SELECT list on purpose. It is stored so
 -- you can reply to someone, and it can never be read back by the website.
@@ -374,14 +376,27 @@ grant select (id, created_at, post_slug, author_name, body) on public.comments t
  */
 revoke all on public.enquiries, public.comments, public.applications from authenticated;
 
+/*
+ * AND THE NEXT TABLE. Every revoke in this section names a table, while the
+ * default that caused them is a DEFAULT PRIVILEGE, so it is still in force for
+ * whatever is created next: a new table in `public` arrives with full rights
+ * for anon and authenticated, TRUNCATE included, and with RLS off. That is a
+ * world-writable table the moment it exists, and nothing here would say so.
+ * Revoked at the source, a new table starts closed and has to be granted
+ * deliberately, the way the three above are.
+ *
+ * `for role postgres` because default privileges belong to the role that
+ * CREATES the object, and the dashboard and migrations create as postgres.
+ */
+alter default privileges for role postgres in schema public
+  revoke all on tables from anon, authenticated;
+alter default privileges for role postgres in schema public
+  revoke all on sequences from anon, authenticated;
+alter default privileges for role postgres in schema public
+  revoke execute on functions from anon, authenticated;
+
 revoke all on public.applications from anon;
-grant insert (
-  kind, role_slug, role_title, discipline, desired_role,
-  name, email, phone, location, experience, availability,
-  portfolio_url, cv_url, message, source_path
-) on public.applications to anon;
--- No SELECT grant at all. Applications are write-only from the website, and
--- `handled` is not insertable, so nothing can arrive pre-marked as dealt with.
+-- No SELECT grant at all. Applications are write-only from the website.
 
 
 -- ---------------------------------------------------------------------
@@ -700,14 +715,11 @@ order by event_object_table;
 -- — a direct insert with the anon key returns 42501, and anon's only
 -- remaining grant is SELECT on five columns of `comments`.
 --
--- THE THREE REVOKES BELOW ARE NO LONGER COMMENTED OUT, and that is the fix
--- for a trap rather than a tidy-up. This file is meant to be re-run whole
--- (see the header, and README's booking setup), and section 4 above still
--- GRANTS anon its insert columns. While these lines were comments, every
--- re-run silently reopened the direct-to-PostgREST door that the cutover
--- closed — no error, the forms kept working, and Turnstile quietly became
--- optional again. Running last, they win: a whole-file run now ends in the
--- same state production is in.
+-- SECTION 4 NO LONGER GRANTS WHAT THIS SECTION REVOKES. It used to, and
+-- these revokes "won" only by running last — so a partial run reopened
+-- inserts (it did, on 27 September 2026). Now nothing grants anon INSERT,
+-- and the three revokes below are a second lock: idempotent, harmless to
+-- re-run, and correct for a database that still holds the old grants.
 --
 -- The history of how it was switched on, kept because the order still
 -- matters if this project is ever rebuilt from scratch:
@@ -738,11 +750,25 @@ order by event_object_table;
 --   6. Only then, run the three statements below.
 --
 -- ON A FRESH PROJECT, those steps still apply: a build without
--- TURNSTILE_SITE_KEY posts straight to PostgREST, and these revokes make
--- that fail. Comment them out for the first run, then restore them at step 6.
+-- TURNSTILE_SITE_KEY posts straight to PostgREST, which has no grant to post
+-- with. Run the ROLLBACK below until step 5 works, then this section.
 --
--- To roll back, run ONLY section 4 of this file — not the whole file, which
--- now ends here and would revoke the grants again.
+-- ROLLBACK — ONLY if the `submit` function is down and the forms must work
+-- without Turnstile. It reopens direct inserts for anyone holding the public
+-- anon key. Run these three statements ALONE (never uncomment them in this
+-- file), and run this section again the moment `submit` is back:
+--
+--   grant insert (
+--     name, email, phone, company, enquiry_type, message,
+--     duration_mins, slot_label, slot_utc, visitor_tz, guest_emails, source_path
+--   ) on public.enquiries to anon;
+--   grant insert (post_slug, author_name, author_email, body)
+--     on public.comments to anon;
+--   grant insert (
+--     kind, role_slug, role_title, discipline, desired_role,
+--     name, email, phone, location, experience, availability,
+--     portfolio_url, cv_url, message, source_path
+--   ) on public.applications to anon;
 -- ---------------------------------------------------------------------
 
 revoke insert on public.enquiries    from anon;
@@ -754,3 +780,19 @@ revoke insert on public.applications from anon;
 -- Section 4 grants it as `grant select (id, created_at, post_slug,
 -- author_name, body)`. Do not revoke that, and do not use a bare
 -- `revoke all` here, which would take it with everything else.
+
+-- ---------------------------------------------------------------------
+-- LAST, SO IT IS THE RESULT THE SQL EDITOR SHOWS: what anon may do now.
+--
+-- Expected: ONE row — comments | SELECT | 5. Any INSERT row means direct
+-- writes are open and Turnstile is optional; run section 7 again. These are
+-- column grants, so role_table_grants would answer empty; this reads the
+-- column-level view instead.
+-- ---------------------------------------------------------------------
+select table_name, privilege_type, count(*) as columns
+from information_schema.column_privileges
+where grantee = 'anon'
+  and table_schema = 'public'
+  and table_name in ('enquiries', 'comments', 'applications', 'submission_log')
+group by table_name, privilege_type
+order by table_name, privilege_type;

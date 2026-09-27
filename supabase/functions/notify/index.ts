@@ -54,6 +54,7 @@ import {
   mailBudget,
   mailWeight,
   mailDemandLast24h,
+  isEmail,
   type Mail,
 } from '../_shared/util.ts';
 
@@ -257,7 +258,9 @@ Deno.serve(async (req) => {
         ),
       };
 
-      if (start) {
+      // `isEmail` again, not trusting `submit` alone: a row written from the
+      // dashboard or by the service role never passed through it.
+      if (start && isEmail(email)) {
         /*
          * NOTHING A STRANGER TYPED IS IN THIS EMAIL, and nobody but the
          * address on the form receives it.

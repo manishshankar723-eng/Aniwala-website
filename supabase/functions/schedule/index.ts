@@ -57,6 +57,7 @@ import {
   row,
   esc,
   safeUrl,
+  isEmail,
   button,
   parseGuests,
   MAX_GUESTS,
@@ -69,6 +70,9 @@ import {
   meetingRoomFor,
   type CalendarEvent,
 } from '../_shared/util.ts';
+
+/** How many invitations one booking may send, the first included. See commit. */
+const MAX_INVITE_SENDS = 4;
 
 /** Exactly the columns this function reads. `select=*` would pull more. */
 const COLUMNS =
@@ -352,16 +356,31 @@ Deno.serve(async (req) => {
           }
         : null;
 
+      /*
+       * NOTHING TYPED, and the guests only if they were ever invited.
+       *
+       * Decline is the button pressed on a booking that is junk, so it is
+       * the one that must not carry the junk: a name field holding a pitch,
+       * CC'd to ten addresses the stranger chose, is the same relay the
+       * acknowledgement in `notify` was closed against — "a person pressed a
+       * button" is no check when the person meant "no". Guests of an
+       * unconfirmed request never heard of the call, so they are not told it
+       * is off; guests of a confirmed one hold an invite and must be.
+       */
+      if (!isEmail(booking.email)) {
+        return json(200, { title: 'Declined', message: 'Marked declined. No email was sent — the address on it is not valid.' }, origin);
+      }
+
       await sendMail({
         to: [booking.email],
-        cc: guests,
+        ...(wasConfirmed ? { cc: guests } : {}),
         subject: `About your call with ${studioName()}`,
         replyTo: studio[0],
         html: layout(
           wasConfirmed ? 'That call has been cancelled' : 'That time did not work',
           `<p style="margin:0 0 16px;font-size:15px;line-height:1.6">
-             Hello ${esc(booking.name)} — thank you for asking for
-             ${esc(booking.slot_label ?? fmtWhen(start, duration, visitorTz))}.
+             Hello — thank you for asking for
+             ${esc(fmtWhen(start, duration, visitorTz))}.
              We are not able to make that one after all.
            </p>
            <p style="margin:0 0 22px;font-size:15px;line-height:1.6">
@@ -453,6 +472,26 @@ Deno.serve(async (req) => {
       [booking.email, ...studio]
     );
     const seq = (Number(booking.invite_seq) || 0) + 1;
+
+    /*
+     * A CEILING ON RE-SENDS. The link is not single-use on purpose — the host
+     * re-sends from it to change the room or add a guest — but it lives until
+     * the slot, sits in an inbox, and may be forwarded. Unbounded, a leaked
+     * one is a studio-branded invitation that can be sent again and again,
+     * each time with a joining link of the holder's choosing, and outside the
+     * mail budget. A real booking is confirmed once and corrected a couple of
+     * times; past that, it is a conversation for email, not for this button.
+     */
+    if (seq > MAX_INVITE_SENDS) {
+      return json(
+        429,
+        {
+          title: 'Sent enough times',
+          message: `This booking has been sent ${MAX_INVITE_SENDS} times already, so this link will not send it again. Reply to the thread with the change instead.`,
+        },
+        origin
+      );
+    }
 
     const patch = await fetch(target, {
       method: 'PATCH',

@@ -458,6 +458,18 @@ const MAX_GUEST_CHARS = 500;
 const EMAIL = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
 
 /**
+ * ONE bare address, for a field a stranger typed into.
+ *
+ * `submit` refuses anything else in `email` / `author_email`, and `notify`
+ * checks again before the unattended acknowledgement goes out. Unchecked, the
+ * field reached Resend as-is, and Resend reads `"Any text" <victim@x>` as a
+ * display name plus an address — words the stranger chose, in the To line of
+ * mail from the studio's domain.
+ */
+export const isEmail = (v: unknown): v is string =>
+  typeof v === 'string' && v.length <= 200 && EMAIL.test(v) && !/[<>"]/.test(v);
+
+/**
  * Turn whatever arrived in `guest_emails` into a list worth sending to.
  *
  * Stored as one comma-separated string rather than an array because `submit`
@@ -537,7 +549,8 @@ const icsText = (value: string) =>
     .replace(/\\/g, '\\\\')
     .replace(/;/g, '\\;')
     .replace(/,/g, '\\,')
-    .replace(/\r?\n/g, '\\n');
+    // A bare CR too: lenient parsers split a line on it.
+    .replace(/\r\n|\r|\n/g, '\\n');
 
 /**
  * Fold at 75 octets, because the spec says so and because Outlook means it.

@@ -48,6 +48,8 @@ const ui = await getUiCopy();
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    {/* The token is in this page's URL; no request from here may carry it. */}
+    <meta name="referrer" content="no-referrer" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     {/* A moderation screen has no business in a search index. */}
     <meta name="robots" content="noindex, nofollow" />

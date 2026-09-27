@@ -167,7 +167,9 @@ const seoOverrides = {
   noindex: z.boolean().default(false),
   /* Blank means "this page is its own canonical", which is what nearly every
      page wants. See the Studio schema for the one case that is not. */
-  canonicalUrl: z.string().optional(),
+  /* Through the href allowlist: it is emitted into <link rel=canonical> and
+     og:url, and the Studio's own check is UI-only (see CLAUDE.md). */
+  canonicalUrl: safeHref.optional(),
 };
 
 /**
@@ -718,7 +720,7 @@ const builtPages = defineCollection({
     seoDescription: z.string().min(1).max(300),
     ogImage: sanityImage.omit({ alt: true }).optional(),
     noindex: z.boolean().default(false),
-    canonicalUrl: z.string().optional(),
+    canonicalUrl: safeHref.optional(),
     blocks: z
       .array(
         z
@@ -794,7 +796,10 @@ const navigation = defineCollection({
       .array(
         z.object({
           title: z.string().min(1),
-          href: z.string().startsWith('/', 'Use a path starting with /.'),
+          /* safeHref as well as the leading slash: `//evil.com` and `/\evil.com`
+             both start with one, and these reach /search.json, which
+             check-links.mjs never scans. */
+          href: safeHref.refine((v) => v.startsWith('/'), 'Use a path starting with /.'),
           section: z.string().min(1),
           keywords: z.string().default(''),
         })

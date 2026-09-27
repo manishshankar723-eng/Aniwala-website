@@ -239,6 +239,7 @@ public/
 supabase/
 ├── schema.sql           Tables, RLS policies, column grants, rate limiter
 ├── mirror-events.sql    One-time: webhooks fire on UPDATE and DELETE too
+├── notify-secret-vault.sql  One-time, after it: NOTIFY_SECRET moves into Vault
 └── functions/           submit, notify, moderate, schedule, sign-upload (Deno)
 studio/                  The Sanity Studio. A separate npm package, deployed separately.
 ```
@@ -438,13 +439,15 @@ one person with twenty solved captchas to close the forms for a day.
 **A media or embed URL is checked in code, not only by the CSP.**
 `findUnsafeHref` walks keys ending in `href` — every link on a CMS-built page,
 and no media field. So `isSafeMediaSrc` in `src/config/urls.ts` guards the hero
-video, and the host pattern in `src/lib/pieces.ts` guards which origin a
-Cloudflare Stream iframe may load from. Match the **subdomain** there, never
-the suffix: `[^/]*cloudflarestream\.com` also accepts
-`evilcloudflarestream.com`, and — because a backslash is a slash inside a URL
-authority — `attacker.example\x.cloudflarestream.com`, which a browser resolves
-to `attacker.example`. The CSP refuses both, which is why neither was ever a
-live hole. It is the backstop, not the check.
+video and the portfolio's file videos, and a Cloudflare Stream iframe takes
+**no host from the CMS at all**: `resolveVideo` in `src/lib/pieces.ts` reads
+the video id and always embeds from `iframe.videodelivery.net`, the single
+Stream host in `frame-src`. It used to reuse a pasted
+`customer-<code>.cloudflarestream.com` origin, which needed a subdomain-anchored
+regex (a suffix test also accepts `evilcloudflarestream.com`, and
+`attacker.example\x.cloudflarestream.com` resolves to `attacker.example`) plus a
+`*.cloudflarestream.com` CSP wildcard trusting every Stream customer. The CSP
+is the backstop, not the check.
 
 ### What the build refuses to ship
 
@@ -488,7 +491,8 @@ a script; each is a link off the site that reads as a path in the Studio.
 ### Headers
 
 `public/.htaccess` carries HSTS, `X-Frame-Options`, `X-Content-Type-Options`,
-`Referrer-Policy`, `Permissions-Policy` and the CSP. The deploy asserts they
+`Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy` and the
+CSP — all as `Header always set`, so a 403 or 404 carries them too. The deploy asserts they
 are actually live afterwards rather than trusting the upload — a site serving
 every page perfectly with no headers at all looks completely healthy, and has
 happened here before.
@@ -504,10 +508,10 @@ than by wildcard:
   an uploaded or linked file. `pub-<id>.r2.dev` is a per-bucket subdomain, so
   `*.r2.dev` would trust every bucket on the platform, including one an
   attacker can create in a minute.
-- `frame-src` — `*.cloudflarestream.com` and `iframe.videodelivery.net`, for a
-  piece using Cloudflare Stream. The wildcard is on the subdomain only,
-  because a Stream embed lives at `customer-<code>.cloudflarestream.com` and
-  the code is per-account. Nothing else is needed for Stream: the player's own
+- `frame-src` — `iframe.videodelivery.net` alone, for a piece using
+  Cloudflare Stream. It used to carry `*.cloudflarestream.com` too, which
+  trusted every Stream customer's subdomain; `resolveVideo` now embeds any
+  Stream value by id from the account-agnostic host, so no wildcard is needed. Nothing else is needed for Stream: the player's own
   requests are governed by the policy *inside* that frame, not this one.
 
 **If the bucket moves to a custom domain, change `media-src` too.** The
@@ -545,8 +549,10 @@ account, and whenever something here stops working.
 - **`authenticated` holds no grants on the three form tables** — section 4 of
   `schema.sql` revokes them. Supabase grants every `public` table to that role
   by default, including TRUNCATE, which RLS does not govern.
-- **anon has no INSERT** — section 7 of `schema.sql`, now active in the file
-  so a re-run cannot reopen it. All three forms go through `submit`.
+- **anon has no INSERT** — nothing in `schema.sql` grants one, so no run of
+  it, whole or partial, can reopen it. (Section 4 used to grant it and section 7
+  to revoke it last; a partial run once left inserts open.) All three forms go
+  through `submit`.
 - **`MAIL_DAILY_BUDGET`** (Edge Function secret, default 90) caps the emails
   `notify` sends in 24 hours. Raise it if the Resend plan is upgraded.
 
@@ -580,15 +586,23 @@ account, and whenever something here stops working.
   should exist for this purpose. A Sanity API token with Editor rights can
   read webhook headers, which is exactly why this one must be narrow.
 - **Repository secrets are exactly what the workflows read**: `BACKUP_*`,
+  `R2_BACKUP_*` (the private backup bucket — see below),
   `GA_MEASUREMENT_ID`, `SANITY_DATASET`, `SANITY_PROJECT_ID`,
   `SANITY_READ_TOKEN`, `SSH_HOST`, `SSH_KEY`, `SSH_PORT`, `SSH_USER`,
   `SUPABASE_ANON_KEY`, `SUPABASE_URL`, `TURNSTILE_SITE_KEY`. The old `FTP_*`
   secrets are deleted.
-- **Repository visibility.** While the repository is public, anyone signed in
-  to GitHub can download the nightly backup artifacts (encrypted — only the
-  passphrase protects them) and read every workflow log. Making it private
-  loses nothing: the gitleaks step in `deploy.yml` replaces GitHub's free
-  secret scanning.
+- **Repository visibility.** Private. While it was public, anyone signed in to
+  GitHub could download the nightly backups (then workflow artifacts,
+  encrypted — only the passphrase protected them) and read every workflow log.
+  Making it private loses nothing: the gitleaks step in `deploy.yml` replaces
+  GitHub's free secret scanning.
+- **The backup bucket** (Cloudflare R2) holds the nightly encrypted archives
+  from `backup.yml`. It must stay PRIVATE — no public access, no `r2.dev` URL,
+  no custom domain — and must not be the video bucket. Its token is Object Read
+  & Write on that bucket only. A lifecycle rule (180 days) is the retention;
+  nothing else deletes. Restore steps are in the header of `backup.yml`.
+- **`BACKUP_PASSPHRASE`** lives in a password manager outside GitHub and
+  Cloudflare. Losing it makes every archive unreadable.
 
 **Sanity**
 
@@ -1878,7 +1892,7 @@ forms that refuse every submission. On a fresh project the fallback still does
 its original job until step 5.
 
 `submit` holds the service role key, which bypasses RLS *and* the column grants
-in section 4 of the schema. That is why it copies fields through an explicit
+listed in section 7's rollback block of the schema. That is why it copies fields through an explicit
 allowlist rather than spreading the request body: without it, the internet
 could set `approved = true` on a comment — the exact thing the column grants
 were written to prevent, undone by the layer meant to protect them. **If you
@@ -1919,8 +1933,8 @@ as well**, or it will be silently dropped.
    comments SELECT 5, applications INSERT 15). Afterwards it should be one:
    `comments | SELECT | 5`. These are **column** grants, so they do not appear
    in `role_table_grants` at all — that view answers empty and looks alarming.
-   To roll back, run **only** section 4 of the schema — the whole file ends
-   with section 7 and would revoke them again.
+   To roll back, run the commented ROLLBACK block in section 7 on its own —
+   never uncomment it in the file — and re-run section 7 once `submit` is back.
 
 The CSP already names `challenges.cloudflare.com` in both `script-src` and
 `frame-src`. The widget renders in an iframe, so it needs both — with only the
@@ -2034,8 +2048,8 @@ Supabase dashboard, which is unaffected.
    add the HTTP header `x-notify-secret` with the value from step 3.
 
    For the Studio mirror below, those webhooks also need to fire on UPDATE and
-   DELETE — but do that by running `supabase/mirror-events.sql`, not by
-   ticking the boxes. The reason is in that file's header, and it is the
+   DELETE — but do that by running `supabase/mirror-events.sql`, then
+   `supabase/notify-secret-vault.sql`, not by ticking the boxes. The reason is in that file's header, and it is the
    difference between a mirror that stays honest and one that re-emails your
    clients about calls they already booked.
 
@@ -2102,6 +2116,15 @@ changes the trigger in the same transaction, because the two halves cannot be
 applied separately. It lifts the URL and the secret out of the existing
 function rather than asking for them, so it carries no credential and needs
 none typed.
+
+Then run **`supabase/notify-secret-vault.sql`**, once. The secret the trigger
+sends was a string literal in the function's source, which any database role
+and every dashboard member can read; this moves it into Supabase Vault and
+rewrites the function to read it from there on every call. It ends with a
+check: `in_vault = true, secret_in_source = false`. After it, `mirror-events.sql`
+finds no secret to lift and refuses to run, which is correct. To rotate the
+secret later, change `NOTIFY_SECRET` on the function and
+`vault.update_secret` in the database — no function rewrite.
 
 Three things to be clear about before switching it on:
 
@@ -2217,9 +2240,11 @@ send, which is exactly how a calendar wants an update. Change the joining link,
 add a guest, press Confirm again: everybody's existing entry is amended rather
 than duplicated.
 
-**Cannot make it** marks the booking declined and writes to them with a link
-back to the calendar. If you had already confirmed, a cancellation goes with it
-and the event comes off the calendars it was put on.
+**Cannot make it** marks the booking declined and writes to the booker with a
+link back to the calendar — fixed copy, no name, no typed slot label, because
+it is the button you press on junk and must not relay the junk. Guests are
+copied only if you had already confirmed; then a cancellation goes with it and
+the event comes off the calendars it was put on.
 
 **A slot that has passed cannot be confirmed.** Opening a week-old email and
 pressing the button would otherwise put a meeting in somebody's past and tell
@@ -2231,7 +2256,10 @@ read it — if the link itself confirmed, Outlook SafeLinks would be sending
 calendar invitations to your clients on your behalf. Scanners do not submit
 forms. The same reasoning is written out at length in `moderate/index.ts`.
 
-Confirm links last 90 days. Everything above is optional in the sense that the
+Confirm links last 90 days, and can send at most 4 invitations per booking
+(`MAX_INVITE_SENDS` in `schedule/index.ts`) — enough to confirm and correct
+twice, and a ceiling on what a forwarded link can do. Moderation links act
+once: approve and reject both touch only a comment that is still pending. Everything above is optional in the sense that the
 rest of the site does not depend on it: without the `schedule` function
 deployed, a booking still lands in the table and still emails you — it simply
 arrives without the buttons.

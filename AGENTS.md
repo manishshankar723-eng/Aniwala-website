@@ -20,7 +20,7 @@ the uptime; if the server is older than the edit, that is the answer.
 
 ```
 npm run verify      # dataset + social card + astro check + build + link check.
-                    # Exactly what CI runs.
+                    # CI runs all of it except the social card check.
 ```
 
 The `deploy` job is gated on `verify`, so a red build never reaches the
@@ -55,15 +55,20 @@ server. Do not work around a failing check — they are load bearing:
   so the temptation under pressure is to reach for a wildcard.
 - **`supabase/schema.sql`** — RLS and the column grants are the only thing
   protecting form data. Read that file's header before changing a policy.
-  Section 7 (the Turnstile cutover) is ACTIVE, not commented out: section 4
-  still grants anon its insert columns, so a whole-file re-run without
-  section 7 silently reopens direct-to-PostgREST inserts and makes Turnstile
-  optional. Roll back by running section 4 alone. It also revokes everything
+  NOTHING IN THE FILE GRANTS anon INSERT — every form goes through `submit`,
+  which writes as service_role. Section 4 used to grant it and section 7 used
+  to revoke it at the very end, so a run that stopped partway reopened
+  direct-to-PostgREST inserts with no error; on 27 September 2026 it did, for
+  about two hours. Do not put a `grant insert` back into the runnable file.
+  The emergency rollback (forms without Turnstile) is a commented block in
+  section 7, run on its own and undone as soon as `submit` is back. Section 4
+  also revokes everything
   from `authenticated` — Supabase's default grants include TRUNCATE, which RLS
   does not govern, and the site has no logins.
 - **`TURNSTILE_SITE_KEY` is required, not optional.** With anon's INSERT
-  revoked, a build without it ships forms that refuse every submission — and
-  the build still passes.
+  revoked, a build without it ships forms that refuse every submission. The
+  build itself would pass, so `deploy.yml` FAILS any non-PR run missing it,
+  `SUPABASE_URL` or `SUPABASE_ANON_KEY`. Keep that step an error.
 
 - **Anything untrusted that reaches an EMAIL is an output boundary too.**
   `supabase/functions/notify` and `schedule` build HTML out of values a stranger
@@ -80,8 +85,13 @@ server. Do not work around a failing check — they are load bearing:
   so it goes to the booker only — no CC — with fixed copy and a parsed time.
   Echoing the name field or CC'ing the guest list made it a way to send
   strangers arbitrary text from the studio's verified domain; escaping does
-  nothing about words. Emails that echo input (confirm, decline) are sent only
-  after a person presses a button. Timezones from a form go through
+  nothing about words. The same holds for DECLINE, even though a person
+  presses it: Decline is the button pressed on junk, so it carries no name
+  and no typed slot label, and CCs guests only if the booking had been
+  confirmed. Only Confirm echoes input, and it is capped at 4 sends per
+  booking (`MAX_INVITE_SENDS`). Every stranger-typed address goes through
+  `isEmail()` in `_shared/util.ts` — Resend reads `"any text" <addr>` as a
+  display name. Timezones from a form go through
   `validTz()` — an unknown zone makes every `Intl` call throw.
 
 - **The mail bill is capped in `notify` (`mailBudget`, default 90/day), NOT by
@@ -102,13 +112,15 @@ server. Do not work around a failing check — they are load bearing:
 - **A media or embed URL from the CMS is checked in CODE, not only by the CSP.**
   `findUnsafeHref` in `src/config/urls.ts` walks keys ending in `href` — that is
   every link on a CMS-built page and no media field at all. So `isSafeMediaSrc`
-  guards the hero video, and the host pattern in `src/lib/pieces.ts` guards
-  which origin a Cloudflare Stream iframe may load. Match the SUBDOMAIN there,
-  never the suffix: `[^/]*cloudflarestream.com` also accepts
-  `evilcloudflarestream.com` and — a backslash being a slash inside a URL
-  authority — `attacker.example\x.cloudflarestream.com`, which a browser
-  resolves to `attacker.example`. The CSP refuses both. It is the backstop, not
-  the check.
+  guards the hero video and the portfolio's file videos, and a Stream iframe
+  takes NO host from the CMS: `resolveVideo` in `src/lib/pieces.ts` reads the
+  32-hex id and always embeds from `iframe.videodelivery.net`, the one Stream
+  host in `frame-src`. Do not go back to reusing a pasted
+  `customer-<code>.cloudflarestream.com` origin — it needs a host regex (a
+  suffix test accepts `evilcloudflarestream.com`, and
+  `attacker.example\x.cloudflarestream.com` resolves to `attacker.example`) and
+  a `*.cloudflarestream.com` CSP wildcard that trusts every Stream customer.
+  The CSP is the backstop, not the check.
 
 - **The CSS is inside the document on purpose.**
   `build.inlineStylesheets: 'always'` in `astro.config.mjs`. Putting it back to

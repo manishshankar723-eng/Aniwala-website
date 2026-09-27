@@ -220,7 +220,13 @@ Deno.serve(async (req) => {
   if (!ALLOWED_TYPES.has(contentType)) {
     return json({ error: 'Only .mp4 and .webm can be uploaded.' }, 400, origin);
   }
-  if (typeof body.size === 'number' && body.size > MAX_BYTES) {
+  /* REQUIRED, and signed into the upload URL below as content-length — so
+     it is a limit on the bytes R2 accepts, not a number the caller reports. */
+  const size = body.size;
+  if (typeof size !== 'number' || !Number.isSafeInteger(size) || size <= 0) {
+    return json({ error: 'Missing file size.' }, 400, origin);
+  }
+  if (size > MAX_BYTES) {
     return json({ error: 'That file is over 1GB.' }, 400, origin);
   }
 
@@ -248,7 +254,22 @@ Deno.serve(async (req) => {
     .map(encodeURIComponent)
     .join('/');
 
-  async function presign(method: string, expires: number): Promise<string> {
+  /*
+   * WHAT THE SIGNATURE COVERS. `host` alone signed a URL, not an upload: the
+   * type and size checks above were checks on what the caller DECLARED, and the
+   * holder of the URL could PUT any bytes under any Content-Type — `text/html`
+   * onto the public bucket origin under a `.mp4` key. Signing both makes R2
+   * refuse a PUT whose headers differ from what was checked here. (The hash
+   * cannot be signed as a checksum: it covers the file's first and last chunks,
+   * not every byte, so it is a key, not a digest.)
+   */
+  async function presign(
+    method: string,
+    expires: number,
+    extra: Record<string, string> = {}
+  ): Promise<string> {
+    const signed: Record<string, string> = { host, ...extra };
+    const names = Object.keys(signed).map((n) => n.toLowerCase()).sort();
     const amzDate = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
     const dateStamp = amzDate.slice(0, 8);
     const scope = `${dateStamp}/auto/s3/aws4_request`;
@@ -258,7 +279,7 @@ Deno.serve(async (req) => {
       'X-Amz-Credential': `${ACCESS_KEY}/${scope}`,
       'X-Amz-Date': amzDate,
       'X-Amz-Expires': String(expires),
-      'X-Amz-SignedHeaders': 'host',
+      'X-Amz-SignedHeaders': names.join(';'),
     });
     query.sort();
 
@@ -266,8 +287,8 @@ Deno.serve(async (req) => {
       method,
       canonicalUri,
       query.toString(),
-      `host:${host}\n`,
-      'host',
+      names.map((n) => `${n}:${signed[n].trim()}\n`).join(''),
+      names.join(';'),
       /* The body is not known at signing time and R2 accepts this sentinel for
          presigned requests. The URL is scoped to one key and expires anyway. */
       'UNSIGNED-PAYLOAD',
@@ -309,7 +330,10 @@ Deno.serve(async (req) => {
     {
       /* Ten minutes. Long enough for a large upload to start, short enough
          that a URL found in a log is worthless by the time anyone reads it. */
-      uploadUrl: await presign('PUT', 600),
+      uploadUrl: await presign('PUT', 600, {
+        'content-type': contentType,
+        'content-length': String(size),
+      }),
       publicUrl,
       contentType,
       exists: false,

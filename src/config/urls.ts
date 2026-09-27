@@ -114,7 +114,10 @@ export function findUnsafeHref(value: unknown, path: string[] = []): string | nu
 
   if (value && typeof value === 'object') {
     for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-      if (typeof child === 'string' && /href$/i.test(key) && !isSafeHref(child)) {
+      // A non-string counts as unsafe: an ARRAY under an href key has no href
+      // keys of its own for the walk to find, and Astro stringifies it into
+      // the attribute all the same — `["javascript:…"]` renders as the string.
+      if (/href$/i.test(key) && child != null && (typeof child !== 'string' || !isSafeHref(child))) {
         return [...path, key].join('.');
       }
       const found = findUnsafeHref(child, [...path, key]);

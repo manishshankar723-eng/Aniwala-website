@@ -127,8 +127,11 @@ ErrorDocument 404 /404.html
   </FilesMatch>
 
   # --- Security headers ------------------------------------------
-  Header set X-Content-Type-Options "nosniff"
-  Header set Referrer-Policy "strict-origin-when-cross-origin"
+  # `always`, so the 403 and 404 responses carry them too.
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  # No window this site opens (or that opens it) keeps a handle on the other.
+  Header always set Cross-Origin-Opener-Policy "same-origin"
 
   # Keeps the staging copy out of search. Paired with the STAGING env var set
   # by the rewrite near the top of this file; on the canonical hostname the
@@ -205,16 +208,17 @@ ErrorDocument 404 /404.html
   # frame-ancestors stays 'none': that governs who may frame US, which is
   # still nobody. It is unrelated to what we are allowed to frame.
   #
-  # cloudflarestream.com / videodelivery.net are the portfolio's videos, and
-  # they are in frame-src ONLY. A Stream video is an iframe carrying
+  # iframe.videodelivery.net is the portfolio's Stream videos, and it is in
+  # frame-src ONLY. A Stream video is an iframe carrying
   # Cloudflare's own player, so the player's own requests are governed by the
   # policy inside that frame, not this one: nothing needs adding to media-src,
   # connect-src or script-src for it, and adding it would widen the page's
-  # policy for no gain. The wildcard is on the SUBDOMAIN alone — a Stream
-  # embed lives at customer-<code>.cloudflarestream.com, where the code is
-  # per-account, and `*.` matches that without naming every account's code.
-  # videodelivery.net is the account-agnostic embed host, used when somebody
-  # pastes a bare video id with no customer subdomain to read off.
+  # policy for no gain. It is ONE HOST, named exactly. This used to also carry
+  # `https://*.cloudflarestream.com`, for embeds at customer-<code>.…, and
+  # that wildcard trusted every Stream customer on the platform rather than
+  # this studio. `resolveVideo` in src/lib/pieces.ts now reduces any Stream
+  # value to its id and embeds it from videodelivery.net, which serves every
+  # account, so no page ever needs another Stream host.
   #
   # A blocked frame here is silent: the tile shows its poster and never moves,
   # which looks exactly like a video that has not been uploaded yet.
@@ -256,7 +260,7 @@ ErrorDocument 404 /404.html
   # IF ANALYTICS IS EVER REMOVED, take these back out. A policy that trusts an
   # origin nothing loads from is a permission granted to whatever gets injected
   # next, for no benefit at all.
-  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.sanity.io https://www.googletagmanager.com https://*.google-analytics.com; font-src 'self'; connect-src 'self' https://ocxbnnfchqzgkbqlagnq.supabase.co https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com; media-src 'self' https://cdn.sanity.io https://pub-5bcaef0bed5a45e1bb7c8c42238fa677.r2.dev; frame-src https://challenges.cloudflare.com https://*.cloudflarestream.com https://iframe.videodelivery.net; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests"
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://cdn.sanity.io https://www.googletagmanager.com https://*.google-analytics.com; font-src 'self'; connect-src 'self' https://ocxbnnfchqzgkbqlagnq.supabase.co https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com; media-src 'self' https://cdn.sanity.io https://pub-5bcaef0bed5a45e1bb7c8c42238fa677.r2.dev; frame-src https://challenges.cloudflare.com https://iframe.videodelivery.net; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests"
 </IfModule>
 
 # --- Fonts need CORS to be preloaded -----------------------------

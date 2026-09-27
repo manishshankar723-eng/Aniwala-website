@@ -21,10 +21,14 @@ name: Backup
 # ---------------------------------------------------------------------
 # WHY THIS IS GENUINELY OFF-SITE
 #
-# The archive lands on GitHub, which is a third provider — not Supabase and
-# not Hostinger. A backup stored inside the system it protects is not a
-# backup, and that is the mistake this deliberately avoids: losing the
-# Supabase account does not touch these artifacts.
+# The archive lands in a PRIVATE Cloudflare R2 bucket used for nothing else —
+# not Supabase, not Sanity, not Hostinger, and not GitHub, which only runs the
+# job. A backup stored inside the system it protects is not a backup: losing
+# the Supabase account does not touch these files.
+#
+# It used to be a GitHub workflow artifact, and artifacts take the repo's
+# visibility — on a public repo they were downloadable by anyone. See the
+# upload step.
 #
 # ---------------------------------------------------------------------
 # IT IS ENCRYPTED, AND THAT IS NOT OPTIONAL
@@ -42,8 +46,9 @@ name: Backup
 # ---------------------------------------------------------------------
 # HOW TO RESTORE  (read this BEFORE you need it)
 #
-#   1. Actions tab -> this workflow -> the run you want -> Artifacts ->
-#      download `backup-<date>`. Unzip it.
+#   1. Cloudflare dashboard -> R2 -> the backup bucket -> `daily/<date>/` ->
+#      download both `.enc` files. Or, with the backup token:
+#        aws s3 cp --recursive s3://<bucket>/daily/<date>/ . #          --endpoint-url https://<account-id>.r2.cloudflarestorage.com
 #   2. Decrypt, using the passphrase from your password manager:
 #
 #        BKPASS='<the passphrase>' openssl enc -d -aes-256-cbc -pbkdf2 \
@@ -71,11 +76,10 @@ name: Backup
 #      the service role key (which bypasses the column grants that would
 #      otherwise refuse `status` and `approved`).
 #
-# RETENTION IS 90 DAYS, which is the ceiling GitHub allows. That is a real
-# limit worth understanding: this protects against deletion, corruption and a
-# bad migration. It does NOT protect against something that went wrong four
-# months ago and was never noticed. If you want years, download one of these
-# each quarter and keep it somewhere of your own.
+# RETENTION IS WHATEVER THE BUCKET'S LIFECYCLE RULE SAYS (180 days as set up).
+# Nothing in this workflow deletes anything. Without a rule the bucket keeps
+# every night forever — about 250MB a year, inside R2's free tier. Either way,
+# try a restore once a quarter: an archive nobody has decrypted is a hope.
 #
 # ---------------------------------------------------------------------
 # SECRETS THIS NEEDS  — Settings -> Secrets and variables -> Actions
@@ -87,6 +91,11 @@ name: Backup
 #   BACKUP_PASSPHRASE  encrypts the archive. Generate with
 #                        openssl rand -base64 32
 #                      Save it in a password manager FIRST.
+#
+#   R2_BACKUP_ACCOUNT_ID         the Cloudflare account id (R2 overview page)
+#   R2_BACKUP_BUCKET             the PRIVATE backup bucket — never the video one
+#   R2_BACKUP_ACCESS_KEY_ID      an R2 API token with Object Read & Write on
+#   R2_BACKUP_SECRET_ACCESS_KEY  THAT BUCKET ONLY
 #
 # Already present for the deploy, and reused here unchanged:
 #   SUPABASE_URL, SANITY_PROJECT_ID, SANITY_DATASET, SANITY_READ_TOKEN
@@ -109,7 +118,7 @@ jobs:
 
     steps:
       # ------------------------------------------------------------------
-      # Fail here, loudly, rather than uploading an artifact that turns out to
+      # Fail here, loudly, rather than uploading an archive that turns out to
       # be empty on the day it is needed.
       # ------------------------------------------------------------------
       - name: Check the secrets reached this job
@@ -119,10 +128,14 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SANITY_PROJECT_ID: ${{ secrets.SANITY_PROJECT_ID }}
           SANITY_READ_TOKEN: ${{ secrets.SANITY_READ_TOKEN }}
+          R2_BACKUP_ACCOUNT_ID: ${{ secrets.R2_BACKUP_ACCOUNT_ID }}
+          R2_BACKUP_BUCKET: ${{ secrets.R2_BACKUP_BUCKET }}
+          R2_BACKUP_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          R2_BACKUP_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
         run: |
           set -uo pipefail
           fail=0
-          for name in BACKUP_SECRET BACKUP_PASSPHRASE SUPABASE_URL SANITY_PROJECT_ID SANITY_READ_TOKEN; do
+          for name in BACKUP_SECRET BACKUP_PASSPHRASE SUPABASE_URL SANITY_PROJECT_ID SANITY_READ_TOKEN                       R2_BACKUP_ACCOUNT_ID R2_BACKUP_BUCKET R2_BACKUP_ACCESS_KEY_ID R2_BACKUP_SECRET_ACCESS_KEY; do
             # Indirect expansion into a local, so only the LENGTH is ever
             # printed. GitHub masks registered secrets in logs, but a job
             # should not rely on that to avoid printing one.
@@ -336,20 +349,52 @@ jobs:
           shred -u check.json check.ndjson 2>/dev/null || rm -f check.json check.ndjson
 
       # ------------------------------------------------------------------
-      - name: Stamp the archive with its date
-        id: stamp
-        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+      # TO A PRIVATE R2 BUCKET, NOT A WORKFLOW ARTIFACT.
+      #
+      # Artifacts inherit the repository's visibility. While the repo was
+      # public, every nightly archive — ciphertext, but ciphertext of every
+      # lead and applicant — was downloadable by any GitHub account for 90
+      # days, sixteen of them at once. A bucket is private whatever happens to
+      # the repo, keeps archives as long as its lifecycle rule says rather than
+      # GitHub's 90-day ceiling, and puts the only copy outside GitHub too.
+      #
+      # THE BUCKET IS NOT THE VIDEO BUCKET, and its token is scoped to it
+      # alone (Object Read & Write, this one bucket). The video bucket is
+      # public by design; a backup landing there would be published at a
+      # guessable URL, and a token that can write both could overwrite the
+      # site's media from a job that has no business touching it.
+      #
+      # Keyed by date AND run id, so a manual re-run on the same day adds a
+      # copy instead of silently replacing the night's archive.
+      #
+      # The two checksum variables are for R2: AWS CLI 2.23+ sends CRC
+      # checksum headers on every PUT by default, which R2 has refused with a
+      # 400 on some versions. `when_required` restores the old behaviour.
+      # ------------------------------------------------------------------
+      - name: Upload to the private backup bucket
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          R2_ACCOUNT_ID: ${{ secrets.R2_BACKUP_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BACKUP_BUCKET }}
+        run: |
+          set -euo pipefail
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          prefix="daily/$(date -u +%Y-%m-%d)/run-${GITHUB_RUN_ID}"
 
-      - name: Upload
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: backup-${{ steps.stamp.outputs.date }}
-          path: '*.enc'
-          # 90 days is GitHub's maximum. See the retention note in the header:
-          # this is protection against deletion and corruption, not an archive.
-          retention-days: 90
-          # These are already ciphertext, so there is nothing left to squeeze.
-          compression-level: 0
-          # An upload that silently matched nothing would be the quietest
-          # possible failure: a green run and an empty artifact.
-          if-no-files-found: error
+          for f in supabase.json.enc sanity.ndjson.enc; do
+            aws s3 cp "$f" "s3://${R2_BUCKET}/${prefix}/${f}"               --endpoint-url "$endpoint" --only-show-errors               --content-type application/octet-stream
+
+            # READ IT BACK. An upload that "succeeded" into the wrong bucket,
+            # or was truncated, is only caught by looking at what is there.
+            aws s3 cp "s3://${R2_BUCKET}/${prefix}/${f}" "check-$f"               --endpoint-url "$endpoint" --only-show-errors
+            if ! cmp -s "$f" "check-$f"; then
+              echo "::error::${f} in the bucket does not match what was uploaded."
+              exit 1
+            fi
+            rm -f "check-$f"
+            echo "  ok      ${prefix}/${f} ($(wc -c < "$f") bytes, read back and identical)"
+          done

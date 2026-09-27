@@ -30,6 +30,8 @@
  * emits is built here, not stored.
  */
 
+import { isSafeHref } from '../config/urls';
+
 /**
  * Serialise a value for a `<script type="application/ld+json">` block.
  *
@@ -161,6 +163,9 @@ export function fillHtml(
 ): string {
   return esc(template).replace(TOKEN, (whole, key: string) => {
     const link = links[key];
+    // Unsafe scheme -> plain text. Every caller validates today; this is the
+    // one place an anchor is assembled, so it is where the rule holds anyway.
+    if (link && !isSafeHref(link.href)) return esc(link.label ?? '');
     if (link) {
       const label = link.label ?? link.href.replace(/^mailto:/, '');
       const external = /^https?:\/\//i.test(link.href) && !link.href.includes('aniwala.com');
@@ -203,6 +208,9 @@ export function fillRendered(
 ): string {
   return html.replace(TOKEN, (whole, key: string) => {
     const link = links[key];
+    // Unsafe scheme -> plain text. Every caller validates today; this is the
+    // one place an anchor is assembled, so it is where the rule holds anyway.
+    if (link && !isSafeHref(link.href)) return esc(link.label ?? '');
     if (link) {
       const label = link.label ?? link.href.replace(/^mailto:/, '');
       return `<a href="${esc(link.href)}">${esc(label)}</a>`;

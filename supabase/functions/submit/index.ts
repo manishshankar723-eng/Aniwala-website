@@ -40,11 +40,12 @@
 /* The origin allow-list and the CORS headers are shared with `moderate` and
    `schedule`. Three copies of one list is three chances for one of them to go
    quietly stale, and the stale one is a door left the wrong width. */
-import { allowedOrigin, corsHeaders as cors } from '../_shared/util.ts';
+import { allowedOrigin, corsHeaders as cors, isEmail } from '../_shared/util.ts';
 
 const TURNSTILE_VERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
-/* Exactly the columns anon was granted in schema.sql section 4. Nothing that
+/* Exactly the insertable columns listed in schema.sql section 7's rollback
+   block (anon itself is granted none — this function writes). Nothing that
    drives moderation or triage state appears in any of them. */
 const FIELDS: Record<string, string[]> = {
   enquiry: [
@@ -118,7 +119,7 @@ Deno.serve(async (req) => {
 
   /* ---------- verify with Cloudflare BEFORE touching the database ---------- */
   const ip = clientIp(req);
-  let verdict: { success?: boolean; 'error-codes'?: string[] };
+  let verdict: { success?: boolean; hostname?: string; 'error-codes'?: string[] };
   try {
     const form_ = new FormData();
     form_.append('secret', secret);
@@ -134,6 +135,19 @@ Deno.serve(async (req) => {
 
   if (!verdict.success) {
     console.warn('turnstile rejected:', verdict['error-codes']);
+    return json(403, { error: 'That verification did not check out. Please try again.' }, origin);
+  }
+
+  /*
+   * WHERE the token was solved, as well as whether. A token is not bound to
+   * our site key's pages by `success` alone — one solved on any page carrying
+   * the key verifies. The Origin check above says who sent this request; this
+   * says the widget was on the same host. Localhost is exempt because
+   * Cloudflare's test keys answer with a fixed placeholder hostname.
+   */
+  const originHost = new URL(origin).hostname;
+  if (originHost !== 'localhost' && verdict.hostname !== originHost) {
+    console.warn('turnstile hostname mismatch:', verdict.hostname);
     return json(403, { error: 'That verification did not check out. Please try again.' }, origin);
   }
 
@@ -164,6 +178,11 @@ Deno.serve(async (req) => {
       return json(400, { error: 'That submission was malformed.' }, origin);
     }
 
+    // An address a stranger typed is later a To: line — see `isEmail`.
+    if ((key === 'email' || key === 'author_email') && !isEmail(value)) {
+      return json(400, { error: 'Please enter a valid email address.' }, origin);
+    }
+
     row[key] = value;
   }
   if (Object.keys(row).length === 0) {
@@ -188,8 +207,13 @@ Deno.serve(async (req) => {
        * The trigger only trusts this header when the caller is `service_role`
        * (see schema.sql section 5), so it cannot be spoofed by anyone holding
        * the public anon key.
+       *
+       * NEVER EMPTY. The trigger reads a missing address as "not a web
+       * request" and skips every ceiling — and writes no log row, so the
+       * mail budget stops counting too. A request whose address could not be
+       * read is still a web request; it shares one bucket instead.
        */
-      'x-client-ip': ip,
+      'x-client-ip': ip || 'unknown',
     },
     body: JSON.stringify(row),
   });
