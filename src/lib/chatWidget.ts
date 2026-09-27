@@ -23,10 +23,30 @@ interface Turn {
   sig: string;
 }
 
+/**
+ * What the visitor SAW, for replay after a reload or a new tab of the same
+ * session. Separate from `history` on purpose: `history` is the signed
+ * chain the server verifies and holds only typed questions and their answers;
+ * this also holds the suggestion-button answers, which never reach the server,
+ * and each answer's links and hand-off buttons, which the chain does not sign.
+ * Display only — nothing in it is ever sent anywhere.
+ */
+interface Entry {
+  who: 'you' | 'bot';
+  text: string;
+  links?: string[];
+  action?: string;
+  handoff?: boolean;
+}
+
 interface State {
   session?: string;
   history: Turn[];
+  transcript: Entry[];
 }
+
+/* Enough for a long session; the oldest scroll off first. */
+const MAX_TRANSCRIPT = 80;
 
 interface Suggestion {
   q: string;
@@ -87,11 +107,30 @@ const local = {
 const load = (): State => {
   try {
     const s = JSON.parse(sessionStorage.getItem(STORE) ?? 'null');
-    if (s && Array.isArray(s.history)) return { session: s.session, history: s.history };
+    if (s && Array.isArray(s.history)) {
+      /* Storage is editable by anyone at this keyboard, so the shape is
+         checked here and every link is re-checked again at render time. */
+      const transcript: Entry[] = Array.isArray(s.transcript)
+        ? s.transcript
+            .filter((e: Entry) => e && (e.who === 'you' || e.who === 'bot') && typeof e.text === 'string')
+            .map((e: Entry) => ({
+              who: e.who,
+              text: e.text.slice(0, 2000),
+              links: Array.isArray(e.links) ? e.links.filter((l) => typeof l === 'string') : [],
+              action: typeof e.action === 'string' ? e.action : undefined,
+              handoff: e.handoff === true,
+            }))
+        : /* Saved before the transcript existed: rebuild what it can. */
+          s.history.flatMap((t: Turn) => [
+            { who: 'you', text: t.q },
+            { who: 'bot', text: t.a },
+          ]);
+      return { session: s.session, history: s.history, transcript };
+    }
   } catch {
     /* blocked or corrupt storage — start fresh */
   }
-  return { history: [] };
+  return { history: [], transcript: [] };
 };
 
 const save = (s: State) => {
@@ -230,22 +269,37 @@ function init(root: HTMLElement) {
       b.textContent = s.q;
       b.addEventListener('click', () => {
         chips.remove();
-        bubble('you', s.q);
-        bubble('bot', s.a, s.links);
+        say({ who: 'you', text: s.q });
+        say({ who: 'bot', text: s.a, links: s.links });
       });
       chips.append(b);
     }
     log.append(chips);
   }
 
+  /* Only links to pages this chat knows: the transcript came out of
+     storage, and storage is not the server. */
+  const known = (links: string[] = []) => links.filter((l) => isSitePath(l) && l in data.titles);
+
+  function render(e: Entry) {
+    if (e.who === 'you') return bubble('you', e.text);
+    const links = known(e.links);
+    return bubble('bot', e.text, links, handoffs(e.action, e.handoff, links));
+  }
+
+  /** Show a message AND keep it for replay. */
+  function say(e: Entry) {
+    render(e);
+    state.transcript.push(e);
+    if (state.transcript.length > MAX_TRANSCRIPT) state.transcript.splice(0, state.transcript.length - MAX_TRANSCRIPT);
+    save(state);
+  }
+
   function replay() {
     log.replaceChildren();
     welcome();
-    if (state.history.length) log.querySelector('.chat-suggestions')?.remove();
-    for (const t of state.history) {
-      bubble('you', t.q);
-      bubble('bot', t.a);
-    }
+    if (state.transcript.length) log.querySelector('.chat-suggestions')?.remove();
+    for (const e of state.transcript) render(e);
   }
 
   /* ---------- Turnstile, only once the chat is opened ---------- */
@@ -367,7 +421,7 @@ function init(root: HTMLElement) {
     let { status, body } = await post(message, !state.session);
     if (status === 401 || (status === 400 && body.error === 'history')) {
       // The session expired or the stored history is no longer valid: start over.
-      state = { history: [] };
+      state = { history: [], transcript: state.transcript };
       ({ status, body } = await post(message, true));
     }
     thinking.remove();
@@ -378,7 +432,9 @@ function init(root: HTMLElement) {
 
     if (typeof body.answer === 'string' && body.answer) {
       if (body.turn) state.history.push(body.turn);
-      bubble('bot', body.answer, links, handoffs(body.action, body.handoff, links));
+      /* The question is kept with its answer, so a reload shows the pair. */
+      state.transcript.push({ who: 'you', text: message });
+      say({ who: 'bot', text: body.answer, links, action: body.action, handoff: body.handoff });
     } else if (body.error === 'verification') {
       bubble('bot', 'The human check did not load, so I cannot answer here. You can reach the team directly.', [], [
         ['Get in touch', '/contact/'],
