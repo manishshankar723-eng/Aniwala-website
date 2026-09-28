@@ -23,6 +23,17 @@ npm run verify      # dataset + social card + astro check + build + link check.
                     # CI runs all of it except the social card check.
 ```
 
+**Code goes to staging first — decided 28 September 2026.** Push to the
+`staging` branch, which deploys to the password-protected
+https://staging.aniwala.com, and only merge `staging` into `main` (which
+deploys aniwala.com) after the change has been checked there and Ishan has
+said to go live. Never push code straight to `main`. Content does not go
+through staging: both sites read one Sanity dataset and Publish rebuilds
+production only, so content is previewed with the Studio's Drafts/Releases.
+The staging deploy carries hPanel's password lines into the new `.htaccess`
+and fails closed if it cannot find them — never make that step optional.
+README → *Staging* has the rest.
+
 The `deploy` job is gated on `verify`, so a red build never reaches the
 server. Do not work around a failing check — they are load bearing:
 
