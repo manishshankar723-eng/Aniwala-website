@@ -103,4 +103,6 @@ export const HANDOFF = {
   busy: 'The assistant has answered all it can for today. The team can help directly: get in touch here.',
   limit: 'That is as many questions as this chat can take. The team can help directly: get in touch here.',
   daily: "You've reached today's limit of 10 questions. You can ask again in 24 hours — or get in touch and the team will answer directly.",
+  crowd:
+    'This chat has answered a lot of questions from your network today, so it is pausing here for now. The team can help directly: get in touch here.',
 } as const;

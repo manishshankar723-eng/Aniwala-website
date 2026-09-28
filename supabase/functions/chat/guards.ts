@@ -42,6 +42,8 @@ export const LIMITS = {
   selectTokens: 4000,
   /** Session lifetime, seconds. */
   sessionTtl: 30 * 60,
+  /** Browser id lifetime, seconds — renewed with every new session. */
+  visitorTtl: 30 * 24 * 60 * 60,
 } as const;
 
 /** The one refusal. Fixed text, never model output. */
@@ -105,6 +107,7 @@ const LABEL = {
   session: 'chat.v1.session',
   turn: 'chat.v1.turn',
   addr: 'chat.v1.addr',
+  visitor: 'chat.v1.visitor',
 } as const;
 
 /* ------------------------------------------------------------------ */
@@ -144,6 +147,47 @@ export async function verifySession(
   // Signature first, clock second: a forged token learns nothing from timing.
   if (!safeEqual(sig, expected)) return null;
   return exp > nowSec ? sid : null;
+}
+
+/* ------------------------------------------------------------------ */
+/* The browser id                                                      */
+/* ------------------------------------------------------------------ */
+
+/*
+ * WHO "ONE VISITOR" IS. The daily ten used to be counted by address, and an
+ * office, a college or a mobile carrier puts many people behind one address —
+ * so one curious person closed the chat for everyone on their network. The ten
+ * are counted per BROWSER now, by this id; the address keeps a much higher
+ * ceiling (chat_take) so one machine still cannot flood it.
+ *
+ * It is random, carries nothing about the person, and is issued only on the
+ * Turnstile path — so a fresh one costs a solve, and discarding it (clearing
+ * storage) buys another ten at the price of a captcha, bounded by the address
+ * ceiling and the daily budget. It is signed so it cannot be made up, and
+ * labelled so a session token can never pass for one. Postgres binds it to a
+ * session on the session's first message, so it cannot be swapped mid-chat.
+ */
+export async function mintVisitor(
+  secret: string,
+  nowSec: number,
+  vid: string = b64url(crypto.getRandomValues(new Uint8Array(16))),
+  ttl: number = LIMITS.visitorTtl
+): Promise<{ token: string; vid: string }> {
+  const exp = nowSec + ttl;
+  const sig = await hmac(secret, `${LABEL.visitor}\n${vid}\n${exp}`);
+  return { token: `${vid}.${exp}.${sig}`, vid };
+}
+
+/** The browser id, or null for anything forged, edited, malformed or expired. */
+export async function verifyVisitor(token: unknown, secret: string, nowSec: number): Promise<string | null> {
+  if (typeof token !== 'string' || token.length > 200) return null;
+  const m = /^([A-Za-z0-9_-]{22})\.(\d{1,12})\.([A-Za-z0-9_-]{43})$/.exec(token);
+  if (!m) return null;
+  const [, vid, expText, sig] = m;
+  const exp = Number(expText);
+  const expected = await hmac(secret, `${LABEL.visitor}\n${vid}\n${exp}`);
+  if (!safeEqual(sig, expected)) return null;
+  return exp > nowSec ? vid : null;
 }
 
 /* ------------------------------------------------------------------ */
