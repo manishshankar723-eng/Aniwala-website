@@ -19,6 +19,7 @@ import {
   isSitePath,
   mintSession,
   parseReply,
+  partialReply,
   referenceBlock,
   scrubPii,
   selectConcepts,
@@ -31,7 +32,7 @@ import {
   type Turn,
 } from '../supabase/functions/chat/guards.ts';
 import { RULES, buildRequest, MAX_OUTPUT_TOKENS } from '../supabase/functions/chat/prompt.ts';
-import { accessToken, parseServiceAccount } from '../supabase/functions/chat/vertex.ts';
+import { accessToken, generateStream, parseServiceAccount } from '../supabase/functions/chat/vertex.ts';
 
 const SECRET = 'test-secret-0123456789-abcdefghijklmnopqrstuvwxyz';
 const OTHER = 'other-secret-0123456789-abcdefghijklmnopqrstuvwxyz';
@@ -428,4 +429,82 @@ test('vertex: service-account JWT is RS256-signed for the fixed token endpoint',
     new TextEncoder().encode(`${h}.${c}`)
   );
   assert.ok(ok, 'signature verifies with the public key');
+});
+
+/* ------------------------------------------------------------------ */
+/* Streaming                                                           */
+/* ------------------------------------------------------------------ */
+
+const WHOLE = JSON.stringify({
+  on_topic: true,
+  need: ['service:3d'],
+  action: 'none',
+  answer: 'We make "3D" work.\nAlso é, \\ and {braces} and "need": ["x"].',
+  links: ['/services/'],
+});
+
+test('partialReply: every prefix yields a growing answer and never a wrong field', () => {
+  let prev = '';
+  for (let cut = 0; cut <= WHOLE.length; cut++) {
+    const p = partialReply(WHOLE.slice(0, cut));
+    if (p.onTopic !== undefined) assert.equal(p.onTopic, true);
+    if (p.need !== undefined) assert.deepEqual(p.need, ['service:3d'], `need at ${cut}`);
+    if (p.answer !== undefined) {
+      assert.ok(p.answer.startsWith(prev), `answer shrank or changed at ${cut}`);
+      prev = p.answer;
+    }
+  }
+  assert.equal(prev, JSON.parse(WHOLE).answer);
+});
+
+test('partialReply: need is settled before the answer starts', () => {
+  const at = WHOLE.indexOf('"answer"');
+  const p = partialReply(WHOLE.slice(0, at));
+  assert.deepEqual(p.need, ['service:3d']);
+  assert.equal(p.answer, undefined);
+});
+
+test('partialReply: a half-arrived array or escape is held back', () => {
+  assert.equal(partialReply('{"on_topic": true, "need": ["a", "b').need, undefined);
+  assert.equal(partialReply('{"on_topic": tru').onTopic, undefined);
+  assert.equal(partialReply('{"answer": "ab\\').answer, 'ab');
+  assert.equal(partialReply('{"answer": "ab\\u00').answer, 'ab');
+  assert.equal(partialReply('{"answer": "a\\u0007b').answer, 'ab', 'control characters are stripped');
+  assert.deepEqual(partialReply('not json'), {});
+});
+
+test('generateStream: joins SSE chunks, reports text so far, keeps the last usage', async () => {
+  const chunk = (text: string, extra: Record<string, unknown> = {}) =>
+    `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }], ...extra })}\r\n\r\n`;
+  const body = chunk('{"on_topic":') + chunk('true}', { usageMetadata: { totalTokenCount: 7 } });
+  // Split mid-line, the way a network delivers it.
+  const parts = [body.slice(0, 13), body.slice(13, 40), body.slice(40)];
+  const realFetch = globalThis.fetch;
+  let url = '';
+  globalThis.fetch = (async (u: string) => {
+    url = u;
+    return new Response(
+      new ReadableStream({
+        start(c) {
+          for (const p of parts) c.enqueue(new TextEncoder().encode(p));
+          c.close();
+        },
+      })
+    );
+  }) as typeof fetch;
+  const seen: string[] = [];
+  try {
+    const out = await generateStream(
+      { project: 'p', region: 'asia-south1', model: 'gemini-3.5-flash' },
+      'tok',
+      { system: 's', contents: [], estimate: 1 },
+      (t) => seen.push(t)
+    );
+    assert.equal(out.text, '{"on_topic":true}');
+    assert.equal(out.usage.totalTokenCount, 7);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  assert.deepEqual(seen, ['{"on_topic":', '{"on_topic":true}']);
+  assert.match(url, /:streamGenerateContent\?alt=sse$/);
 });

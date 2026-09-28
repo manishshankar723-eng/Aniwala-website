@@ -428,6 +428,126 @@ export function parseReply(
   return { onTopic: true, answer, links: filterLinks(r.links, kb.urls), action, need };
 }
 
+/** What a reply still ARRIVING has settled so far. */
+export interface PartialReply {
+  onTopic?: boolean;
+  /** Present only once the whole array has arrived. */
+  need?: string[];
+  /** The answer's text so far — only ever grows as more arrives. */
+  answer?: string;
+}
+
+/**
+ * Reads the top level of a JSON object that may be cut off anywhere, for
+ * streaming. It decides nothing that reaches the visitor for good: the text it
+ * yields is shown as it is typed and then REPLACED by what `parseReply` makes
+ * of the complete reply, and it is never signed into the history. So it is
+ * forgiving: a malformed prefix just stops yielding.
+ *
+ * Only top-level keys count, so an answer that contains the text
+ * `"need": [...]` is read as answer text, not as a field.
+ */
+export function partialReply(raw: string): PartialReply {
+  const out: PartialReply = {};
+  let i = raw.indexOf('{');
+  if (i < 0) return out;
+  i++;
+  const n = raw.length;
+  const ws = () => {
+    while (i < n && /\s/.test(raw[i])) i++;
+  };
+  const ESC: Record<string, string> = { n: '\n', t: '\t', r: '\r', b: '\b', f: '\f', '"': '"', '\\': '\\', '/': '/' };
+
+  /* At an opening quote. Decodes up to the closing quote or the end of what
+     has arrived, holding back an escape that is only half here. */
+  const readString = (): { value: string; complete: boolean } => {
+    i++;
+    let value = '';
+    while (i < n) {
+      const c = raw[i];
+      if (c === '"') {
+        i++;
+        return { value, complete: true };
+      }
+      if (c === '\\') {
+        if (i + 1 >= n) break;
+        const e = raw[i + 1];
+        if (e === 'u') {
+          const hex = raw.slice(i + 2, i + 6);
+          if (hex.length < 4) break;
+          if (!/^[0-9a-f]{4}$/i.test(hex)) return { value, complete: false };
+          value += String.fromCharCode(parseInt(hex, 16));
+          i += 6;
+          continue;
+        }
+        value += ESC[e] ?? '';
+        i += 2;
+        continue;
+      }
+      value += c;
+      i++;
+    }
+    return { value, complete: false };
+  };
+
+  /* Past a non-string value; false if it has not finished arriving. */
+  const skipValue = (): boolean => {
+    let depth = 0;
+    while (i < n) {
+      const c = raw[i];
+      if (c === '"') {
+        if (!readString().complete) return false;
+        continue;
+      }
+      if (c === '[' || c === '{') depth++;
+      else if (c === ']' || c === '}') {
+        if (depth === 0) return true;
+        depth--;
+        if (depth === 0) {
+          i++;
+          return true;
+        }
+      } else if (depth === 0 && (c === ',' || /\s/.test(c))) return true;
+      i++;
+    }
+    return false;
+  };
+
+  for (;;) {
+    ws();
+    if (raw[i] === ',') {
+      i++;
+      ws();
+    }
+    if (i >= n || raw[i] !== '"') return out;
+    const key = readString();
+    if (!key.complete) return out;
+    ws();
+    if (raw[i] !== ':') return out;
+    i++;
+    ws();
+    if (i >= n) return out;
+    if (raw[i] === '"') {
+      const v = readString();
+      if (key.value === 'answer') {
+        out.answer = v.value.replace(/\r/g, '').replace(CONTROL, '').slice(0, LIMITS.answer);
+      }
+      if (!v.complete) return out;
+      continue;
+    }
+    const start = i;
+    if (!skipValue()) return out;
+    let v: unknown;
+    try {
+      v = JSON.parse(raw.slice(start, i));
+    } catch {
+      return out;
+    }
+    if (key.value === 'on_topic' && typeof v === 'boolean') out.onTopic = v;
+    if (key.value === 'need' && Array.isArray(v)) out.need = v.filter((x): x is string => typeof x === 'string');
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Knowledge                                                           */
 /* ------------------------------------------------------------------ */
