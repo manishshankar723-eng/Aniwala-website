@@ -19,7 +19,7 @@ export interface Piece {
   slug: string;
   title: string;
   category: string;
-  blurb: string;
+  blurb?: string;
   kind: 'Client project' | 'Studio project';
   client: string;
   year: number;

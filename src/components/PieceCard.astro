@@ -223,7 +223,7 @@ const isStudioProject = kind === 'Studio project';
       </span>
 
       <h3 class="piece-title">{title}</h3>
-      <p class="piece-blurb">{blurb}</p>
+      {blurb && <p class="piece-blurb">{blurb}</p>}
 
       {
         tools.length > 0 && (

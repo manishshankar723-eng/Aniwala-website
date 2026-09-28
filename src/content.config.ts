@@ -470,8 +470,9 @@ const pieces = defineCollection({
   schema: z.object({
     title: z.string(),
     category: z.string(),
-    /** One line: what it is, not how good it looks. */
-    blurb: z.string(),
+    /** One line: what it is, not how good it looks. Optional — the tile
+        drops the line when it is empty. */
+    blurb: z.string().optional(),
     image: sanityImage.optional(),
     /** A direct video URL or a Cloudflare Stream id. The Studio's R2 drop
         zone writes the first kind; both can also be pasted by hand. */

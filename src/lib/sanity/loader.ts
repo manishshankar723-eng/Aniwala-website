@@ -449,7 +449,7 @@ export const sanityPieces = (): Loader =>
     toData: (doc, isDraft) => ({
       title: doc.title,
       category: doc.category,
-      blurb: doc.blurb,
+      ...(doc.blurb?.trim() ? { blurb: doc.blurb } : {}),
       ...(doc.image ? { image: doc.image } : {}),
       ...(doc.video ? { video: doc.video } : {}),
       kind: doc.kind,

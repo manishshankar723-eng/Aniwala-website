@@ -62,8 +62,7 @@ export default defineType({
       type: 'string',
       group: 'main',
       description:
-        'One line: what the piece actually is, not how good it looks. "Rigged hero character, 42k tris" tells a producer more than "stunning character work".',
-      validation: (Rule) => Rule.required(),
+        'Optional. One line: what the piece actually is, not how good it looks. "Rigged hero character, 42k tris" tells a producer more than "stunning character work". Leave empty and the tile shows no line under the title.',
     }),
     defineField({
       name: 'image',
