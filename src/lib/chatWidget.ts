@@ -68,6 +68,8 @@ interface Reply {
   handoff?: boolean;
   turn?: Turn;
   session?: string;
+  /** This browser's signed id, renewed with each new session. */
+  visitor?: string;
   error?: string;
   /** Which limit was hit, on a 429: 'address' is the daily ten. */
   reason?: string;
@@ -86,6 +88,11 @@ const PREFILL = 'aniwala-chat-prefill';
    brings back the glow or an input the server will still refuse. */
 const SEEN = 'aniwala-chat-seen';
 const LIMITED_UNTIL = 'aniwala-chat-limited-until';
+/* The browser id the daily ten are counted by (mintVisitor, chat/guards.ts):
+   random, signed by the server, and sent only when a new session starts.
+   Clearing it buys another ten only at the price of a fresh human check, and
+   the address ceiling and daily budget still hold. */
+const VISITOR = 'aniwala-chat-visitor';
 
 const local = {
   get(key: string): string | null {
@@ -583,6 +590,8 @@ function init(root: HTMLElement) {
       const { token, reason } = await turnstileToken();
       if (!token) return { status: 0, body: { error: 'verification', reason } };
       payload.turnstile = token;
+      const visitor = local.get(VISITOR);
+      if (visitor) payload.visitor = visitor;
       resetTurnstile(); // single use: the next new session needs a new solve
     }
     try {
@@ -680,6 +689,7 @@ function init(root: HTMLElement) {
     const reveal = (r: HTMLElement) => (r.textContent?.includes(already) && already ? undefined : typeRow(r));
 
     if (body.session) state.session = body.session;
+    if (typeof body.visitor === 'string' && body.visitor.length <= 200) local.set(VISITOR, body.visitor);
     if (status === 429 && body.reason === 'address') lockDaily(Date.now() + 24 * 60 * 60 * 1000);
     const links = Array.isArray(body.links) ? body.links.filter(isSitePath) : [];
 

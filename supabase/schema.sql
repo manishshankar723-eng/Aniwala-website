@@ -813,9 +813,16 @@ create table if not exists public.chat_usage (
   tokens       int not null check (tokens between 0 and 200000)
 );
 
-create index if not exists chat_usage_addr_idx on public.chat_usage (addr, at desc);
-create index if not exists chat_usage_sid_idx  on public.chat_usage (sid, at desc);
-create index if not exists chat_usage_at_idx   on public.chat_usage (at desc);
+-- The browser id (mintVisitor in chat/guards.ts): random, signed, issued with
+-- a session. Null on rows written before it existed. Purged with the rest of
+-- the table after two days.
+alter table public.chat_usage
+  add column if not exists visitor text check (visitor is null or char_length(visitor) between 1 and 32);
+
+create index if not exists chat_usage_addr_idx    on public.chat_usage (addr, at desc);
+create index if not exists chat_usage_sid_idx     on public.chat_usage (sid, at desc);
+create index if not exists chat_usage_at_idx      on public.chat_usage (at desc);
+create index if not exists chat_usage_visitor_idx on public.chat_usage (visitor, at desc) where visitor is not null;
 
 comment on table public.chat_usage is
   'Chatbot limits. Written only by chat_take() as service_role; no anon or authenticated access.';
@@ -885,20 +892,45 @@ revoke all on sequence public.chat_usage_id_seq, public.chat_flags_id_seq, publi
  * a Supabase secret (CHAT_DAILY_TOKENS) so it moves without running SQL. The
  * caller is service_role and is trusted to pass it.
  *
- *   sessions  6 new sessions per address per hour
- *   address   10 messages per address per rolling 24 hours — "one visitor"
- *             is their address, keyed as an HMAC and IPv6 by /64, so people
- *             behind one office or mobile-carrier NAT share the ten
+ *   sessions  20 new sessions per address per hour
+ *   visitor   10 messages per BROWSER per rolling 24 hours — "one visitor"
+ *             is the browser id (mintVisitor in chat/guards.ts), because an
+ *             office, a college or a mobile carrier puts many people behind
+ *             one address, and counting by address let one of them close the
+ *             chat for all the rest. Returned to the page as 'address', the
+ *             name it locks its composer on.
+ *   crowd     60 messages per ADDRESS per rolling 24 hours — the ceiling that
+ *             stops one machine minting browser ids to flood it. An address
+ *             is keyed as an HMAC, and IPv6 by /64.
  *   session   12 messages per session (a new one costs a Turnstile solve)
- *   budget    reserved tokens in the last 24 hours
+ *   budget    reserved tokens in the last 24 hours — the bound on the BILL,
+ *             whatever the per-visitor numbers are
+ *
+ * THE BROWSER ID IS BOUND TO THE SESSION HERE. It is passed only on a
+ * session's first message, and every later message in that session — which
+ * arrives without one — is counted against the id that first row recorded,
+ * so a session cannot be moved onto another browser's allowance. A session
+ * with no id at all (minted before ids existed) gets the address ceiling
+ * only.
+ *
+ * CHANGING THE SIGNATURE: the drop, the create and the revoke run in ONE
+ * transaction. Between a create and its revoke, PUBLIC can execute the new
+ * function — see the note below the function — and between a drop and a
+ * create the live chat has nothing to call and fails closed.
  */
+begin;
+
+drop function if exists public.chat_take(text, text, text, boolean, int, int);
+
 create or replace function public.chat_take(
   p_addr text,
   p_sid text,
   p_kind text,
   p_new_session boolean,
   p_tokens int,
-  p_daily_tokens int
+  p_daily_tokens int,
+  -- Defaulted, so a caller that predates the browser id still resolves here.
+  p_visitor text default null
 )
 returns text
 language plpgsql
@@ -908,28 +940,44 @@ as $$
 declare
   n    int;
   used bigint;
+  v    text;
 begin
   if p_addr is null or p_sid is null or p_kind not in ('message', 'retry')
      or p_tokens is null or p_tokens < 0 or p_tokens > 200000
-     or p_daily_tokens is null or p_daily_tokens < 0 then
+     or p_daily_tokens is null or p_daily_tokens < 0
+     or (p_visitor is not null and char_length(p_visitor) not between 1 and 32) then
     return 'invalid';
   end if;
 
   perform pg_advisory_xact_lock(hashtext('public.chat_take'));
 
+  -- The session's id is the one its first row recorded; only a session with
+  -- no row yet takes the one passed in.
+  select visitor into v from public.chat_usage
+   where sid = p_sid and visitor is not null
+   order by at
+   limit 1;
+  v := coalesce(v, p_visitor);
+
   if p_kind = 'message' then
     if p_new_session then
       select count(*) into n from public.chat_usage
        where addr = p_addr and new_session and at > now() - interval '1 hour';
-      if n >= 6 then return 'sessions'; end if;
+      if n >= 20 then return 'sessions'; end if;
     end if;
 
-    -- Ten typed messages per visitor per rolling 24 hours. The retry a
+    -- Ten typed messages per browser per rolling 24 hours. The retry a
     -- message may cause is kind 'retry' and does not count against them;
-    -- the suggestion buttons never reach this function at all.
+    -- the suggestion buttons and small talk never reach this function.
+    if v is not null then
+      select count(*) into n from public.chat_usage
+       where visitor = v and kind = 'message' and at > now() - interval '24 hours';
+      if n >= 10 then return 'visitor'; end if;
+    end if;
+
     select count(*) into n from public.chat_usage
      where addr = p_addr and kind = 'message' and at > now() - interval '24 hours';
-    if n >= 10 then return 'address'; end if;
+    if n >= 60 then return 'crowd'; end if;
 
     select count(*) into n from public.chat_usage
      where sid = p_sid and kind = 'message';
@@ -940,8 +988,8 @@ begin
    where at > now() - interval '24 hours';
   if used + p_tokens > p_daily_tokens then return 'budget'; end if;
 
-  insert into public.chat_usage (addr, sid, kind, new_session, tokens)
-  values (p_addr, p_sid, p_kind, p_new_session and p_kind = 'message', p_tokens);
+  insert into public.chat_usage (addr, sid, kind, new_session, tokens, visitor)
+  values (p_addr, p_sid, p_kind, p_new_session and p_kind = 'message', p_tokens, v);
   return 'ok';
 end;
 $$;
@@ -953,10 +1001,12 @@ $$;
  * callable at /rest/v1/rpc/chat_take with the anon key from the bundle, and a
  * stranger could spend the whole day's budget in one call.
  */
-revoke execute on function public.chat_take(text, text, text, boolean, int, int)
+revoke execute on function public.chat_take(text, text, text, boolean, int, int, text)
   from public, anon, authenticated;
-grant execute on function public.chat_take(text, text, text, boolean, int, int)
+grant execute on function public.chat_take(text, text, text, boolean, int, int, text)
   to service_role;
+
+commit;
 
 -- Housekeeping, on the same terms as section 5's: skipped without pg_cron,
 -- and never able to take the schema run down with it.

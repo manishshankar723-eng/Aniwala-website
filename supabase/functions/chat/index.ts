@@ -27,6 +27,7 @@ import {
   cleanMessage,
   hashAddr,
   mintSession,
+  mintVisitor,
   parseReply,
   partialReply,
   selectConcepts,
@@ -34,6 +35,7 @@ import {
   validateKnowledge,
   verifyHistory,
   verifySession,
+  verifyVisitor,
   type KnowledgeIndex,
   type PartialReply,
   type Reply,
@@ -131,7 +133,7 @@ async function knowledge(): Promise<KnowledgeIndex | null> {
 /* Postgres: the limits and the refused-turn log                        */
 /* ------------------------------------------------------------------ */
 
-type Take = 'ok' | 'sessions' | 'address' | 'session' | 'budget' | 'invalid' | 'error';
+type Take = 'ok' | 'sessions' | 'visitor' | 'crowd' | 'address' | 'session' | 'budget' | 'invalid' | 'error';
 
 /**
  * Reserve `tokens` for one model call. FAILS CLOSED: if the database cannot
@@ -143,6 +145,9 @@ async function take(p: {
   sid: string;
   kind: 'message' | 'retry';
   newSession: boolean;
+  /** The browser id, on a session's first message; Postgres binds it to the
+      session there and finds it by `sid` after. */
+  visitor?: string | null;
   tokens: number;
 }): Promise<Take> {
   const url = Deno.env.get('SUPABASE_URL');
@@ -158,6 +163,7 @@ async function take(p: {
         p_kind: p.kind,
         p_new_session: p.newSession,
         p_tokens: p.tokens,
+        p_visitor: p.visitor ?? null,
         p_daily_tokens: Number.isFinite(daily) && daily > 0 ? Math.floor(daily) : 2_000_000,
       }),
     });
@@ -272,7 +278,7 @@ Deno.serve(async (req) => {
 
   const raw = await readLimited(req, LIMITS.bodyBytes);
   if (raw === null) return json(413, { error: 'too_large' }, origin);
-  let body: { message?: unknown; session?: unknown; turnstile?: unknown; history?: unknown; stream?: unknown };
+  let body: { message?: unknown; session?: unknown; turnstile?: unknown; history?: unknown; stream?: unknown; visitor?: unknown };
   try {
     body = JSON.parse(raw);
   } catch {
@@ -285,6 +291,8 @@ Deno.serve(async (req) => {
   /* ---------- who: a session, or a fresh Turnstile solve that mints one ---------- */
   let sid = await verifySession(body.session, secret, nowSec());
   let newSession: string | undefined;
+  let vid: string | null = null;
+  let newVisitor: string | undefined;
   if (!sid) {
     const token = typeof body.turnstile === 'string' ? body.turnstile : '';
     if (!token) return json(401, { error: 'session' }, origin);
@@ -299,6 +307,12 @@ Deno.serve(async (req) => {
     const minted = await mintSession(secret, nowSec());
     sid = minted.sid;
     newSession = minted.token;
+    /* The browser's id comes back with every new session, renewed — kept if
+       the browser still holds a good one, fresh if not (see mintVisitor). */
+    const known = await verifyVisitor(body.visitor, secret, nowSec());
+    const issued = await mintVisitor(secret, nowSec(), known ?? undefined);
+    vid = issued.vid;
+    newVisitor = issued.token;
   }
 
   /* ---------- what: a genuine history and a real message ---------- */
@@ -308,7 +322,7 @@ Deno.serve(async (req) => {
   if (!question) return json(400, { error: 'message' }, origin);
 
   const index = await knowledge();
-  if (!index) return json(503, { error: 'unavailable', answer: HANDOFF.failed, handoff: true, session: newSession }, origin);
+  if (!index) return json(503, { error: 'unavailable', answer: HANDOFF.failed, handoff: true, session: newSession, visitor: newVisitor }, origin);
 
   const addr = await hashAddr(ip, secret);
   const mode = Deno.env.get('CHAT_KNOWLEDGE_MODE') === 'full' ? 'full' : 'selective';
@@ -329,17 +343,23 @@ Deno.serve(async (req) => {
      still answers with its own status rather than inside a 200 stream. */
   const first = buildRequest(index, selection.ids, history, question);
   log.estimate += first.estimate;
-  const reserved = await take({ addr, sid: sid!, kind: 'message', newSession: Boolean(newSession), tokens: first.estimate });
+  const reserved = await take({ addr, sid: sid!, kind: 'message', newSession: Boolean(newSession), visitor: vid, tokens: first.estimate });
   if (reserved !== 'ok') {
     log.outcome = `limit:${reserved}`;
     console.log(JSON.stringify({ evt: 'chat', ...log }));
     const answer =
       reserved === 'budget' || reserved === 'error'
         ? HANDOFF.busy
-        : reserved === 'address'
+        : reserved === 'visitor' || reserved === 'address'
           ? HANDOFF.daily
-          : HANDOFF.limit;
-    return json(429, { error: 'limit', reason: reserved, answer, handoff: true, session: newSession }, origin);
+          : reserved === 'crowd'
+            ? HANDOFF.crowd
+            : HANDOFF.limit;
+    /* 'address' is the name the page locks its composer on for 24 hours, so
+       the per-browser ten keeps it. 'crowd' — the address ceiling — must not
+       lock anyone: it is the network that is busy, not this visitor. */
+    const reason = reserved === 'visitor' ? 'address' : reserved;
+    return json(429, { error: 'limit', reason, answer, handoff: true, session: newSession, visitor: newVisitor }, origin);
   }
 
   /**
@@ -470,6 +490,7 @@ Deno.serve(async (req) => {
         handoff: !final || !final.onTopic,
         turn: { q: question, a: answer, ids: carried, sig },
         session: newSession,
+        visitor: newVisitor,
       },
     };
   }
@@ -492,7 +513,7 @@ Deno.serve(async (req) => {
         send(await run((d) => send({ d })));
       } catch (err) {
         console.error('chat stream failed:', String(err));
-        send({ status: 500, body: { error: 'unavailable', answer: HANDOFF.failed, handoff: true, session: newSession } });
+        send({ status: 500, body: { error: 'unavailable', answer: HANDOFF.failed, handoff: true, session: newSession, visitor: newVisitor } });
       }
       ctrl.close();
     },

@@ -18,6 +18,7 @@ import {
   hashAddr,
   isSitePath,
   mintSession,
+  mintVisitor,
   parseReply,
   partialReply,
   referenceBlock,
@@ -28,6 +29,7 @@ import {
   validateKnowledge,
   verifyHistory,
   verifySession,
+  verifyVisitor,
   type Concept,
   type Turn,
 } from '../supabase/functions/chat/guards.ts';
@@ -507,4 +509,30 @@ test('generateStream: joins SSE chunks, reports text so far, keeps the last usag
   }
   assert.deepEqual(seen, ['{"on_topic":', '{"on_topic":true}']);
   assert.match(url, /:streamGenerateContent\?alt=sse$/);
+});
+
+/* ------------------------------------------------------------------ */
+/* The browser id                                                      */
+/* ------------------------------------------------------------------ */
+
+test('browser id: round-trips, renews, and refuses forgery, expiry and a session token', async () => {
+  const { token, vid } = await mintVisitor(SECRET, NOW);
+  assert.match(vid, /^[A-Za-z0-9_-]{22}$/);
+  assert.equal(await verifyVisitor(token, SECRET, NOW + 60), vid);
+
+  const renewed = await mintVisitor(SECRET, NOW + 100, vid);
+  assert.equal(renewed.vid, vid, 'a renewal keeps the id');
+  assert.notEqual(renewed.token, token);
+
+  const [id, exp, sig] = token.split('.');
+  assert.equal(await verifyVisitor(`${id}.${Number(exp) + 1}.${sig}`, SECRET, NOW), null, 'edited expiry');
+  assert.equal(await verifyVisitor(`${'A'.repeat(22)}.${exp}.${sig}`, SECRET, NOW), null, 'edited id');
+  assert.equal(await verifyVisitor(token, 'another-secret-0123456789-abcdefghijklmn', NOW), null, 'other key');
+  assert.equal(await verifyVisitor(token, SECRET, NOW + 31 * 24 * 60 * 60), null, 'expired');
+  assert.equal(await verifyVisitor('nonsense', SECRET, NOW), null);
+  assert.equal(await verifyVisitor(undefined, SECRET, NOW), null);
+
+  const session = await mintSession(SECRET, NOW);
+  assert.equal(await verifyVisitor(session.token, SECRET, NOW), null, 'a session token is not a browser id');
+  assert.equal(await verifySession(token, SECRET, NOW), null, 'and a browser id is not a session');
 });
