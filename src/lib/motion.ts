@@ -51,6 +51,23 @@ let rescue: IntersectionObserver | null = null;
 export const prefersReducedMotion = () =>
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+/**
+ * A crawler that renders the page gets it without the animation layer, for
+ * the same reason a reduced-motion visitor does: every `[data-reveal]` below
+ * the fold waits at opacity 0 for a scroll that a crawler never makes. Google's
+ * live test showed exactly that — the heading and the cover image, then an
+ * empty column where the article was, with every word of it present in the
+ * DOM. Same content, same markup; it only skips the fade.
+ *
+ * Named crawlers, not a bare /bot/: that matches real phones (Cubot's Android
+ * UA says "CUBOT"). And NOT Lighthouse — PageSpeed has to measure the page a
+ * visitor gets, animation included, or its numbers stop meaning anything.
+ */
+const isCrawler = () =>
+  /Googlebot|Google-InspectionTool|AdsBot-Google|bingbot|DuckDuckBot|YandexBot|Applebot|Baiduspider/i.test(
+    navigator.userAgent
+  );
+
 async function loadEngine() {
   if (gsap && ScrollTrigger) return;
   const [gsapMod, stMod] = await Promise.all([import('gsap'), import('gsap/ScrollTrigger')]);
@@ -64,7 +81,7 @@ export function initMotion() {
   teardownMotion();
   stale = false;
 
-  if (prefersReducedMotion()) {
+  if (prefersReducedMotion() || isCrawler()) {
     // Reveal everything immediately and skip the whole animation layer —
     // without loading it. Plain DOM, because gsap is not here and must not be
     // fetched just to set two properties.
