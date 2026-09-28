@@ -141,6 +141,27 @@ const save = (s: State) => {
   }
 };
 
+/* Only a WHOLE message of greeting or thanks — "hi, what do you charge?" is a
+   question and still goes to the model. */
+const GREETING =
+  /^(h+i+|h+e+y+|hello+|helo+|hiya|yo|namaste|hola|good (morning|afternoon|evening))( there| team| aniwala)?$/;
+const THANKS =
+  /^((ok(ay)? )?(thanks?|thank (you|u)|thx|ty)( (so|very) much| a lot| again)?|ok(ay)?|cool|great|perfect|nice|awesome)$/;
+const BYE = /^(bye+|bye bye|goodbye|good night|see (you|ya)( later)?|take care)$/;
+
+function smallTalk(message: string): string | null {
+  const m = message
+    .toLowerCase()
+    .replace(/[^\p{L}\s]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (GREETING.test(m))
+    return 'Hello! What would you like to know — our services, past work, how a project runs, or open roles?';
+  if (THANKS.test(m)) return 'You are welcome! Anything else I can help with?';
+  if (BYE.test(m)) return 'Thanks for stopping by! If you want to talk to the team, get in touch any time.';
+  return null;
+}
+
 function init(root: HTMLElement) {
   const $ = <T extends HTMLElement>(sel: string) => root.querySelector(sel) as T;
   const launcher = $<HTMLButtonElement>('.chat-launcher');
@@ -270,7 +291,7 @@ function init(root: HTMLElement) {
       b.addEventListener('click', () => {
         chips.remove();
         say({ who: 'you', text: s.q });
-        say({ who: 'bot', text: s.a, links: s.links });
+        void typeRow(say({ who: 'bot', text: s.a, links: s.links }));
       });
       chips.append(b);
     }
@@ -289,10 +310,88 @@ function init(root: HTMLElement) {
 
   /** Show a message AND keep it for replay. */
   function say(e: Entry) {
-    render(e);
+    const r = render(e);
     state.transcript.push(e);
     if (state.transcript.length > MAX_TRANSCRIPT) state.transcript.splice(0, state.transcript.length - MAX_TRANSCRIPT);
     save(state);
+    return r;
+  }
+
+  /* ---------- typing ---------- */
+
+  const stillMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /**
+   * Reveals text into `el` as if typed: about 60 characters a second, faster the more
+   * is waiting, so a burst from the stream is never left far behind. Reduced
+   * motion, or a tab in the background (where frames stop), gets the text at
+   * once.
+   */
+  function typer(el: HTMLElement) {
+    let queue = '';
+    let running = false;
+    let drained: (() => void) | null = null;
+    const flush = () => {
+      el.textContent += queue;
+      queue = '';
+      running = false;
+      scrollDown();
+      drained?.();
+      drained = null;
+    };
+    const tick = () => {
+      if (document.hidden) return flush();
+      const n = Math.max(1, Math.ceil(queue.length / 80));
+      el.textContent += queue.slice(0, n);
+      queue = queue.slice(n);
+      scrollDown();
+      if (queue) requestAnimationFrame(tick);
+      else flush();
+    };
+    return {
+      push(text: string) {
+        queue += text;
+        if (stillMotion() || document.hidden) return flush();
+        if (!running) {
+          running = true;
+          requestAnimationFrame(tick);
+        }
+      },
+      /** Resolves once everything pushed is on screen. */
+      done(): Promise<void> {
+        if (!queue) return Promise.resolve();
+        if (document.hidden) {
+          flush();
+          return Promise.resolve();
+        }
+        return new Promise((r) => (drained = r));
+      },
+    };
+  }
+
+  /**
+   * Types out a bot row that has just been rendered whole. Screen readers get
+   * the full text at once from a hidden copy — the live log would otherwise
+   * announce it again every few characters — and the links appear when the
+   * typing is done.
+   */
+  async function typeRow(r: HTMLElement) {
+    const p = r.querySelector<HTMLElement>('.chat-msg p');
+    if (!p || stillMotion()) return;
+    const full = p.textContent ?? '';
+    const copy = document.createElement('span');
+    copy.className = 'visually-hidden';
+    copy.textContent = full;
+    p.before(copy);
+    p.setAttribute('aria-hidden', 'true');
+    const links = r.querySelector<HTMLElement>('.chat-links');
+    if (links) links.style.display = 'none';
+    p.textContent = '';
+    const t = typer(p);
+    t.push(full);
+    await t.done();
+    if (links) links.style.display = '';
+    scrollDown();
   }
 
   function replay() {
@@ -327,7 +426,8 @@ function init(root: HTMLElement) {
       if (!document.getElementById('cf-turnstile-api')) {
         const s = document.createElement('script');
         s.id = 'cf-turnstile-api';
-        s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=aniwalaChatTurnstileReady';
+        s.src =
+          'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=aniwalaChatTurnstileReady';
         s.async = true;
         s.onerror = () => resolve(null);
         document.head.appendChild(s);
@@ -341,30 +441,75 @@ function init(root: HTMLElement) {
         setTimeout(() => {
           clearInterval(poll);
           resolve(w.turnstile ?? null);
-        }, 10_000);
+        }, 20_000);
       }
     });
     return ready;
   }
 
-  async function turnstileToken(): Promise<string> {
-    const api = await turnstile();
-    if (!api) return '';
-    if (widgetId === undefined) {
+  /* The widget is mounted when the chat OPENS, not when the first message is
+     sent, so the solve runs while the visitor is typing. Mounting on send and
+     waiting 10s for a token was a dead end for anyone whose solve was slow or
+     who was shown the checkbox: "hii" got "the human check did not load" with
+     the check still working away underneath. */
+  let interactive = false;
+  let lastError = '';
+
+  function mountTurnstile(api: TurnstileApi) {
+    if (widgetId !== undefined) return;
+    try {
       widgetId = api.render(slot, {
         sitekey: data.siteKey,
         action: 'chat',
         theme: 'auto',
         appearance: 'interaction-only',
+        'error-callback': (code: unknown) => {
+          lastError = String(code || 'unknown');
+          try {
+            console.error('[chat turnstile] code ' + lastError);
+          } catch {
+            /* nothing to log to */
+          }
+          return true; // handled — Turnstile still retries on its own
+        },
+        'before-interactive-callback': () => {
+          interactive = true;
+        },
+        'after-interactive-callback': () => {
+          interactive = false;
+        },
       });
+    } catch {
+      /* a bad sitekey throws; turnstileToken reports it */
     }
-    const deadline = Date.now() + 10_000;
+  }
+
+  /** '' plus the reason when no token came: 'blocked' (api.js never loaded —
+      usually a content blocker) or 'timeout'. */
+  async function turnstileToken(): Promise<{
+    token: string;
+    reason?: 'blocked' | 'timeout';
+  }> {
+    const api = await turnstile();
+    if (!api) return { token: '', reason: 'blocked' };
+    mountTurnstile(api);
+    if (widgetId === undefined) return { token: '', reason: 'timeout' };
+    /* 30s for an invisible solve. Once Cloudflare shows the checkbox it is
+       waiting on a person, so the clock gets two minutes and the visitor is
+       told where to look. */
+    let deadline = Date.now() + 30_000;
+    let told = false;
     while (Date.now() < deadline) {
       const t = api.getResponse(widgetId);
-      if (t) return t;
+      if (t) return { token: t };
+      if (interactive && !told) {
+        told = true;
+        deadline = Date.now() + 120_000;
+        bubble('bot', 'One quick check first — please tick the box below and I will answer.');
+      }
       await new Promise((r) => setTimeout(r, 250));
     }
-    return '';
+    return { token: '', reason: 'timeout' };
   }
 
   function resetTurnstile() {
@@ -378,13 +523,65 @@ function init(root: HTMLElement) {
 
   /* ---------- talking to the function ---------- */
 
-  async function post(message: string, fresh: boolean): Promise<{ status: number; body: Reply }> {
-    const payload: Record<string, unknown> = { message, history: fresh ? [] : state.history };
+  /* The function streams the answer as it is written (server-sent events over
+     this POST): `{d}` pieces of text, then one `{status, body}` that is the
+     same body the JSON reply carries. Anything that fails BEFORE the model —
+     a limit, an expired session — still comes back as plain JSON with its own
+     status, so both shapes are read here. */
+  async function readStream(res: Response, onText: (piece: string) => void): Promise<{ status: number; body: Reply }> {
+    const reader = res.body?.getReader();
+    if (!reader) return { status: 0, body: { error: 'network' } };
+    const decoder = new TextDecoder();
+    let buf = '';
+    let final: { status: number; body: Reply } | null = null;
+    const take = (event: string) => {
+      const data = event.replace(/^data: ?/, '');
+      if (!data) return;
+      try {
+        const o = JSON.parse(data) as {
+          d?: unknown;
+          status?: unknown;
+          body?: Reply;
+        };
+        if (typeof o.d === 'string') onText(o.d);
+        else if (typeof o.status === 'number' && o.body) final = { status: o.status, body: o.body };
+      } catch {
+        /* a torn event — the final one decides */
+      }
+    };
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let at: number;
+        while ((at = buf.indexOf('\n\n')) >= 0) {
+          take(buf.slice(0, at));
+          buf = buf.slice(at + 2);
+        }
+      }
+      take(buf.trim());
+    } catch {
+      /* the connection dropped part-way */
+    }
+    return final ?? { status: 0, body: { error: 'network' } };
+  }
+
+  async function post(
+    message: string,
+    fresh: boolean,
+    onText: (piece: string) => void
+  ): Promise<{ status: number; body: Reply }> {
+    const payload: Record<string, unknown> = {
+      message,
+      history: fresh ? [] : state.history,
+      stream: true,
+    };
     if (!fresh && state.session) {
       payload.session = state.session;
     } else {
-      const token = await turnstileToken();
-      if (!token) return { status: 0, body: { error: 'verification' } };
+      const { token, reason } = await turnstileToken();
+      if (!token) return { status: 0, body: { error: 'verification', reason } };
       payload.turnstile = token;
       resetTurnstile(); // single use: the next new session needs a new solve
     }
@@ -394,6 +591,7 @@ function init(root: HTMLElement) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+      if ((res.headers.get('content-type') ?? '').includes('text/event-stream')) return await readStream(res, onText);
       let body: Reply = {};
       try {
         body = await res.json();
@@ -408,6 +606,17 @@ function init(root: HTMLElement) {
 
   async function ask(message: string) {
     if (busy || limited) return;
+    /* Small talk answers from fixed text, like the chips: a "hii" does not
+       need a human check and a model round trip (~4s) to be greeted. It does
+       not count against the daily ten either. */
+    const small = smallTalk(message);
+    if (small) {
+      log.querySelector('.chat-suggestions')?.remove();
+      say({ who: 'you', text: message });
+      void typeRow(say({ who: 'bot', text: small }));
+      input.focus();
+      return;
+    }
     busy = true;
     send.disabled = true;
     log.querySelector('.chat-suggestions')?.remove();
@@ -418,13 +627,57 @@ function init(root: HTMLElement) {
     dots.append(document.createElement('span'), document.createElement('span'), document.createElement('span'));
     const thinking = row('bot', dots);
 
-    let { status, body } = await post(message, !state.session);
+    /* The answer as it is written, in a bubble of its own. It is hidden from
+       screen readers, which would otherwise read every few words again; the
+       finished message replaces it below and is the one announced. */
+    let live: {
+      row: HTMLElement;
+      typer: ReturnType<typeof typer>;
+      text: string;
+    } | null = null;
+    const onText = (piece: string) => {
+      if (!live) {
+        thinking.remove();
+        const r = bubble('bot', '');
+        r.setAttribute('aria-hidden', 'true');
+        live = {
+          row: r,
+          typer: typer(r.querySelector('.chat-msg p') as HTMLElement),
+          text: '',
+        };
+      }
+      live.text += piece;
+      live.typer.push(piece);
+    };
+
+    let { status, body } = await post(message, !state.session, onText);
     if (status === 401 || (status === 400 && body.error === 'history')) {
       // The session expired or the stored history is no longer valid: start over.
       state = { history: [], transcript: state.transcript };
-      ({ status, body } = await post(message, true));
+      ({ status, body } = await post(message, true, onText));
+    }
+    if (status === 403 && body.error === 'verification') {
+      // Cloudflare refused that token (expired or already spent); the widget
+      // was reset after use, so one more solve is worth waiting for.
+      ({ status, body } = await post(message, true, onText));
     }
     thinking.remove();
+    /* The final body is the checked answer (with its links), and it may differ
+       from what streamed — trimmed, or a fixed hand-off if the reply failed
+       its checks. */
+    const streamed = live as {
+      row: HTMLElement;
+      typer: ReturnType<typeof typer>;
+      text: string;
+    } | null;
+    if (streamed) {
+      await streamed.typer.done();
+      streamed.row.remove();
+    }
+    /* The finished row is typed out too — unless it is the text that has just
+       been typed, which then simply stays on screen and gains its links. */
+    const already = streamed?.text.trim() ?? '';
+    const reveal = (r: HTMLElement) => (r.textContent?.includes(already) && already ? undefined : typeRow(r));
 
     if (body.session) state.session = body.session;
     if (status === 429 && body.reason === 'address') lockDaily(Date.now() + 24 * 60 * 60 * 1000);
@@ -434,15 +687,37 @@ function init(root: HTMLElement) {
       if (body.turn) state.history.push(body.turn);
       /* The question is kept with its answer, so a reload shows the pair. */
       state.transcript.push({ who: 'you', text: message });
-      say({ who: 'bot', text: body.answer, links, action: body.action, handoff: body.handoff });
+      await reveal(
+        say({
+          who: 'bot',
+          text: body.answer,
+          links,
+          action: body.action,
+          handoff: body.handoff,
+        })
+      );
     } else if (body.error === 'verification') {
-      bubble('bot', 'The human check did not load, so I cannot answer here. You can reach the team directly.', [], [
-        ['Get in touch', '/contact/'],
-      ]);
+      await typeRow(
+        bubble(
+          'bot',
+          body.reason === 'blocked'
+            ? 'The quick human check was blocked from loading, which is usually an ad or privacy blocker. Allowing challenges.cloudflare.com fixes it, or you can reach the team directly.'
+            : 'The quick human check did not finish in time. Please send your question again, or reach the team directly.',
+          [],
+          [['Get in touch', '/contact/']]
+        )
+      );
     } else if (body.error === 'message') {
-      bubble('bot', 'That message is too long — please keep it under 500 characters.');
+      await typeRow(bubble('bot', 'That message is too long — please keep it under 500 characters.'));
     } else {
-      bubble('bot', 'Something went wrong on my side. You can reach the team directly.', [], [['Get in touch', '/contact/']]);
+      await typeRow(
+        bubble(
+          'bot',
+          'Something went wrong on my side. You can reach the team directly.',
+          [],
+          [['Get in touch', '/contact/']]
+        )
+      );
     }
     save(state);
     busy = false;
@@ -463,7 +738,7 @@ function init(root: HTMLElement) {
     }
     if (open) {
       input.focus();
-      if (!state.session) void turnstile();
+      if (!state.session) void turnstile().then((api) => api && mountTurnstile(api));
     } else {
       launcher.focus();
     }

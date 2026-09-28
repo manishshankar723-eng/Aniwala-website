@@ -32,7 +32,9 @@ terminal. Use it only if you want the logs streaming in front of you.
 
 Two ways in, one way out.
 
-**A code change** — push to `main`.
+**A code change** — push to `staging`, check it on staging.aniwala.com, then
+merge `staging` into `main`. See *Staging* below; never push code straight to
+`main`.
 **A content change** — hit Publish in the Studio at
 <https://aniwala.com/admin>. That redirects to `aniwala.sanity.studio`, which
 Sanity now redirects onward to `https://www.sanity.io/@<org>/studio/<id>` —
@@ -58,6 +60,58 @@ static and would carry on serving the previous build. If an editor says
 Hostinger runs PHP, not Node — it only ever receives finished HTML.
 Never point the workflow at a Node runtime; there isn't one on this plan.
 
+### Staging
+
+**Decided 28 September 2026: every code change goes to staging before it goes
+live.** The branch is the target — the same workflow, the same `verify` gate:
+
+| Push to | Deploys to | Folder on the server |
+| --- | --- | --- |
+| `staging` | <https://staging.aniwala.com> (password protected) | `public_html/staging/` |
+| `main` | <https://aniwala.com> | `public_html/` (excluding `staging/`) |
+
+```bash
+git checkout staging && git merge main     # start level with live
+# ...make the change, commit...
+git push origin staging                    # -> staging.aniwala.com in ~2 min
+# check it in a browser, then:
+git checkout main && git merge staging && git push origin main   # -> live
+```
+
+Going live as a merge means aniwala.com gets the commit that was already
+looked at, not a re-typed copy of it. A pull request from `staging` into
+`main` does the same thing with a review page in between.
+
+**What staging does NOT preview: content.** Staging and the live site read the
+same Sanity dataset, and a Publish rebuilds production only (the webhook's
+`repository_dispatch` runs on `main`). So a published document is live the
+moment the webhook build finishes, and staging shows it only on its next
+build. To look at content before it goes out, use the Studio's **Drafts** and
+**Releases** — that is the content equivalent of staging.
+
+**Staging's forms are REAL.** It builds with the production keys, so a booking,
+application or comment sent from staging lands in the live database and sends
+the live emails. That is why it is behind a password, and why a test
+submission there should say so in the message.
+
+**How the password survives a deploy.** hPanel → Advanced → Password Protect
+Directories writes its rule into `public_html/staging/.htaccess` — the file
+every build replaces. The staging deploy reads those lines off the server,
+writes them at the top of the new file, and refuses to deploy if it cannot
+find them. Afterwards it checks both staging addresses answer 401, and if not,
+it puts the previous file back and fails. Changing the staging password in
+hPanel needs nothing else; the next deploy picks up the new lines.
+
+What staging needs outside this repo, both checked on 28 September 2026 or to
+check once:
+
+- `EXTRA_ORIGINS` on the Edge Functions includes `https://staging.aniwala.com`
+  (verified — a preflight from that origin is allowed). Without it, staging's
+  forms get `{"error":"Forbidden"}`.
+- `staging.aniwala.com` is in the Turnstile widget's hostname list at
+  dash.cloudflare.com. Without it the captcha renders nothing (error `110200`)
+  and staging's forms cannot be sent.
+
 ### The third way in: a change to the Studio itself
 
 **Pushing does not deploy the Studio.** The workflow above has two jobs,
@@ -75,7 +129,7 @@ and it is easy to finish one and believe you finished all of them:
 
 | What changed | How it ships | Covered by `git push`? |
 | --- | --- | --- |
-| Website code — `src/`, `public/`, `scripts/` | push to `main` → Actions → Hostinger | yes |
+| Website code — `src/`, `public/`, `scripts/` | push to `staging`, then merge to `main` → Actions → Hostinger | yes |
 | Studio code — `studio/schemas/`, `studio/components/` | `cd studio && npm run deploy` | **no** |
 | Content — documents, images, field values | Publish, or a script writing to the dataset | n/a — it is already live |
 
@@ -115,12 +169,11 @@ deploying, editors with the Studio already open should hard-reload
 
 **The cutover happened on 14 September 2026.** `aniwala.com` serves this build
 from `public_html/`; the WordPress install is gone. `staging.aniwala.com` is
-the last staging build, frozen inside `public_html/staging/` (the deploy's
-rsync excludes that folder) and **behind a password** set in hPanel → Advanced
-→ Password Protect Directories. The rule lives in the staging folder's own
-`.htaccess`, so deploys never touch it — re-checked after a deploy on
-15 September 2026: both `aniwala.com/staging/` and `staging.aniwala.com` answer
-401.
+served from `public_html/staging/` (the production rsync excludes that folder)
+and **behind a password** set in hPanel → Advanced → Password Protect
+Directories. It was frozen at its last build from the cutover until
+28 September 2026, when it became the first stop for every code change — see
+*Staging* above, including how its password survives a deploy.
 
 The list below was the cutover checklist. Every item still describes
 something that breaks silently if it drifts, so it stays.
@@ -592,8 +645,12 @@ account, and whenever something here stops working.
   account" form on that page makes another login with write access to
   `public_html` — it is not where the password is changed.
 - **`public_html/staging` is password protected** (Advanced → Password Protect
-  Directories). It is a frozen build whose forms still write to the live
-  database. Both addresses must answer 401.
+  Directories). Every code change is deployed there first, and its forms write
+  to the live database. Both addresses must answer 401 — the staging deploy
+  checks this and refuses to run if the password rule is missing, so removing
+  the password here also stops staging deploys.
+- **Turnstile's hostname list includes `staging.aniwala.com`**, or staging's
+  forms cannot be sent (see *Staging*).
 
 **GitHub**
 

@@ -28,16 +28,18 @@ import {
   hashAddr,
   mintSession,
   parseReply,
+  partialReply,
   selectConcepts,
   signTurn,
   validateKnowledge,
   verifyHistory,
   verifySession,
   type KnowledgeIndex,
+  type PartialReply,
   type Reply,
 } from './guards.ts';
-import { HANDOFF, buildRequest } from './prompt.ts';
-import { accessToken, generate, parseServiceAccount, type Usage, type VertexConfig } from './vertex.ts';
+import { HANDOFF, buildRequest, type ModelRequest } from './prompt.ts';
+import { accessToken, generateStream, parseServiceAccount, type Usage, type VertexConfig } from './vertex.ts';
 
 const json = (status: number, body: unknown, origin: string | null) =>
   new Response(JSON.stringify(body), {
@@ -46,6 +48,20 @@ const json = (status: number, body: unknown, origin: string | null) =>
   });
 
 const nowSec = () => Math.floor(Date.now() / 1000);
+
+/* Supabase's runtime keeps the worker alive for a promise handed to
+   `EdgeRuntime.waitUntil` after the response has gone. Elsewhere (a plain Deno
+   run) the promise simply runs unawaited. Both writers it is used for already
+   catch their own errors. */
+declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
+const background = (p: Promise<unknown>) => {
+  try {
+    if (typeof EdgeRuntime !== 'undefined') return EdgeRuntime.waitUntil(p);
+  } catch {
+    /* fall through */
+  }
+  void p;
+};
 
 /* ------------------------------------------------------------------ */
 /* The body, capped BEFORE it is parsed                                */
@@ -256,7 +272,7 @@ Deno.serve(async (req) => {
 
   const raw = await readLimited(req, LIMITS.bodyBytes);
   if (raw === null) return json(413, { error: 'too_large' }, origin);
-  let body: { message?: unknown; session?: unknown; turnstile?: unknown; history?: unknown };
+  let body: { message?: unknown; session?: unknown; turnstile?: unknown; history?: unknown; stream?: unknown };
   try {
     body = JSON.parse(raw);
   } catch {
@@ -309,88 +325,185 @@ Deno.serve(async (req) => {
   const calls: Array<{ kind: 'message' | 'retry'; estimate: number; usage?: Usage }> = [];
   const log = { mode, fallback: selection.fallback, retried: false, ids: selection.ids.length, estimate: 0, outcome: '' };
 
-  async function ask(ids: string[], kind: 'message' | 'retry'): Promise<Reply | null | Take> {
-    const request = buildRequest(index!, ids, history!, question!);
-    log.estimate += request.estimate;
-    const t = await take({ addr, sid: sid!, kind, newSession: Boolean(newSession), tokens: request.estimate });
-    if (t !== 'ok') return t;
-    const call: { kind: 'message' | 'retry'; estimate: number; usage?: Usage } = { kind, estimate: request.estimate };
-    calls.push(call);
+  /* The first reservation is made BEFORE any response is started, so a limit
+     still answers with its own status rather than inside a 200 stream. */
+  const first = buildRequest(index, selection.ids, history, question);
+  log.estimate += first.estimate;
+  const reserved = await take({ addr, sid: sid!, kind: 'message', newSession: Boolean(newSession), tokens: first.estimate });
+  if (reserved !== 'ok') {
+    log.outcome = `limit:${reserved}`;
+    console.log(JSON.stringify({ evt: 'chat', ...log }));
+    const answer =
+      reserved === 'budget' || reserved === 'error'
+        ? HANDOFF.busy
+        : reserved === 'address'
+          ? HANDOFF.daily
+          : HANDOFF.limit;
+    return json(429, { error: 'limit', reason: reserved, answer, handoff: true, session: newSession }, origin);
+  }
+
+  /**
+   * One model call, already reserved. `watch` sees the reply as it arrives;
+   * returning 'stop' aborts the call there ('stopped').
+   */
+  async function call(
+    request: ModelRequest,
+    kind: 'message' | 'retry',
+    watch: (p: PartialReply) => void | 'stop'
+  ): Promise<Reply | null | 'stopped'> {
+    const entry: { kind: 'message' | 'retry'; estimate: number; usage?: Usage } = { kind, estimate: request.estimate };
+    calls.push(entry);
+    const stop = new AbortController();
+    let stopped = false;
     try {
       const token = await accessToken(sa!);
-      const out = await generate(vertex, token, request, AbortSignal.timeout(Math.max(deadline - Date.now(), 1000)));
+      const signal = AbortSignal.any([stop.signal, AbortSignal.timeout(Math.max(deadline - Date.now(), 1000))]);
+      const out = await generateStream(
+        vertex,
+        token,
+        request,
+        (text) => {
+          if (stopped) return;
+          if (watch(partialReply(text)) === 'stop') {
+            stopped = true;
+            stop.abort();
+          }
+        },
+        signal
+      );
       usages.push(out.usage);
-      call.usage = out.usage;
+      entry.usage = out.usage;
       return parseReply(out.text, index!);
     } catch (err) {
+      if (stopped) return 'stopped';
       console.error('chat model call failed:', String(err));
       return null;
     }
   }
 
-  let ids = selection.ids;
-  let reply = await ask(ids, 'message');
+  /**
+   * The turn. `emit` receives the answer text as it is written — only an
+   * answer that will be KEPT: once the first call has said which material it
+   * is missing, either it streams, or it is aborted right there and the retry
+   * streams instead. Whatever was emitted, the final body carries the checked
+   * answer, and the page shows that.
+   */
+  async function run(emit: (delta: string) => void): Promise<{ status: number; body: Record<string, unknown> }> {
+    let ids = selection.ids;
+    let sent = '';
+    const forward = (p: PartialReply) => {
+      if (p.onTopic !== true || p.answer === undefined) return;
+      if (p.answer.length > sent.length && p.answer.startsWith(sent)) {
+        emit(p.answer.slice(sent.length));
+        sent = p.answer;
+      }
+    };
 
-  if (typeof reply === 'string') {
-    log.outcome = `limit:${reply}`;
-    console.log(JSON.stringify({ evt: 'chat', ...log }));
-    const answer =
-      reply === 'budget' || reply === 'error'
-        ? HANDOFF.busy
-        : reply === 'address'
-          ? HANDOFF.daily
-          : HANDOFF.limit;
-    return json(429, { error: 'limit', reason: reply, answer, handoff: true, session: newSession }, origin);
-  }
+    /* null = the first call has not said yet what it needs. */
+    let wider: string[] | null = null;
+    const widen = (need: string[]): string[] => {
+      const extra = need.filter((id) => index!.ids.has(id) && !ids.includes(id)).slice(0, LIMITS.topK);
+      return mode === 'selective' && extra.length && Date.now() < deadline - 3000
+        ? [...new Set([...ids, ...extra])].sort()
+        : [];
+    };
 
-  /* One model-requested retry, never more, and only for ids that are real. */
-  if (reply && reply.onTopic && reply.need.length && mode === 'selective') {
-    const extra = reply.need.filter((id) => !ids.includes(id));
-    if (extra.length && Date.now() < deadline - 3000) {
-      const wider = [...new Set([...ids, ...extra])].sort();
-      const second = await ask(wider, 'retry');
+    let reply = await call(first, 'message', (p) => {
+      if (p.onTopic !== true || !p.need) return;
+      if (wider === null) {
+        wider = widen(p.need);
+        if (wider.length) return 'stop';
+      }
+      forward(p);
+    });
+    /* A model that wrote `need` after the answer: decide from the whole reply,
+       the way this worked before streaming. Nothing was emitted in that case. */
+    const retryIds: string[] = wider ?? (reply && reply !== 'stopped' && reply.onTopic ? widen(reply.need) : []);
+
+    /* One retry, never more, and only for ids that are real. */
+    if (retryIds.length) {
+      const request = buildRequest(index!, retryIds, history!, question!);
+      log.estimate += request.estimate;
       log.retried = true;
-      if (second && typeof second !== 'string') {
-        reply = second;
-        ids = wider;
+      const t = await take({ addr, sid: sid!, kind: 'retry', newSession: false, tokens: request.estimate });
+      if (t === 'ok') {
+        const second = await call(request, 'retry', forward);
+        if (second && second !== 'stopped') {
+          reply = second;
+          ids = retryIds;
+        }
       }
     }
+    const final = reply === 'stopped' ? null : reply;
+
+    let answer: string;
+    let links: string[] = [];
+    let action: Reply['action'] = 'none';
+    if (!final) {
+      answer = HANDOFF.failed;
+      log.outcome = 'bad_reply';
+      background(flag(addr, sid!, 'bad_reply', question!));
+    } else if (!final.onTopic) {
+      answer = REFUSAL;
+      log.outcome = 'off_topic';
+      background(flag(addr, sid!, 'off_topic', question!));
+    } else {
+      ({ answer, links, action } = final);
+      log.outcome = 'answered';
+    }
+
+    /* What this turn carries forward. After a fallback nothing SPECIFIC was
+       picked, so nothing is carried — otherwise every later turn would drag the
+       whole base along, and the id list would outgrow the history check. */
+    const carried = selection.fallback && ids === selection.ids ? [] : ids;
+    const sig = await signTurn(secret, sid!, history!.length, last?.sig ?? '', question!, answer, carried);
+    console.log(JSON.stringify({ evt: 'chat', ...log, usage: usages }));
+    /* Bookkeeping after the reply, not in front of it. */
+    background(recordCalls(calls, mode, selection.fallback, log.outcome));
+
+    return {
+      status: 200,
+      body: {
+        answer,
+        links,
+        action,
+        handoff: !final || !final.onTopic,
+        turn: { q: question, a: answer, ids: carried, sig },
+        session: newSession,
+      },
+    };
   }
 
-  let answer: string;
-  let links: string[] = [];
-  let action: Reply['action'] = 'none';
-  if (!reply) {
-    answer = HANDOFF.failed;
-    log.outcome = 'bad_reply';
-    await flag(addr, sid, 'bad_reply', question);
-  } else if (!reply.onTopic) {
-    answer = REFUSAL;
-    log.outcome = 'off_topic';
-    await flag(addr, sid, 'off_topic', question);
-  } else {
-    ({ answer, links, action } = reply);
-    log.outcome = 'answered';
+  /* A page that posts no `stream` gets JSON, exactly as before — so the site
+     and this function can be deployed in either order. */
+  if (body.stream !== true) {
+    const { status, body: out } = await run(() => {});
+    return json(status, out, origin);
   }
 
-  /* What this turn carries forward. After a fallback nothing SPECIFIC was
-     picked, so nothing is carried — otherwise every later turn would drag the
-     whole base along, and the id list would outgrow the history check. */
-  const carried = selection.fallback && ids === selection.ids ? [] : ids;
-  const sig = await signTurn(secret, sid, history.length, last?.sig ?? '', question, answer, carried);
-  console.log(JSON.stringify({ evt: 'chat', ...log, usage: usages }));
-  await recordCalls(calls, mode, selection.fallback, log.outcome);
-
-  return json(
-    200,
-    {
-      answer,
-      links,
-      action,
-      handoff: !reply || !reply.onTopic,
-      turn: { q: question, a: answer, ids: carried, sig },
-      session: newSession,
+  /* Server-sent events over a POST: `{"d": text}` as the answer is written,
+     then exactly one `{"status", "body"}` — the same body the JSON path
+     returns. The status of THIS response is 200 whatever happens next. */
+  const enc = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(ctrl) {
+      const send = (o: unknown) => ctrl.enqueue(enc.encode(`data: ${JSON.stringify(o)}\n\n`));
+      try {
+        send(await run((d) => send({ d })));
+      } catch (err) {
+        console.error('chat stream failed:', String(err));
+        send({ status: 500, body: { error: 'unavailable', answer: HANDOFF.failed, handoff: true, session: newSession } });
+      }
+      ctrl.close();
     },
-    origin
-  );
+  });
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+      ...cors(origin),
+    },
+  });
 });

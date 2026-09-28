@@ -106,12 +106,12 @@ export interface Usage {
 /** Only letters, digits and `.-_` in anything that goes into the URL path. */
 const PATH_PART = /^[a-z0-9][a-z0-9._-]{0,99}$/i;
 
-function endpoint(cfg: VertexConfig): string {
+function endpoint(cfg: VertexConfig, method = 'generateContent'): string {
   if (![cfg.project, cfg.region, cfg.model].every((p) => PATH_PART.test(p))) {
     throw new Error('GCP_PROJECT_ID, GCP_REGION or GEMINI_MODEL is not a plain identifier');
   }
   const host = cfg.region === 'global' ? 'aiplatform.googleapis.com' : `${cfg.region}-aiplatform.googleapis.com`;
-  return `https://${host}/v1/projects/${cfg.project}/locations/${cfg.region}/publishers/google/models/${cfg.model}:generateContent`;
+  return `https://${host}/v1/projects/${cfg.project}/locations/${cfg.region}/publishers/google/models/${cfg.model}:${method}`;
 }
 
 /**
@@ -128,6 +128,41 @@ function thinkingConfig(model: string): Record<string, unknown> {
  * One generateContent call. Returns the text of the reply (JSON, to be parsed
  * by `parseReply`) and the usage, or throws with a message safe to log.
  */
+function requestBody(cfg: VertexConfig, req: ModelRequest): string {
+  return JSON.stringify({
+    systemInstruction: { parts: [{ text: req.system }] },
+    contents: req.contents,
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: MAX_OUTPUT_TOKENS,
+      responseMimeType: 'application/json',
+      responseSchema: RESPONSE_SCHEMA,
+      thinkingConfig: thinkingConfig(cfg.model),
+    },
+  });
+}
+
+async function failure(res: Response): Promise<Error> {
+  let status = '';
+  try {
+    status = ((await res.json()) as { error?: { status?: string } }).error?.status ?? '';
+  } catch {
+    /* not JSON */
+  }
+  return new Error(`vertex ${res.status} ${status}`.trim());
+}
+
+type Chunk = {
+  candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>;
+  usageMetadata?: Usage;
+};
+
+const chunkText = (json: Chunk) =>
+  (json.candidates?.[0]?.content?.parts ?? [])
+    .filter((p) => !p.thought && typeof p.text === 'string')
+    .map((p) => p.text)
+    .join('');
+
 export async function generate(
   cfg: VertexConfig,
   token: string,
@@ -138,37 +173,64 @@ export async function generate(
     method: 'POST',
     signal,
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: req.system }] },
-      contents: req.contents,
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: MAX_OUTPUT_TOKENS,
-        responseMimeType: 'application/json',
-        responseSchema: RESPONSE_SCHEMA,
-        thinkingConfig: thinkingConfig(cfg.model),
-      },
-    }),
+    body: requestBody(cfg, req),
   });
+  if (!res.ok) throw await failure(res);
+  const json = (await res.json()) as Chunk;
+  return { text: chunkText(json), usage: json.usageMetadata ?? {}, finish: json.candidates?.[0]?.finishReason };
+}
 
-  if (!res.ok) {
-    let status = '';
-    try {
-      status = ((await res.json()) as { error?: { status?: string } }).error?.status ?? '';
-    } catch {
-      /* not JSON */
+/**
+ * The same call, streamed (`streamGenerateContent`, server-sent events).
+ * `onText` gets the WHOLE reply so far after every chunk, and the result is
+ * what `generate` would have returned. Usage arrives with the last chunk; a
+ * call aborted part-way has none, and throws.
+ */
+export async function generateStream(
+  cfg: VertexConfig,
+  token: string,
+  req: ModelRequest,
+  onText: (textSoFar: string) => void,
+  signal?: AbortSignal
+): Promise<{ text: string; usage: Usage; finish?: string }> {
+  const res = await fetch(`${endpoint(cfg, 'streamGenerateContent')}?alt=sse`, {
+    method: 'POST',
+    signal,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: requestBody(cfg, req),
+  });
+  if (!res.ok) throw await failure(res);
+  if (!res.body) throw new Error('vertex stream has no body');
+
+  let text = '';
+  let usage: Usage = {};
+  let finish: string | undefined;
+  let buf = '';
+  const decoder = new TextDecoder();
+  const take = (line: string) => {
+    if (!line.startsWith('data:')) return;
+    const data = line.slice(5).trim();
+    if (!data) return;
+    const json = JSON.parse(data) as Chunk;
+    const part = chunkText(json);
+    if (json.usageMetadata) usage = json.usageMetadata;
+    finish = json.candidates?.[0]?.finishReason ?? finish;
+    if (part) {
+      text += part;
+      onText(text);
     }
-    throw new Error(`vertex ${res.status} ${status}`.trim());
-  }
-
-  const json = (await res.json()) as {
-    candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>;
-    usageMetadata?: Usage;
   };
-  const cand = json.candidates?.[0];
-  const text = (cand?.content?.parts ?? [])
-    .filter((p) => !p.thought && typeof p.text === 'string')
-    .map((p) => p.text)
-    .join('');
-  return { text, usage: json.usageMetadata ?? {}, finish: cand?.finishReason };
+  const reader = res.body.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      take(buf.slice(0, nl).replace(/\r$/, ''));
+      buf = buf.slice(nl + 1);
+    }
+  }
+  take(buf + decoder.decode());
+  return { text, usage, finish };
 }

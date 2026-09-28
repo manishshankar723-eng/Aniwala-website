@@ -54,6 +54,12 @@ export const RESPONSE_SCHEMA = {
     need: { type: 'ARRAY', items: { type: 'STRING' } },
   },
   required: ['on_topic', 'answer', 'links', 'action', 'need'],
+  /* The order the model WRITES them in, which streaming depends on:
+     `on_topic` and `need` arrive in the first few tokens, so the function
+     knows whether this answer will be shown, or replaced by a retry with more
+     material, before a word of it has been sent to the visitor — and a retry
+     can abort this call there instead of waiting for all of it. */
+  propertyOrdering: ['on_topic', 'need', 'action', 'answer', 'links'],
 } as const;
 
 export interface ModelRequest {

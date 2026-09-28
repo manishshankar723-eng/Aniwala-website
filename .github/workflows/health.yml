@@ -66,9 +66,11 @@ jobs:
 
     env:
       # ------------------------------------------------------------------
-      # MUST TRACK `SITE_TO_CHECK` IN deploy.yml. Both moved from staging to
-      # aniwala.com together at the cutover; if they ever disagree, this
-      # check quietly watches a host nobody is using.
+      # MUST TRACK THE PRODUCTION `SITE_TO_CHECK` IN deploy.yml. Both moved
+      # from staging to aniwala.com together at the cutover; if they ever
+      # disagree, this check quietly watches a host nobody is using. Staging
+      # is deliberately not watched here — it answers 401 to everyone, and
+      # the staging deploy checks that itself.
       # ------------------------------------------------------------------
       SITE: https://aniwala.com
       HOST: aniwala.com

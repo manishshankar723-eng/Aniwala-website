@@ -1,11 +1,22 @@
 name: Deploy to Hostinger
 
+#
+# TWO TARGETS, ONE PIPELINE. A push to `staging` builds and deploys to
+# staging.aniwala.com; a push to `main` builds and deploys to aniwala.com.
+# Code goes to `staging` first, is checked there, and reaches `main` by a
+# merge — so what goes live is the exact commit that was already looked at.
+# Content does not go through staging: both sites read the same Sanity
+# dataset, so a Publish is on both at once (see README -> Staging).
+#
 on:
   push:
-    branches: [main]
+    branches: [main, staging]
   pull_request:
-    branches: [main]
-  workflow_dispatch: # lets you re-deploy by hand from the Actions tab
+    branches: [main, staging]
+  # Re-deploy by hand from the Actions tab. The BRANCH you pick there is the
+  # target: `main` re-deploys aniwala.com, `staging` re-deploys staging, and
+  # any other branch builds and deploys nothing.
+  workflow_dispatch:
 
   # Content lives in Sanity, so publishing a post changes the site without
   # changing this repo — no push, no build, nothing happens. A webhook on the
@@ -34,8 +45,13 @@ on:
 # first. Queueing costs a couple of minutes; cancelling costs a half-uploaded
 # site until somebody happens to notice.
 #
+#
+# Staging gets its own queue with the same no-cancel rule. It uploads into
+# public_html/staging/, which the production upload excludes, so the two
+# never write the same files and need not wait on each other.
+#
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('deploy-pr-{0}', github.head_ref) || 'deploy-production' }}
+  group: ${{ github.event_name == 'pull_request' && format('deploy-pr-{0}', github.head_ref) || (github.ref == 'refs/heads/staging' && 'deploy-staging' || 'deploy-production') }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Nothing here writes to the repository. It builds, and it uploads over FTP to
@@ -336,11 +352,19 @@ jobs:
           include-hidden-files: true
 
   # ------------------------------------------------------------------
-  # Deploy. Only from main, and only if verify passed.
+  # Deploy. Only from main (production) or staging, and only if verify
+  # passed.
+  #
+  # THE BRANCH IS THE TARGET, and that is checked here rather than trusted.
+  # This used to be `event_name != 'pull_request'` alone, which let a manual
+  # run started on ANY branch upload that branch to aniwala.com. Now a branch
+  # that is neither of the two deploys nothing. The Sanity webhook
+  # (repository_dispatch) always runs on the default branch, so a Publish
+  # rebuilds production, never staging.
   # ------------------------------------------------------------------
   deploy:
     needs: verify
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     runs-on: ubuntu-latest
 
     # ------------------------------------------------------------------
@@ -354,14 +378,17 @@ jobs:
     # domain still served WordPress; the cutover moved it here on purpose,
     # after public_html and the WordPress database were backed up.
     #
-    # staging.aniwala.com still lives INSIDE this folder, at
-    # public_html/staging/, and survives every deploy only because the rsync
-    # below excludes `/staging/`. Nothing deploys TO staging any more, so it
-    # stays frozen at its last build — and behind a PASSWORD, set in hPanel ->
-    # Advanced -> Password Protect Directories, because its forms still write
-    # to the live database. That rule lives in public_html/staging/.htaccess,
-    # which the exclude protects too; it survived its first deploy on
-    # 15 September 2026 (both staging addresses answered 401 afterwards).
+    # STAGING — staging.aniwala.com, served out of public_html/staging/,
+    # INSIDE the production folder. The production rsync excludes
+    # `/staging/`, so a live deploy never touches it; the staging deploy
+    # writes only there. It sits behind a PASSWORD, set in hPanel ->
+    # Advanced -> Password Protect Directories, because its forms write to
+    # the LIVE database. hPanel keeps that rule in
+    # public_html/staging/.htaccess — the very file every build replaces —
+    # so the staging deploy reads the rule off the server and writes it into
+    # the new file before uploading, and refuses to deploy if it cannot find
+    # one. See "Carry the staging password into the new .htaccess".
+    #
     # The pre-upload check still refuses to
     # run if this folder looks like a WordPress install, which is what makes
     # a mistaken target fail loudly rather than delete a site.
@@ -375,8 +402,9 @@ jobs:
     # SSH reads it.
     # ------------------------------------------------------------------
     env:
-      REMOTE_DIR: domains/aniwala.com/public_html/
-      SITE_TO_CHECK: https://aniwala.com/
+      TARGET: ${{ github.ref == 'refs/heads/staging' && 'staging' || 'production' }}
+      REMOTE_DIR: ${{ github.ref == 'refs/heads/staging' && 'domains/aniwala.com/public_html/staging/' || 'domains/aniwala.com/public_html/' }}
+      SITE_TO_CHECK: ${{ github.ref == 'refs/heads/staging' && 'https://staging.aniwala.com/' || 'https://aniwala.com/' }}
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -601,6 +629,77 @@ jobs:
                echo '  ok      rsync present'; \
                echo '  ok      $REMOTE_DIR exists and is not a WordPress root'"
 
+      # ------------------------------------------------------------------
+      # STAGING ONLY. Without this step, the first staging deploy makes
+      # staging PUBLIC.
+      #
+      # hPanel's Password Protect Directories is four lines — AuthType,
+      # AuthName, AuthUserFile, Require valid-user — written into
+      # public_html/staging/.htaccess. The build ships its own .htaccess (CSP,
+      # HSTS, the noindex net), and rsync would upload it straight over
+      # hPanel's, silently deleting the password. Staging's forms write to the
+      # live database, so a public staging is a second, unguarded front door.
+      #
+      # So the rule is READ OFF THE SERVER on every run and put at the top of
+      # the new file. Read, not stored here: the AuthUserFile path is account
+      # specific, and changing the password in hPanel rewrites these lines —
+      # re-reading them each time means the deploy follows whatever hPanel
+      # last wrote.
+      #
+      # IT FAILS CLOSED. No AuthUserFile or no `Require valid-user` on the
+      # server means the protection is already gone or has moved, and the
+      # deploy stops rather than guess. Re-add the password in hPanel, then
+      # re-run. Do not "fix" this step by making the block optional.
+      #
+      # The previous file is copied to `staging-htaccess.backup` in the SSH
+      # login's home directory — OUTSIDE public_html, so it is never served —
+      # for the check after the upload to put back if the password did not
+      # survive.
+      # ------------------------------------------------------------------
+      - name: Carry the staging password into the new .htaccess
+        if: env.TARGET == 'staging'
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          set -euo pipefail
+          SSH="ssh -p $SSH_PORT -o BatchMode=yes -o ConnectTimeout=20 $SSH_USER@$SSH_HOST"
+
+          if ! $SSH "cat '${REMOTE_DIR}.htaccess'" > /tmp/live-htaccess; then
+            echo "::error::Could not read ${REMOTE_DIR}.htaccess on the server."
+            echo "Staging's password lives in that file. Without it this deploy would publish staging with no password, so it stops here."
+            exit 1
+          fi
+
+          tr -d '\r' < /tmp/live-htaccess \
+            | grep -Ei '^[[:space:]]*(AuthType|AuthName|AuthUserFile|AuthGroupFile|Require[[:space:]]+valid-user)([[:space:]]|$)' \
+            > /tmp/auth-block || true
+
+          if ! grep -qi '^[[:space:]]*AuthUserFile' /tmp/auth-block \
+             || ! grep -Eqi '^[[:space:]]*Require[[:space:]]+valid-user' /tmp/auth-block; then
+            echo "::error::No password rule found in the live staging .htaccess."
+            echo "Expected an AuthUserFile line and 'Require valid-user' from hPanel -> Advanced -> Password Protect Directories."
+            echo "Either staging is ALREADY unprotected or the rule has moved. Re-add the password for public_html/staging in hPanel, then re-run."
+            exit 1
+          fi
+
+          $SSH "cp '${REMOTE_DIR}.htaccess' staging-htaccess.backup"
+
+          {
+            echo "# --- Staging password, from hPanel -> Password Protect Directories."
+            echo "# --- Copied off the server by deploy.yml on every staging deploy."
+            cat /tmp/auth-block
+            echo ""
+            cat dist/.htaccess
+          } > /tmp/new-htaccess
+          mv /tmp/new-htaccess dist/.htaccess
+
+          # Directive names only. The AuthUserFile path is not secret, but it
+          # is account detail a public log has no use for.
+          echo "  ok      password rule carried over: $(awk '{print $1}' /tmp/auth-block | tr '\n' ' ')"
+          echo "  ok      previous .htaccess backed up to ~/staging-htaccess.backup"
+
       - name: Upload the site
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
@@ -658,9 +757,42 @@ jobs:
                 -e "ssh -p $SSH_PORT -o BatchMode=yes -o ConnectTimeout=30" \
                 dist/ "$SSH_USER@$SSH_HOST:$REMOTE_DIR"
 
+      # STAGING ONLY, and FIRST. A staging that answers anything but 401 is
+      # public, with forms writing to the live database — so this puts the
+      # previous .htaccess back straight away (it had the password) and fails
+      # the run, rather than leaving it open while somebody reads the log.
+      - name: Verify staging still asks for its password
+        if: env.TARGET == 'staging'
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          set -uo pipefail
+          fail=0
+          for url in "$SITE_TO_CHECK" "https://aniwala.com/staging/"; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$url")
+            if [ "$code" = "401" ]; then
+              echo "  ok      $url answers 401"
+            else
+              echo "::error::$url answered $code, not 401 — staging is NOT password protected."
+              fail=1
+            fi
+          done
+          if [ "$fail" = 1 ]; then
+            ssh -p "$SSH_PORT" -o BatchMode=yes -o ConnectTimeout=20 "$SSH_USER@$SSH_HOST" \
+              "cp staging-htaccess.backup '${REMOTE_DIR}.htaccess'" \
+              && echo "::error::Restored the previous .htaccess. Check hPanel -> Password Protect Directories before deploying staging again." \
+              || echo "::error::COULD NOT restore the previous .htaccess. Staging may be public right now — re-add its password in hPanel immediately."
+            exit 1
+          fi
+
       # A deploy that serves pages without .htaccess looks completely healthy,
       # so the run asserts the headers are really there rather than trusting
       # that the upload above did what it said.
+      #
+      # On staging this reads the 401 page, which is still ours: every header
+      # below is `Header always set`, so it rides on an error response too.
       - name: Verify the security headers are actually live
         run: |
           URL="${SITE_TO_CHECK}"
