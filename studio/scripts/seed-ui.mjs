@@ -127,6 +127,9 @@ export const UI_COPY = {
   roleFactOpenings: 'Openings',
   roleFactPosted: 'Posted',
   roleFactCloses: 'Applications close',
+  roleFactSalary: 'Salary',
+  roleSalaryMonth: '{{amount}} a month',
+  roleSalaryYear: '{{amount}} a year',
   roleSeatOne: '1 seat',
   roleSeatMany: '{{count}} seats',
   roleRailNote:

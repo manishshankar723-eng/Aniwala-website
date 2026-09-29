@@ -340,7 +340,7 @@ export const sanityRoles = (): Loader =>
     hasBody: false,
     projection: `
       _id, slug, title, discipline, kind, location, experience, openings,
-      posted, closes, tint, summary, about, responsibilities, requirements,
+      posted, closes, salary, tint, summary, about, responsibilities, requirements,
       niceToHave, software, reelNote, seoTitle, seoDescription, ogImage, noindex, canonicalUrl
     `,
     toData: (doc, isDraft) => ({
@@ -352,6 +352,20 @@ export const sanityRoles = (): Loader =>
       openings: doc.openings ?? 1,
       posted: doc.posted,
       ...(doc.closes ? { closes: doc.closes } : {}),
+      /* Only once there is a figure. The Studio pre-fills the currency, so
+         every role carries a salary object whether or not anyone typed pay
+         into it — and `unit` is deliberately NOT pre-filled, so a figure
+         with no unit reaches the schema and fails the build. */
+      ...(typeof doc.salary?.min === 'number'
+        ? {
+            salary: {
+              min: doc.salary.min,
+              ...(typeof doc.salary.max === 'number' ? { max: doc.salary.max } : {}),
+              currency: doc.salary.currency ?? 'INR',
+              unit: doc.salary.unit,
+            },
+          }
+        : {}),
       tint: doc.tint ?? '265 60% 28%',
       summary: doc.summary,
       about: doc.about,

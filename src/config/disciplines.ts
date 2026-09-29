@@ -39,3 +39,18 @@ export type Discipline = (typeof DISCIPLINES)[number];
 export const EMPLOYMENT_KINDS = ['Full-time', 'Part-time', 'Contract', 'Internship'] as const;
 
 export type EmploymentKind = (typeof EMPLOYMENT_KINDS)[number];
+
+/**
+ * Salary units and currencies.
+ *
+ * The units are schema.org `unitText` values, emitted as-is in
+ * `JobPosting.baseSalary`, so they are constants rather than prose. Only two,
+ * on purpose: a month and a year are how pay is quoted here (a stipend, a CTC),
+ * and every extra option is one more way to publish a figure twelve times too
+ * big or too small. The currencies are ISO 4217 codes, which Google requires.
+ */
+export const SALARY_UNITS = ['MONTH', 'YEAR'] as const;
+
+export type SalaryUnit = (typeof SALARY_UNITS)[number];
+
+export const SALARY_CURRENCIES = ['INR', 'USD', 'EUR', 'GBP'] as const;
