@@ -35,6 +35,7 @@ import {
   type KnowledgeFile,
 } from '../../supabase/functions/chat/guards.ts';
 import { categoryHref } from './workCategories';
+import { formatSalaryAmount } from '../config/careers';
 
 /* Published and indexable, whatever kind of build this is. */
 const publicEntry = ({ data }: { data: { draft?: boolean; noindex?: boolean } }) =>
@@ -173,6 +174,11 @@ export async function buildChatKnowledge(): Promise<KnowledgeFile> {
           ['Employment', d.kind],
           ['Location', d.location],
           ['Experience', d.experience],
+          [
+            'Salary',
+            d.salary &&
+              `${formatSalaryAmount(d.salary)} ${d.salary.unit === 'YEAR' ? 'a year' : 'a month'}`,
+          ],
           ['Openings', d.openings],
           ['Posted', d.posted],
           ['Applications close', d.closes],

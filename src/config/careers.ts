@@ -12,7 +12,7 @@
  * Google's job index expects — a typo there quietly removes every listing from
  * search results, which is not a risk worth handing to an inline edit.
  */
-import { DISCIPLINES, EMPLOYMENT_KINDS, type EmploymentKind } from './disciplines';
+import { DISCIPLINES, EMPLOYMENT_KINDS, type EmploymentKind, type SalaryUnit } from './disciplines';
 
 export type { EmploymentKind };
 
@@ -45,3 +45,39 @@ export const employmentTypeSchema: Record<EmploymentKind, string> = {
   Contract: 'CONTRACTOR',
   Internship: 'INTERN',
 };
+
+/** A role's pay, as validated in `content.config.ts`. */
+export interface Salary {
+  min: number;
+  max?: number;
+  currency: string;
+  unit: SalaryUnit;
+}
+
+/**
+ * "₹25,000 – ₹40,000", in the Indian digit grouping (₹6,00,000, not 600,000)
+ * because that is how an applicant here reads a CTC. The unit is left to the
+ * caller: the role page words it from the CMS, the chatbot in plain English.
+ */
+export const formatSalaryAmount = ({ min, max, currency }: Salary): string => {
+  const money = new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 0,
+  });
+  return max && max !== min ? `${money.format(min)} – ${money.format(max)}` : money.format(min);
+};
+
+/**
+ * `JobPosting.baseSalary`. A range when there is one, a single `value` when
+ * the pay is fixed — Google accepts either, and a range of X to X says less.
+ */
+export const baseSalarySchema = (s: Salary) => ({
+  '@type': 'MonetaryAmount',
+  currency: s.currency,
+  value: {
+    '@type': 'QuantitativeValue',
+    ...(s.max && s.max !== s.min ? { minValue: s.min, maxValue: s.max } : { value: s.min }),
+    unitText: s.unit,
+  },
+});

@@ -21,7 +21,12 @@
  */
 import { defineType, defineField } from 'sanity';
 import { seoFields } from './seoFields';
-import { DISCIPLINES, EMPLOYMENT_KINDS } from '../../src/config/disciplines';
+import {
+  DISCIPLINES,
+  EMPLOYMENT_KINDS,
+  SALARY_CURRENCIES,
+  SALARY_UNITS,
+} from '../../src/config/disciplines';
 
 export default defineType({
   name: 'role',
@@ -125,6 +130,71 @@ export default defineType({
       group: 'basics',
       options: { dateFormat: 'YYYY-MM-DD' },
       description: 'Sent to Google as validThrough. Leave blank if the role is open-ended.',
+    }),
+
+    /* Optional, and it stays optional: leave it empty rather than write a
+       figure nobody has agreed. A number typed here is published to Google's
+       job results under the studio's name. Nothing is emitted until Minimum
+       has a value; the build re-checks all of this in content.config.ts,
+       because these rules only run in the Studio. */
+    defineField({
+      name: 'salary',
+      title: 'Salary (optional)',
+      type: 'object',
+      group: 'basics',
+      description:
+        'Shown on the role page and sent to Google as baseSalary — listings with pay rank better and get filtered in, not out. Leave Minimum empty to publish no figure at all. A stipend is per month; a CTC is per year.',
+      options: { collapsible: true, collapsed: true },
+      fields: [
+        defineField({
+          name: 'min',
+          title: 'Minimum',
+          type: 'number',
+          description: 'The whole figure, not in lakhs: 600000, not 6.',
+          validation: (Rule) => Rule.positive(),
+        }),
+        defineField({
+          name: 'max',
+          title: 'Maximum',
+          type: 'number',
+          description: 'Leave empty if the pay is a fixed figure rather than a range.',
+          validation: (Rule) =>
+            Rule.positive().custom((max, ctx) => {
+              const min = (ctx.parent as { min?: number } | undefined)?.min;
+              return typeof max === 'number' && typeof min === 'number' && max < min
+                ? 'Maximum is below Minimum.'
+                : true;
+            }),
+        }),
+        defineField({
+          name: 'currency',
+          title: 'Currency',
+          type: 'string',
+          options: { list: SALARY_CURRENCIES.map((c) => ({ title: c, value: c })) },
+          initialValue: 'INR',
+        }),
+        defineField({
+          name: 'unit',
+          title: 'Per',
+          type: 'string',
+          /* No initialValue, deliberately: a month mistaken for a year is a
+             figure twelve times wrong, so it has to be chosen. */
+          options: {
+            list: [
+              { title: 'Month', value: 'MONTH' },
+              { title: 'Year', value: 'YEAR' },
+            ] satisfies Array<{ title: string; value: (typeof SALARY_UNITS)[number] }>,
+            layout: 'radio',
+            direction: 'horizontal',
+          },
+          validation: (Rule) =>
+            Rule.custom((unit, ctx) =>
+              typeof (ctx.parent as { min?: number } | undefined)?.min === 'number' && !unit
+                ? 'Choose month or year — the figure means nothing without it.'
+                : true
+            ),
+        }),
+      ],
     }),
 
     defineField({

@@ -5,10 +5,9 @@ import ApplyForm from '../../components/ApplyForm.astro';
 import Faq from '../../components/Faq.astro';
 import CtaBand from '../../components/CtaBand.astro';
 import Footer from '../../components/Footer.astro';
-import { employmentTypeSchema } from '../../config/careers';
 import { getFlatRoles } from '../../lib/roles';
 import { getFaqs, getContactDetails, getCareersContent, getUiCopy } from '../../lib/studio';
-import { fill, plural, ldJson } from '../../lib/copy';
+import { fill, plural } from '../../lib/copy';
 import { shareCard } from '../../lib/sanity/client';
 import { heroArtwork } from '../../lib/artwork';
 
@@ -36,7 +35,7 @@ const art = await heroArtwork();
 const roles = hiringOpen ? await getFlatRoles() : [];
 
 const careerFaqs = await getFaqs('careers');
-const { careersEmail, addressLines } = await getContactDetails();
+const { careersEmail } = await getContactDetails();
 const totalSeats = roles.reduce((n, r) => n + r.openings, 0);
 
 /* Filter chips. Built from the listings rather than typed out, so a chip can
@@ -56,42 +55,11 @@ const fmtDate = (iso: string) =>
 const isNew = (iso: string) =>
   Date.now() - new Date(`${iso}T00:00:00Z`).getTime() < 21 * 864e5;
 
-/**
- * JobPosting structured data, one per listing.
- *
- * This is what puts an opening into Google's job results, which for a studio
- * nobody has heard of is a materially bigger source of applicants than the
- * page itself. It emits only fields we can state truthfully — no salary
- * range, because inventing one to satisfy a schema validator is exactly the
- * kind of thing the honesty rule in config/careers.ts exists to prevent.
- */
-const jobSchema = roles.map((r) => ({
-  '@context': 'https://schema.org',
-  '@type': 'JobPosting',
-  title: r.title,
-  description: `${r.summary} ${r.about}`,
-  datePosted: r.posted,
-  ...(r.closes ? { validThrough: r.closes } : {}),
-  employmentType: employmentTypeSchema[r.kind],
-  hiringOrganization: {
-    '@type': 'Organization',
-    name: ui.siteName,
-    sameAs: 'https://aniwala.com',
-  },
-  jobLocation: {
-    '@type': 'Place',
-    address: {
-      '@type': 'PostalAddress',
-      streetAddress: addressLines.slice(0, 2).join(', '),
-      addressLocality: 'Pimpri-Chinchwad',
-      addressRegion: 'Maharashtra',
-      postalCode: '411057',
-      addressCountry: 'IN',
-    },
-  },
-  totalJobOpenings: r.openings,
-  url: `https://aniwala.com/careers/${r.slug}/`,
-}));
+/* No JobPosting here. Google's guidelines put it on the leaf page and forbid
+   it on "pages intended to present a list of jobs" — a listing that carries
+   every role's markup is a manual-action risk, and it made /careers/ the URL
+   Search Console filed all six postings under. Each role page emits its own
+   in careers/[slug].astro. */
 ---
 
 <Base
@@ -315,12 +283,6 @@ const jobSchema = roles.map((r) => ({
   </main>
 
   <Footer />
-
-  {
-    jobSchema.map((j) => (
-      <script type="application/ld+json" set:html={ldJson(j)} is:inline />
-    ))
-  }
 </Base>
 
 <script>

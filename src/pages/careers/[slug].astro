@@ -3,7 +3,7 @@ import Base from '../../layouts/Base.astro';
 import PageHero from '../../components/PageHero.astro';
 import ApplyForm from '../../components/ApplyForm.astro';
 import Footer from '../../components/Footer.astro';
-import { employmentTypeSchema } from '../../config/careers';
+import { employmentTypeSchema, formatSalaryAmount, baseSalarySchema } from '../../config/careers';
 import { getFlatRoles, type Role } from '../../lib/roles';
 import { getContactDetails, getCareersContent, getUiCopy } from '../../lib/studio';
 import { shareCard } from '../../lib/sanity/client';
@@ -70,6 +70,19 @@ const facts: Array<[string, string]> = [
   [ui.roleFactType, role.kind],
   [ui.roleFactLocation, role.location],
   [ui.roleFactExperience, role.experience],
+  /* Shown whenever it is emitted: Google wants structured data to describe
+     what the page says, and an applicant should not need view-source to
+     find the pay. */
+  ...(role.salary
+    ? ([
+        [
+          ui.roleFactSalary,
+          fill(role.salary.unit === 'YEAR' ? ui.roleSalaryYear : ui.roleSalaryMonth, {
+            amount: formatSalaryAmount(role.salary),
+          }),
+        ],
+      ] as Array<[string, string]>)
+    : []),
   [ui.roleFactOpenings, plural(role.openings, ui.roleSeatOne, ui.roleSeatMany)],
   [ui.roleFactPosted, fmtDate(role.posted)],
   ...(role.closes
@@ -84,6 +97,7 @@ const jobSchema = {
   description: `${role.summary} ${role.about}`,
   datePosted: role.posted,
   ...(role.closes ? { validThrough: role.closes } : {}),
+  ...(role.salary ? { baseSalary: baseSalarySchema(role.salary) } : {}),
   employmentType: employmentTypeSchema[role.kind],
   industry: 'Animation, Game Art and VFX',
   skills: role.software.join(', '),

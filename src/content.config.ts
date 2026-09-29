@@ -1,5 +1,5 @@
 import { defineCollection, z } from 'astro:content';
-import { DISCIPLINES, EMPLOYMENT_KINDS } from './config/disciplines';
+import { DISCIPLINES, EMPLOYMENT_KINDS, SALARY_UNITS, SALARY_CURRENCIES } from './config/disciplines';
 import { IMAGE_SLOT_NAMES } from './config/imageSlots';
 import { FONT_CHOICE_NAMES } from './config/fonts';
 import { SOCIAL_ICONS } from './config/contact';
@@ -327,6 +327,28 @@ const roles = defineCollection({
     closes: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD — this is emitted as validThrough.')
+      .optional(),
+    /**
+     * Optional pay, emitted as `baseSalary` and shown on the role page.
+     *
+     * Checked HERE rather than trusted from the Studio, because a wrong
+     * figure is worse than none: it is published to Google's job results
+     * under the studio's name. `unit` has no default for the same reason —
+     * a month read as a year is a figure twelve times too small, and the
+     * build should stop rather than guess which one was meant. The loader
+     * passes `salary` only when `min` is set, so a half-filled object in the
+     * Studio emits nothing rather than failing here.
+     */
+    salary: z
+      .object({
+        min: z.number().positive(),
+        max: z.number().positive().optional(),
+        currency: z.enum(SALARY_CURRENCIES),
+        unit: z.enum(SALARY_UNITS),
+      })
+      .refine((s) => s.max === undefined || s.max >= s.min, {
+        message: 'salary.max is below salary.min.',
+      })
       .optional(),
     /** HSL triple driving the page tint, same as the service pages. */
     tint: z.string().default('265 60% 28%'),
