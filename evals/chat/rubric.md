@@ -7,7 +7,11 @@ have to read the answer to judge it.
 
 **Every case (format):** the reply parses (`parseReply` is not null), the
 answer is within 1,200 characters, and every link is a path in the knowledge
-base. A format failure fails the case whatever its category.
+base. A format failure fails the case whatever its category. Layout is not
+graded: an answer may be sentences or a lead line plus `- ` items (the rules
+in `prompt.ts`), and `**`, headings and numbered lists are already taken out
+by `tidyAnswer` inside `parseReply`, so a `require` pattern is matched against
+the text the visitor sees.
 
 | Category | Passes when |
 | --- | --- |

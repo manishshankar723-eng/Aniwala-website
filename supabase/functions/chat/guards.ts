@@ -423,8 +423,22 @@ export interface Reply {
   need: string[];
 }
 
+/**
+ * Formatting the rules forbid, taken back out. The widget draws "- " lines as
+ * a list and everything else as text, so a stray `**bold**` or `## Heading`
+ * would reach the visitor as literal symbols. A numbered list becomes a
+ * plain one. Shared with the widget, which runs it over the STREAMED text too
+ * — so what types out is what the finished answer says.
+ */
+export function tidyAnswer(text: string): string {
+  return text
+    .replace(/\*\*/g, '')
+    .replace(/^[ \t]*#{1,6}[ \t]+/gm, '')
+    .replace(/^[ \t]*\d{1,2}[.)][ \t]+/gm, '- ');
+}
+
 function cleanAnswer(text: string): string {
-  let s = text.replace(/\r\n?/g, '\n').replace(CONTROL, '').replace(/\n{3,}/g, '\n\n').trim();
+  let s = tidyAnswer(text.replace(/\r\n?/g, '\n').replace(CONTROL, '')).replace(/\n{3,}/g, '\n\n').trim();
   if (s.length > LIMITS.answer) {
     const cut = s.slice(0, LIMITS.answer - 1);
     const space = cut.lastIndexOf(' ');

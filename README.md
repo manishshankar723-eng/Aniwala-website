@@ -615,6 +615,11 @@ account, and whenever something here stops working.
 - **`chat_take` is executable by `service_role` only.** The last query in
   schema.sql section 8 lists who can run it; a row for `anon` or `PUBLIC`
   means anyone holding the anon key can spend the chat budget.
+- **`chat_flags` has the thumbs-down columns** (`answer`, `turn`, the
+  `unhelpful` reason and the `chat_flags_one_per_turn` unique index), from
+  schema.sql section 8 — run on 29 September 2026. A database made from an
+  older copy of that section refuses every thumbs-down, and the visitor sees
+  "Could not send that". Re-running section 8 is safe.
 
 **Google Cloud (the chatbot)**
 

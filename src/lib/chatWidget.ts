@@ -14,7 +14,7 @@
  * reload keeps it too; it dies with the tab.
  */
 import { publicConfig } from './clientConfig';
-import { isSitePath } from '../../supabase/functions/chat/guards.ts';
+import { isSitePath, tidyAnswer } from '../../supabase/functions/chat/guards.ts';
 
 interface Turn {
   q: string;
@@ -37,6 +37,10 @@ interface Entry {
   links?: string[];
   action?: string;
   handoff?: boolean;
+  /** The signed turn this answer is, so it can be rated. Found in `history`
+      by signature, never by position: a reset history reuses positions. */
+  sig?: string;
+  rated?: 'up' | 'down';
 }
 
 interface State {
@@ -126,6 +130,8 @@ const load = (): State => {
               links: Array.isArray(e.links) ? e.links.filter((l) => typeof l === 'string') : [],
               action: typeof e.action === 'string' ? e.action : undefined,
               handoff: e.handoff === true,
+              sig: typeof e.sig === 'string' && e.sig.length === 43 ? e.sig : undefined,
+              rated: e.rated === 'up' || e.rated === 'down' ? e.rated : undefined,
             }))
         : /* Saved before the transcript existed: rebuild what it can. */
           s.history.flatMap((t: Turn) => [
@@ -178,6 +184,7 @@ function init(root: HTMLElement) {
   const input = $<HTMLTextAreaElement>('.chat-input');
   const send = $<HTMLButtonElement>('.chat-send');
   const close = $<HTMLButtonElement>('.chat-close');
+  const newChat = $<HTMLButtonElement>('.chat-new');
   const slot = $<HTMLElement>('.chat-turnstile');
 
   let data: ChatData;
@@ -213,8 +220,22 @@ function init(root: HTMLElement) {
 
   const linkLabel = (path: string) => data.titles[path] ?? data.titles[path.replace(/#.*$/, '')] ?? path;
 
-  const scrollDown = () => {
-    log.scrollTop = log.scrollHeight;
+  /* Follow the conversation down only while the visitor is AT the bottom. An
+     answer types out a frame at a time, and pinning the log to the end on
+     every frame dragged anyone scrolling up to reread straight back down.
+     Scrolling back to the bottom picks it up again, and so does anything the
+     visitor does — sending, a chip, opening the panel. */
+  let follow = true;
+  log.addEventListener(
+    'scroll',
+    () => {
+      follow = log.scrollHeight - log.scrollTop - log.clientHeight < 48;
+    },
+    { passive: true }
+  );
+  const scrollDown = (force = false) => {
+    if (force) follow = true;
+    if (follow) log.scrollTop = log.scrollHeight;
   };
 
   /** A message row: the bot's carry a small avatar, the visitor's sit right. */
@@ -230,16 +251,63 @@ function init(root: HTMLElement) {
     }
     r.append(content);
     log.append(r);
-    scrollDown();
+    scrollDown(who === 'you');
     return r;
   }
 
-  function bubble(who: 'you' | 'bot', text: string, links: string[] = [], actions: Array<[string, string, (() => void)?]> = []) {
+  /* A line starting "- " is a list item and a run of them is a list; every
+     other line is paragraph text. Each piece goes in through `textContent`,
+     so this is layout, not markup: nothing in the text can become an element
+     or an attribute. Re-run on every typed frame, so a list builds as it is
+     written rather than snapping into shape at the end. */
+  const ITEM = /^\s*[-•*](?:\s+|$)/;
+  /** The text each `.chat-text` was painted from — its DOM has lost the dashes. */
+  const raw = new WeakMap<HTMLElement, string>();
+
+  function paint(el: HTMLElement, text: string) {
+    const out: HTMLElement[] = [];
+    let list: HTMLUListElement | null = null;
+    let para: string[] = [];
+    const endPara = () => {
+      if (!para.length) return;
+      const p = document.createElement('p');
+      p.textContent = para.join('\n');
+      out.push(p);
+      para = [];
+    };
+    /* The server runs the same tidy over the finished answer; running it here
+       too means the text as it STREAMS never shows a stray `**`. */
+    for (const line of tidyAnswer(text).split('\n')) {
+      if (ITEM.test(line)) {
+        endPara();
+        if (!list) out.push((list = document.createElement('ul')));
+        const li = document.createElement('li');
+        li.textContent = line.replace(ITEM, '');
+        list.append(li);
+      } else if (!line.trim()) {
+        endPara(); // a blank line between items does not end the list
+      } else {
+        list = null;
+        para.push(line);
+      }
+    }
+    endPara();
+    el.replaceChildren(...out);
+    raw.set(el, text);
+  }
+
+  const textOf = (r: HTMLElement) => r.querySelector<HTMLElement>('.chat-msg .chat-text');
+
+  /** A hand-off control: a link to a site page, or with no href, a button. */
+  type Control = [label: string, href: string | null, onClick?: () => void];
+
+  function bubble(who: 'you' | 'bot', text: string, links: string[] = [], actions: Control[] = []) {
     const item = document.createElement('div');
     item.className = 'chat-msg';
-    const p = document.createElement('p');
-    p.textContent = text;
-    item.append(p);
+    const body = document.createElement('div');
+    body.className = 'chat-text';
+    paint(body, text);
+    item.append(body);
 
     const safe = links.filter(isSitePath);
     if (safe.length || actions.length) {
@@ -252,6 +320,15 @@ function init(root: HTMLElement) {
         linkRow.append(a);
       }
       for (const [label, href, onClick] of actions) {
+        if (href === null) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'chat-action chat-again';
+          b.textContent = label;
+          if (onClick) b.addEventListener('click', onClick);
+          linkRow.append(b);
+          continue;
+        }
         if (!isSitePath(href)) continue;
         const a = document.createElement('a');
         a.href = href;
@@ -276,7 +353,7 @@ function init(root: HTMLElement) {
         /* nothing to carry — the form is still one click away */
       }
     };
-    const out: Array<[string, string, (() => void)?]> = [];
+    const out: Control[] = [];
     if (action === 'enquiry') out.push(['Send a brief', '/contact/', prefill]);
     if (action === 'book') out.push(['Book a call', '/contact/#book']);
     if (action === 'apply') out.push(['See open roles', links.find((l) => l.startsWith('/careers/')) ?? '/careers/']);
@@ -284,25 +361,105 @@ function init(root: HTMLElement) {
     return out;
   }
 
-  /* The opening: a greeting and the suggestion chips. The chips answer from
-     fixed text built from the CMS — no model call. */
-  function welcome() {
-    bubble('bot', data.welcome);
+  /* The suggestion chips: under the greeting, and again under each answer
+     with the ones not asked yet, so a conversation never ends at an empty box.
+     They answer from fixed text built from the CMS — no model call, and none
+     of the visitor's daily ten. */
+  function offerChips() {
+    log.querySelector('.chat-suggestions')?.remove();
+    if (busy) return; // the answer in progress offers them when it is done
+    const asked = new Set(state.transcript.filter((e) => e.who === 'you').map((e) => e.text));
+    const left = data.suggestions.filter((s) => !asked.has(s.q)).slice(0, 3);
+    if (!left.length) return;
     const chips = document.createElement('div');
     chips.className = 'chat-suggestions';
-    for (const s of data.suggestions) {
+    for (const s of left) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'chat-suggestion';
       b.textContent = s.q;
-      b.addEventListener('click', () => {
+      b.addEventListener('click', async () => {
+        if (busy) return;
         chips.remove();
         say({ who: 'you', text: s.q });
-        void typeRow(say({ who: 'bot', text: s.a, links: s.links }));
+        await typeRow(say({ who: 'bot', text: s.a, links: s.links }));
+        offerChips();
       });
       chips.append(b);
     }
     log.append(chips);
+    scrollDown();
+  }
+
+  /* ---------- rating an answer ----------
+     Thumbs up is thanks and nothing more: it is not sent anywhere. Thumbs
+     down sends only the turn's POSITION in the signed history, and the
+     function stores the question and answer it signed itself — so nothing
+     typed on this page can be written into the review table. */
+  const THUMB = {
+    up: 'M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3',
+    down: 'M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17',
+  } as const;
+
+  function thumb(d: string) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('width', '15');
+    svg.setAttribute('height', '15');
+    svg.setAttribute('aria-hidden', 'true');
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', 'currentColor');
+    path.setAttribute('stroke-width', '2');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
+    svg.append(path);
+    return svg;
+  }
+
+  function rating(e: Entry, item: HTMLElement) {
+    const box = document.createElement('div');
+    box.className = 'chat-rate';
+    const note = document.createElement('span');
+    note.className = 'chat-rate-note';
+    const ways = ['up', 'down'] as const;
+    const buttons = ways.map((way) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chat-rate-btn';
+      b.setAttribute('aria-label', way === 'up' ? 'Helpful' : 'Not helpful');
+      b.append(thumb(THUMB[way]));
+      b.addEventListener('click', () => void rate(way));
+      return b;
+    });
+    const show = () => {
+      buttons.forEach((b, i) => {
+        b.disabled = Boolean(e.rated);
+        b.setAttribute('aria-pressed', String(e.rated === ways[i]));
+      });
+      note.textContent =
+        e.rated === 'down' ? 'Thanks — the team will look at this.' : e.rated === 'up' ? 'Thanks!' : 'Helpful?';
+    };
+    async function rate(way: 'up' | 'down') {
+      if (e.rated) return;
+      if (way === 'down') {
+        for (const b of buttons) b.disabled = true;
+        note.textContent = 'Sending…';
+        if (!(await sendFeedback(e.sig))) {
+          for (const b of buttons) b.disabled = false;
+          note.textContent = 'Could not send that — sorry.';
+          return;
+        }
+      }
+      e.rated = way;
+      save(state);
+      show();
+    }
+    box.append(note, ...buttons);
+    show();
+    item.append(box);
   }
 
   /* Only links to pages this chat knows: the transcript came out of
@@ -312,7 +469,13 @@ function init(root: HTMLElement) {
   function render(e: Entry) {
     if (e.who === 'you') return bubble('you', e.text);
     const links = known(e.links);
-    return bubble('bot', e.text, links, handoffs(e.action, e.handoff, links));
+    const r = bubble('bot', e.text, links, handoffs(e.action, e.handoff, links));
+    /* Rateable while its turn is still in the signed history this page holds —
+       after a new chat or an expired session there is nothing to point at. */
+    if (e.rated || (e.sig && state.history.some((t) => t.sig === e.sig))) {
+      rating(e, r.querySelector('.chat-msg') as HTMLElement);
+    }
+    return r;
   }
 
   /** Show a message AND keep it for replay. */
@@ -321,6 +484,7 @@ function init(root: HTMLElement) {
     state.transcript.push(e);
     if (state.transcript.length > MAX_TRANSCRIPT) state.transcript.splice(0, state.transcript.length - MAX_TRANSCRIPT);
     save(state);
+    newChat.hidden = false;
     return r;
   }
 
@@ -335,11 +499,12 @@ function init(root: HTMLElement) {
    * once.
    */
   function typer(el: HTMLElement) {
+    let shown = '';
     let queue = '';
     let running = false;
     let drained: (() => void) | null = null;
     const flush = () => {
-      el.textContent += queue;
+      paint(el, (shown += queue));
       queue = '';
       running = false;
       scrollDown();
@@ -349,7 +514,7 @@ function init(root: HTMLElement) {
     const tick = () => {
       if (document.hidden) return flush();
       const n = Math.max(1, Math.ceil(queue.length / 80));
-      el.textContent += queue.slice(0, n);
+      paint(el, (shown += queue.slice(0, n)));
       queue = queue.slice(n);
       scrollDown();
       if (queue) requestAnimationFrame(tick);
@@ -383,30 +548,43 @@ function init(root: HTMLElement) {
    * typing is done.
    */
   async function typeRow(r: HTMLElement) {
-    const p = r.querySelector<HTMLElement>('.chat-msg p');
-    if (!p || stillMotion()) return;
-    const full = p.textContent ?? '';
-    const copy = document.createElement('span');
+    const body = textOf(r);
+    if (!body || stillMotion()) return;
+    const full = raw.get(body) ?? '';
+    const copy = document.createElement('div');
     copy.className = 'visually-hidden';
-    copy.textContent = full;
-    p.before(copy);
-    p.setAttribute('aria-hidden', 'true');
-    const links = r.querySelector<HTMLElement>('.chat-links');
-    if (links) links.style.display = 'none';
-    p.textContent = '';
-    const t = typer(p);
+    paint(copy, full); // a list stays a list to a screen reader
+    body.before(copy);
+    body.setAttribute('aria-hidden', 'true');
+    const after = r.querySelectorAll<HTMLElement>('.chat-links, .chat-rate');
+    for (const el of after) el.style.display = 'none';
+    paint(body, '');
+    const t = typer(body);
     t.push(full);
     await t.done();
-    if (links) links.style.display = '';
+    for (const el of after) el.style.display = '';
     scrollDown();
   }
 
   function replay() {
     log.replaceChildren();
-    welcome();
-    if (state.transcript.length) log.querySelector('.chat-suggestions')?.remove();
+    bubble('bot', data.welcome);
     for (const e of state.transcript) render(e);
+    offerChips();
+    newChat.hidden = !state.transcript.length;
   }
+
+  /* A new chat forgets the conversation and its session. It resets no limit:
+     the daily ten are counted per browser id, which is kept, and the next
+     question costs a fresh human check like any other new session. */
+  newChat.addEventListener('click', () => {
+    if (busy) return;
+    state = { history: [], transcript: [] };
+    save(state);
+    replay();
+    scrollDown(true);
+    if (!limited) input.focus();
+  });
 
   /* ---------- Turnstile, only once the chat is opened ---------- */
 
@@ -613,7 +791,24 @@ function init(root: HTMLElement) {
     }
   }
 
-  async function ask(message: string) {
+  /** A thumbs-down: the turn's position and the signed history up to it. */
+  async function sendFeedback(sig?: string): Promise<boolean> {
+    const n = sig ? state.history.findIndex((t) => t.sig === sig) : -1;
+    if (n < 0 || !state.session) return false;
+    try {
+      const res = await fetch(`${publicConfig().functionsBaseUrl}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feedback: n, session: state.session, history: state.history.slice(0, n + 1) }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  /** `again`: a Try again on a failed question, whose bubble is already shown. */
+  async function ask(message: string, again = false) {
     if (busy || limited) return;
     /* Small talk answers from fixed text, like the chips: a "hii" does not
        need a human check and a model round trip (~4s) to be greeted. It does
@@ -622,14 +817,15 @@ function init(root: HTMLElement) {
     if (small) {
       log.querySelector('.chat-suggestions')?.remove();
       say({ who: 'you', text: message });
-      void typeRow(say({ who: 'bot', text: small }));
       input.focus();
+      await typeRow(say({ who: 'bot', text: small }));
+      offerChips();
       return;
     }
     busy = true;
     send.disabled = true;
     log.querySelector('.chat-suggestions')?.remove();
-    bubble('you', message);
+    if (!again) bubble('you', message);
     const dots = document.createElement('div');
     dots.className = 'chat-msg chat-typing';
     dots.setAttribute('aria-label', 'Assistant is typing');
@@ -651,7 +847,7 @@ function init(root: HTMLElement) {
         r.setAttribute('aria-hidden', 'true');
         live = {
           row: r,
-          typer: typer(r.querySelector('.chat-msg p') as HTMLElement),
+          typer: typer(textOf(r) as HTMLElement),
           text: '',
         };
       }
@@ -685,15 +881,38 @@ function init(root: HTMLElement) {
     }
     /* The finished row is typed out too — unless it is the text that has just
        been typed, which then simply stays on screen and gains its links. */
-    const already = streamed?.text.trim() ?? '';
-    const reveal = (r: HTMLElement) => (r.textContent?.includes(already) && already ? undefined : typeRow(r));
+    const already = tidyAnswer(streamed?.text ?? '').trim();
+    const reveal = (r: HTMLElement) => {
+      const body = textOf(r);
+      return already && body && (raw.get(body) ?? '').includes(already) ? undefined : typeRow(r);
+    };
 
     if (body.session) state.session = body.session;
     if (typeof body.visitor === 'string' && body.visitor.length <= 200) local.set(VISITOR, body.visitor);
     if (status === 429 && body.reason === 'address') lockDaily(Date.now() + 24 * 60 * 60 * 1000);
     const links = Array.isArray(body.links) ? body.links.filter(isSitePath) : [];
 
-    if (typeof body.answer === 'string' && body.answer) {
+    /* A failure that asking again could fix gets a Try again, which asks the
+       same question in place — the visitor's bubble is still on screen, and
+       the text is gone from the box. Not kept in the transcript: a reload
+       should not replay an outage. */
+    const failed = (text: string) => {
+      const r = bubble('bot', text, [], [
+        [
+          'Try again',
+          null,
+          () => {
+            if (busy || limited) return;
+            r.remove();
+            void ask(message, true);
+          },
+        ],
+        ['Get in touch', '/contact/'],
+      ]);
+      return r;
+    };
+
+    if (typeof body.answer === 'string' && body.answer && status < 500) {
       if (body.turn) state.history.push(body.turn);
       /* The question is kept with its answer, so a reload shows the pair. */
       state.transcript.push({ who: 'you', text: message });
@@ -704,35 +923,38 @@ function init(root: HTMLElement) {
           links,
           action: body.action,
           handoff: body.handoff,
+          /* A real answer can be rated; a refusal or a fixed hand-off is
+             already in the review table (off_topic, bad_reply). */
+          sig: body.turn && !body.handoff ? body.turn.sig : undefined,
         })
       );
-    } else if (body.error === 'verification') {
+    } else if (body.error === 'verification' && body.reason === 'blocked') {
       await typeRow(
         bubble(
           'bot',
-          body.reason === 'blocked'
-            ? 'The quick human check was blocked from loading, which is usually an ad or privacy blocker. Allowing challenges.cloudflare.com fixes it, or you can reach the team directly.'
-            : 'The quick human check did not finish in time. Please send your question again, or reach the team directly.',
+          'The quick human check was blocked from loading, which is usually an ad or privacy blocker. Allowing challenges.cloudflare.com fixes it, or you can reach the team directly.',
           [],
           [['Get in touch', '/contact/']]
         )
       );
+    } else if (body.error === 'verification') {
+      await typeRow(failed('The quick human check did not finish in time. You can try again, or reach the team directly.'));
     } else if (body.error === 'message') {
       await typeRow(bubble('bot', 'That message is too long — please keep it under 500 characters.'));
     } else {
       await typeRow(
-        bubble(
-          'bot',
-          'Something went wrong on my side. You can reach the team directly.',
-          [],
-          [['Get in touch', '/contact/']]
+        failed(
+          typeof body.answer === 'string' && body.answer
+            ? body.answer
+            : 'Something went wrong on my side. You can try again, or reach the team directly.'
         )
       );
     }
     save(state);
     busy = false;
     send.disabled = limited;
-    input.focus();
+    offerChips();
+    if (!limited) input.focus();
   }
 
   /* ---------- open / close ---------- */
@@ -747,6 +969,7 @@ function init(root: HTMLElement) {
       local.set(SEEN, '1');
     }
     if (open) {
+      scrollDown(true); // a closed panel has no height to have scrolled
       input.focus();
       if (!state.session) void turnstile().then((api) => api && mountTurnstile(api));
     } else {

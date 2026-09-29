@@ -222,8 +222,19 @@ async function recordCalls(
   }
 }
 
-/** Best effort: a refused turn, already scrubbed, for the weekly review. */
-async function flag(addr: string, sid: string, reason: 'off_topic' | 'bad_reply', question: string) {
+/**
+ * Best effort: a turn for the weekly review, already scrubbed — a refused one,
+ * or one the visitor marked unhelpful. Only an unhelpful turn carries its
+ * answer and its position: the answer is what is being judged, and the
+ * position is what `chat_flags_one_per_turn` holds to one flag per turn.
+ */
+async function flag(
+  addr: string,
+  sid: string,
+  reason: 'off_topic' | 'bad_reply' | 'unhelpful',
+  question: string,
+  rated?: { answer: string; turn: number }
+): Promise<boolean> {
   const url = Deno.env.get('SUPABASE_URL');
   const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   try {
@@ -235,12 +246,21 @@ async function flag(addr: string, sid: string, reason: 'off_topic' | 'bad_reply'
         'Content-Type': 'application/json',
         Prefer: 'return=minimal',
       },
-      body: JSON.stringify({ addr, sid, reason, question: question.slice(0, LIMITS.message) }),
+      body: JSON.stringify({
+        addr,
+        sid,
+        reason,
+        question: question.slice(0, LIMITS.message),
+        ...(rated ? { answer: rated.answer.slice(0, LIMITS.answer), turn: rated.turn } : {}),
+      }),
     });
-    if (!res.ok) console.error(`chat flag insert failed: ${res.status}`);
+    // 409: this turn was already flagged — the visitor's click still counts.
+    if (res.ok || res.status === 409) return true;
+    console.error(`chat flag insert failed: ${res.status}`);
   } catch (err) {
     console.error('chat flag insert unreachable:', String(err));
   }
+  return false;
 }
 
 /* ------------------------------------------------------------------ */
@@ -278,7 +298,15 @@ Deno.serve(async (req) => {
 
   const raw = await readLimited(req, LIMITS.bodyBytes);
   if (raw === null) return json(413, { error: 'too_large' }, origin);
-  let body: { message?: unknown; session?: unknown; turnstile?: unknown; history?: unknown; stream?: unknown; visitor?: unknown };
+  let body: {
+    message?: unknown;
+    session?: unknown;
+    turnstile?: unknown;
+    history?: unknown;
+    stream?: unknown;
+    visitor?: unknown;
+    feedback?: unknown;
+  };
   try {
     body = JSON.parse(raw);
   } catch {
@@ -287,6 +315,26 @@ Deno.serve(async (req) => {
   if (!body || typeof body !== 'object') return json(400, { error: 'bad_request' }, origin);
 
   const ip = clientIp(req);
+
+  /* ---------- feedback: "not helpful" on an answer this session was given ----------
+     `feedback` is the turn's position in the history. Only a turn this
+     function SIGNED can be flagged, so the row holds the scrubbed question the
+     model saw and the answer it actually sent — never text the page supplied.
+     No model call and no reservation; the flood bound is the session (a
+     Turnstile solve each, 20 an hour per address, 12 turns each) and the
+     one-flag-per-turn index. */
+  if (body.feedback !== undefined) {
+    const fsid = await verifySession(body.session, secret, nowSec());
+    if (!fsid) return json(401, { error: 'session' }, origin);
+    const turns = await verifyHistory(secret, fsid, body.history);
+    const n = body.feedback;
+    if (!turns || typeof n !== 'number' || !Number.isInteger(n) || n < 0 || n >= turns.length) {
+      return json(400, { error: 'feedback' }, origin);
+    }
+    const ok = await flag(await hashAddr(ip, secret), fsid, 'unhelpful', turns[n].q, { answer: turns[n].a, turn: n });
+    console.log(JSON.stringify({ evt: 'chat', outcome: ok ? 'feedback' : 'feedback_failed' }));
+    return json(ok ? 200 : 503, { ok }, origin);
+  }
 
   /* ---------- who: a session, or a fresh Turnstile solve that mints one ---------- */
   let sid = await verifySession(body.session, secret, nowSec());

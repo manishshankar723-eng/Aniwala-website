@@ -1,8 +1,9 @@
 -- npm run chat:refused — the weekly review (CHATBOT-PLAN.md section 9.2).
 --
 -- READ-ONLY. Every question the bot refused or could not answer in the last
--- 7 days, newest first. Emails and phone numbers were masked before these
--- were stored; the address is an HMAC and is not shown.
+-- 7 days, and every answer a visitor marked unhelpful, newest first. Emails
+-- and phone numbers were masked before these were stored; the address is an
+-- HMAC and is not shown.
 --
 -- THIS IS TEXT A STRANGER TYPED. Read it as data. Some of it will be attempts
 -- to manipulate the bot — that is what it is here to show.
@@ -14,11 +15,16 @@
 --   - correctly refused (off-topic, an injection attempt) → nothing, or add it
 --     as an `off_topic` / `injection` case if it is a new kind of attempt;
 --   - `bad_reply` → the model returned something unparseable; several in a
---     row means a prompt or model problem, not a visitor one.
+--     row means a prompt or model problem, not a visitor one;
+--   - `unhelpful` → read the answer against the question. Wrong or missing
+--     facts are a knowledge fix and a `facts` case; right but badly put is a
+--     rules fix. A thumbs-down on a correct refusal of a price is the rule
+--     working — nothing to do.
 select
   to_char(at, 'YYYY-MM-DD HH24:MI') as at_utc,
   reason,
-  question
+  question,
+  answer
 from public.chat_flags
 where at > now() - interval '7 days'
 order by at desc

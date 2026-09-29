@@ -114,7 +114,8 @@ supabase/functions/chat  (Deno)
 Vertex AI  generateContent  (Gemini Flash)
       │  JSON reply: { on_topic, answer, links[], action, need[] }
       ▼
-chat function checks the reply, signs it → widget renders it as plain text
+chat function checks the reply, signs it → widget renders it as text
+                                           ("- " lines become a list; nothing becomes markup)
 
              knowledge:  GET https://aniwala.com/chat/knowledge.json
              (fixed SITE_URL, cached ~10 min in the isolate, last-good kept)
@@ -122,6 +123,12 @@ chat function checks the reply, signs it → widget renders it as plain text
 
 - **The widget** is an Astro component with a small client script. It ships
   with a normal push. It renders replies with `textContent`, never `innerHTML`.
+  `paint()` in `chatWidget.ts` is the one renderer: a run of lines starting
+  `- ` becomes a `<ul>` of `<li>`s, every other line a `<p>`, and each piece
+  is set with `textContent`. It is layout, not a markdown parser — nothing in
+  an answer can become a tag, an attribute or a link. Do not replace it with a
+  markdown library; the CSP carries `'unsafe-inline'` (CLAUDE.md), so an HTML
+  sink here is live XSS steered by whoever is typing.
 - **The `chat` function** sits beside `submit` and reuses its door:
   `allowedOrigin()` and `corsHeaders()` from `_shared/util.ts`. Turnstile
   verification — including the hostname check — moves out of `submit` into
@@ -403,7 +410,14 @@ The function, not the model, then decides what reaches the visitor
 - Fails to parse, or any field has the wrong type → fixed refusal.
 - `on_topic: false` → fixed refusal.
 - `answer` is trimmed, stripped of control characters and cut at 1,200
-  characters.
+  characters. `tidyAnswer()` takes out the formatting the rules forbid —
+  `**`, `#` headings — and turns a `1.` list into `- ` lines, so what is signed
+  and shown is exactly what the widget can draw. The widget runs the same
+  function over the text as it streams.
+- **Answer shape** (the rules in `prompt.ts`): two to four sentences, or, when
+  the answer is a set of parallel items (stages, services, options), one lead
+  sentence and three to six short `- ` lines. Changed 2026-09-29 from
+  "plain text, no markdown", which ran every list into one sentence.
 - `action` outside `none | enquiry | book | apply` → `none`.
 - `links`: each must be EXACTLY one of the knowledge base's `url` values — no
   normalisation, no prefix match — and a `/` path by the second-slash rule
@@ -468,6 +482,30 @@ value is `HMAC(CHAT_SECRET, "chat.v1.addr\n" + address)`, which cannot be
 reversed by enumerating addresses. A request with no readable address shares
 one `unknown` bucket rather than skipping the limit — the same rule `submit`
 follows with `x-client-ip`.
+
+### 4.6 Rating an answer (added 2026-09-29)
+
+Each model answer carries *Helpful?* with a thumbs up and a thumbs down.
+
+- **Thumbs up is sent nowhere.** It is thanks on the page and nothing more;
+  there is nothing to learn from it that justifies storing text.
+- **Thumbs down** posts `{ feedback: n, session, history }` to the same
+  function — `n` is the turn's POSITION, and the page sends no text of its
+  own. The function needs a valid session token, verifies the signed chain
+  (4.3) up to that turn, and writes the question and answer IT SIGNED to
+  `chat_flags` as reason `unhelpful`, with the answer and `turn`. So the
+  question is the scrubbed one the model saw, and nothing a page supplies can
+  reach the review table.
+- **No model call and no reservation.** The bound on rows is the partial unique
+  index `chat_flags_one_per_turn (sid, turn)` — one flag per turn, a repeat is
+  a 409 the function reads as success — and every flaggable turn was a
+  message `chat_take` already counted.
+- Refusals and fixed hand-offs carry no buttons: they are already flagged as
+  `off_topic` / `bad_reply`.
+- The widget finds the turn by SIGNATURE (`Entry.sig`), never by position: a
+  new chat or an expired session restarts positions at 0, and a stored
+  position would then point at somebody else's answer. A turn no longer in
+  the page's history simply shows no buttons.
 
 ---
 
@@ -590,8 +628,11 @@ Why not let the model collect them:
 - **No message text in function logs, ever.** Supabase's function logs sit
   outside RLS and outside this repo's retention rules. Log ids, counts, modes
   and token usage only.
-- **Minimal storage.** Only refused turns (`on_topic: false`, parse failures),
-  scrubbed, in a `chat_flags` table: RLS on with no policies, no anon or
+- **Minimal storage.** Only refused turns (`on_topic: false`, parse failures)
+  and turns the visitor marked unhelpful (the widget's thumbs-down, which
+  sends only the turn's position — the function stores the question and
+  answer it SIGNED, so no page-supplied text gets in), scrubbed, in a
+  `chat_flags` table: RLS on with no policies, no anon or
   authenticated grants, no `notify_insert` trigger, never mirrored into Sanity
   (CLAUDE.md on why the dataset must stay private), purged after 30 days by
   `pg_cron`. The address stored beside it is the HMAC from 4.5, never the raw
@@ -610,7 +651,10 @@ Why not let the model collect them:
   messages are not used to train models. **Have the wording checked against the
   DPDP Act (and GDPR, for EU visitors) by someone qualified.** The privacy page
   is the `privacyPage` Sanity document — this is a Studio publish plus a
-  rebuild, not a code change.
+  rebuild, not a code change. **Anything new the chat stores changes this page
+  the same day**: the browser id (`scripts/privacy-chat-visitor.mjs`,
+  2026-09-28) and the thumbs-down rows (`scripts/privacy-chat-feedback.mjs`,
+  run 2026-09-29) are the precedents.
 - Vertex AI does not use customer data to train Google's models by default.
   It may still cache prompts briefly (that is what implicit caching is) and log
   them for abuse monitoring; do not promise "not stored" without confirming the
@@ -646,6 +690,8 @@ Written first, before the function that uses them:
   two addresses in one IPv6 /64.
 - `parseReply`: bad JSON, wrong types, unknown `action`, over-long answers and
   control characters all come out safe.
+- `tidyAnswer`: `**`, headings and numbered lists come out; `- ` lists,
+  hyphenated words, percentages and a `#1` in running text stay.
 - **Retrieval.** The right concept is selected for the fact cases; no selection
   over the 4k-token cap; a question with no keyword overlap falls back to full;
   unknown `need` ids are ignored. (The ≥ 95% recall bar is measured once
@@ -687,7 +733,8 @@ instruction. PRs from forks and from Dependabot get no secrets and skip it.
   own quota, so a leaked CI credential cannot spend the production budget.
 - **Estimated cost:** ~100 cases × 3 runs × 2 modes plus grading, roughly
   $2–5 per run.
-- **Feedback loop:** a weekly look at `chat_flags`; real failures become cases.
+- **Feedback loop:** a weekly look at `chat_flags` — refusals and, since
+  2026-09-29, visitors' thumbs-down (4.6); real failures become cases.
 
 **First run, 2026-09-27** — `gemini-3.5-flash`, `asia-south1`, `selective`,
 one run, the 44 visible cases plus 6 generated: **100% in every category**
@@ -768,6 +815,15 @@ Each step is reviewable on its own. Nothing is pushed without review.
    existing tokens. Scroll and ClientRouter: see section 12. **Written, behind
    `CHAT_ENABLED` (off by default, so a push ships nothing).**
 8. **Privacy page** publish in the Studio, then launch.
+9. **Answer layout and rating, 2026-09-29** — list answers as `- ` lines drawn
+   as real lists, `tidyAnswer`, suggestion chips offered again after every
+   answer, *Try again* on failures, *New chat*, *Helpful?* thumbs (4.6), a
+   16px composer (iOS zooms into anything smaller) and a log that only
+   follows the typing while the visitor is at the bottom. Its halves:
+   **schema** — the `chat_flags` additions in section 8, run 2026-09-29;
+   **function** — deployed 2026-09-29; **privacy wording** —
+   `scripts/privacy-chat-feedback.mjs`, run 2026-09-29 (live on the next
+   production build); **site code** — by push, through staging.
 
 Like other changes here, this one ships in separate halves: site code by push,
 the function by `supabase functions deploy chat --no-verify-jwt`, the schema by
@@ -782,14 +838,21 @@ secrets in two dashboards. Say which halves are done.
   Suggestion links are checked at build time against the pages the bot knows;
   a bad one fails the deploy by name. The function's fixed replies (refusal,
   daily limit) stay in code — they are part of the security design.
+- **Suggestions** show under the greeting and again under every answer, minus
+  the ones already asked (at most three). They answer from fixed text, so
+  they cost no model call and none of the daily ten. An editor's answer may
+  use `- ` lines; the widget draws them as a list.
 - **Is the cache hitting, and what does a message cost?** `npm run chat:usage`
   — per day: messages, fallback %, cache-hit %, average tokens, thinking tokens
   (should be 0), estimate ÷ real (must stay ≥ 1), approximate dollars. Reads
   `chat_calls`, which holds numbers only.
 - **The weekly review:** `npm run chat:refused` — every refused or unparseable
-  question from the last 7 days, scrubbed. A wrongly refused real question
+  question from the last 7 days, and every answer a visitor marked unhelpful
+  with the answer beside it, scrubbed. A wrongly refused real question
   becomes a `facts` case in `evals/chat/cases.jsonl`; a new kind of attack
-  becomes an `injection` case.
+  becomes an `injection` case; an `unhelpful` row is a knowledge fix when a
+  fact was wrong or missing, a rules fix when it was right but badly put, and
+  nothing when it was a correct refusal of a price or a date.
 - **A hard stop on spend:** `supabase secrets set CHAT_DAILY_TOKENS=0`. Hiding
   the widget does not stop the function; the budget does.
 
