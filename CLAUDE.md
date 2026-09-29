@@ -115,6 +115,17 @@ server. Do not work around a failing check — they are load bearing:
   `submission` mirror of every lead and applicant. `CHATBOT-PLAN.md` §0 has
   the rest of the review.
 
+- **A chat answer is layout, never markup.** `paint()` in
+  `src/lib/chatWidget.ts` turns `- ` lines into a list and sets every piece
+  with `textContent`. Wanting bold or links in answers is the moment someone
+  reaches for a markdown library or `innerHTML` — and with `'unsafe-inline'`
+  in the CSP, that is XSS written by whoever is typing to the bot. Links stay
+  in the checked `links` field. Likewise the thumbs-down (`feedback` in the
+  chat function) sends a turn's POSITION and the function stores the text it
+  SIGNED; never let it accept question or answer text from the page, or the
+  review table becomes somewhere a stranger writes whatever they like.
+  CHATBOT-PLAN.md §4.6.
+
 - **The mail bill is capped in `notify` (`mailBudget`, default 90/day), NOT by
   the rate limiter.** Past the budget, submissions are saved and mirrored but
   not emailed, with one alert. Do not lower the daily ceilings in

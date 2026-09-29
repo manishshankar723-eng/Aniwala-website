@@ -827,21 +827,38 @@ create index if not exists chat_usage_visitor_idx on public.chat_usage (visitor,
 comment on table public.chat_usage is
   'Chatbot limits. Written only by chat_take() as service_role; no anon or authenticated access.';
 
--- Refused turns only, scrubbed of emails and phone numbers before they
--- arrive, for the weekly eval review. Purged after 30 days.
+-- Refused turns, and turns a visitor marked unhelpful, scrubbed of emails and
+-- phone numbers before they arrive, for the weekly eval review. Purged after
+-- 30 days.
 create table if not exists public.chat_flags (
   id        bigserial primary key,
   at        timestamptz not null default now(),
   addr      text not null check (char_length(addr) between 1 and 64),
   sid       text not null check (char_length(sid) between 1 and 32),
-  reason    text not null check (reason in ('off_topic', 'bad_reply')),
+  reason    text not null check (reason in ('off_topic', 'bad_reply', 'unhelpful')),
   question  text not null check (char_length(question) <= 500)
 );
 
+-- 'unhelpful' is the widget's thumbs-down (the `feedback` path in the chat
+-- function) and the only reason that carries the ANSWER and the turn's
+-- position. Both come from a turn the function signed — never from text the
+-- page supplied. The reason check is dropped and re-added so a database made
+-- before 'unhelpful' existed takes it; re-running is harmless.
+alter table public.chat_flags
+  add column if not exists answer text check (answer is null or char_length(answer) <= 1200),
+  add column if not exists turn smallint check (turn is null or turn between 0 and 12);
+alter table public.chat_flags drop constraint if exists chat_flags_reason_check;
+alter table public.chat_flags
+  add constraint chat_flags_reason_check check (reason in ('off_topic', 'bad_reply', 'unhelpful'));
+
 create index if not exists chat_flags_at_idx on public.chat_flags (at desc);
+-- One flag per turn: a double click, or a script clicking a thousand times,
+-- is one row. The function reads the resulting 409 as success.
+create unique index if not exists chat_flags_one_per_turn
+  on public.chat_flags (sid, turn) where turn is not null;
 
 comment on table public.chat_flags is
-  'Refused chatbot turns, scrubbed. Visitor text: service_role only, never mirrored, purged at 30 days.';
+  'Refused or unhelpful chatbot turns, scrubbed. Visitor text: service_role only, never mirrored, purged at 30 days.';
 
 -- What each model call actually cost, for `npm run chat:usage`: whether the
 -- implicit cache is hitting, what a message really costs, how often retrieval

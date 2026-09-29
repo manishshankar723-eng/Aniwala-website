@@ -26,6 +26,7 @@ import {
   selectConcepts,
   signTurn,
   stablePrefix,
+  tidyAnswer,
   validateKnowledge,
   verifyHistory,
   verifySession,
@@ -301,6 +302,18 @@ test('parseReply: the function, not the model, decides what is sent', () => {
 
   const long = parseReply(JSON.stringify({ on_topic: true, answer: 'word '.repeat(1000) }), kb);
   assert.ok(long && long.answer.length <= LIMITS.answer);
+});
+
+test('tidyAnswer: forbidden formatting is taken out, "- " lists and ordinary text kept', () => {
+  assert.equal(tidyAnswer('We run **four** stages:'), 'We run four stages:');
+  assert.equal(tidyAnswer('## Process\nIt starts with a brief.'), 'Process\nIt starts with a brief.');
+  assert.equal(tidyAnswer('Stages:\n1. Brief\n2) Look dev'), 'Stages:\n- Brief\n- Look dev');
+  const kept = 'Stages:\n- Brief and scope\n- Production\n\nFounded in 2019. Rates 10-20% vary; #1 priority.';
+  assert.equal(tidyAnswer(kept), kept);
+
+  const kb = { urls: INDEX.urls, ids: INDEX.ids };
+  const r = parseReply(JSON.stringify({ on_topic: true, answer: '**Stages:**\n1. Brief\n\n\n\n2. Delivery' }), kb);
+  assert.equal(r?.answer, 'Stages:\n- Brief\n\n- Delivery');
 });
 
 test('retrieval: fact questions find their concept, contact always rides along', () => {

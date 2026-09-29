@@ -61,8 +61,9 @@ if (enabled) {
   const builtIn = [
     {
       q: 'What services do you offer?',
+      /* "- " lines are drawn as a list by the widget (paint, chatWidget.ts). */
       a: services.length
-        ? `We work across ${services.map((s) => s.title).join(', ')}. Each page below covers what's included and how a project runs.`
+        ? `We work across:\n${services.map((s) => `- ${s.title}`).join('\n')}\n\nEach page below covers what's included and how a project runs.`
         : 'Everything the studio does is on the services page.',
       links: services.map((s) => s.url),
     },
@@ -73,9 +74,12 @@ if (enabled) {
     },
     {
       q: 'Are you hiring?',
-      a: roles.length
-        ? `Yes — ${roles.length} open ${roles.length === 1 ? 'role' : 'roles'}: ${roles.map((r) => r.title).join(', ')}.`
-        : 'No roles are open right now, but the careers page takes open applications.',
+      a:
+        roles.length > 1
+          ? `Yes — ${roles.length} open roles:\n${roles.map((r) => `- ${r.title}`).join('\n')}`
+          : roles.length
+            ? `Yes — one open role: ${roles[0].title}.`
+            : 'No roles are open right now, but the careers page takes open applications.',
       links: [...roles.map((r) => r.url).slice(0, 4), '/careers/'],
     },
   ];
@@ -114,6 +118,18 @@ if (enabled) {
               {text.subtitle}
             </p>
           </div>
+          <button type="button" class="chat-icon-btn chat-new" aria-label="Start a new chat" title="New chat" hidden>
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path
+                d="M3 12a9 9 0 1 0 2.64-6.36L3 8.3M3 3v5.3h5.3"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
           <button type="button" class="chat-icon-btn chat-close" aria-label="Close chat">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
               <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
@@ -363,6 +379,10 @@ if (enabled) {
     color: var(--color-ink);
     background: var(--chat-bot);
   }
+  /* `display` above would otherwise outrank the `hidden` attribute. */
+  .chat-icon-btn[hidden] {
+    display: none;
+  }
 
   /* ---------- conversation ---------- */
   .chat-log {
@@ -410,10 +430,21 @@ if (enabled) {
     padding: 10px 14px;
     border-radius: 16px;
   }
-  .chat-log :global(.chat-msg p) {
+  .chat-log :global(.chat-text p),
+  .chat-log :global(.chat-text li) {
     margin: 0;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+  .chat-log :global(.chat-text ul) {
+    margin: 0;
+    padding-left: 1.15em;
+  }
+  .chat-log :global(.chat-text li + li) {
+    margin-top: 0.25em;
+  }
+  .chat-log :global(.chat-text > :not(:first-child)) {
+    margin-top: 0.5em;
   }
   .chat-log :global(.chat-row--you .chat-msg) {
     background: var(--color-cta);
@@ -434,7 +465,9 @@ if (enabled) {
     gap: 6px;
     margin-top: 10px;
   }
-  .chat-log :global(.chat-links a) {
+  .chat-log :global(.chat-links :is(a, button)) {
+    font: inherit;
+    cursor: pointer;
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -452,14 +485,56 @@ if (enabled) {
     content: '→';
     opacity: 0.55;
   }
-  .chat-log :global(.chat-links a:hover) {
+  .chat-log :global(.chat-links button::after) {
+    content: '↻';
+    opacity: 0.7;
+  }
+  .chat-log :global(.chat-links :is(a, button):hover) {
     border-color: var(--color-accent);
   }
-  .chat-log :global(.chat-links a.chat-action) {
+  .chat-log :global(.chat-links .chat-action) {
     background: var(--color-cta);
     border-color: var(--color-cta);
     color: var(--color-cta-ink);
     font-weight: 650;
+  }
+
+  /* Helpful? under each answer. Quiet until used: muted text, outline thumbs.
+     28px targets — over the 24px floor (CLAUDE.md, Accessibility). */
+  .chat-log :global(.chat-rate) {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-top: 8px;
+    color: var(--color-ink-muted);
+    font-size: 0.78rem;
+  }
+  .chat-log :global(.chat-rate-note) {
+    margin-right: 4px;
+  }
+  .chat-log :global(.chat-rate-btn) {
+    display: inline-grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+  .chat-log :global(.chat-rate-btn:hover:not(:disabled)) {
+    color: var(--color-ink);
+    background: var(--color-surface);
+  }
+  .chat-log :global(.chat-rate-btn:disabled) {
+    cursor: default;
+    opacity: 0.45;
+  }
+  .chat-log :global(.chat-rate-btn[aria-pressed='true']) {
+    opacity: 1;
+    color: var(--color-ink);
   }
 
   /* Suggestion chips, under the welcome message. */
@@ -536,6 +611,9 @@ if (enabled) {
     background: transparent;
     color: var(--color-ink);
     font: inherit;
+    /* 16px, not the panel's 15: iOS Safari zooms the whole page into any
+       field set smaller than 16px the moment it is tapped. */
+    font-size: 16px;
     line-height: 1.45;
   }
   /* The composer draws the focus ring; a second one on the field inside it
