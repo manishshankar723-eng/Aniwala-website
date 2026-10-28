@@ -34,6 +34,7 @@ import {
   type Concept,
   type Turn,
 } from '../supabase/functions/chat/guards.ts';
+import { smallTalk } from '../src/lib/smallTalk.ts';
 import { RULES, buildRequest, MAX_OUTPUT_TOKENS } from '../supabase/functions/chat/prompt.ts';
 import { accessToken, generateStream, parseServiceAccount } from '../supabase/functions/chat/vertex.ts';
 
@@ -548,4 +549,48 @@ test('browser id: round-trips, renews, and refuses forgery, expiry and a session
   const session = await mintSession(SECRET, NOW);
   assert.equal(await verifyVisitor(session.token, SECRET, NOW), null, 'a session token is not a browser id');
   assert.equal(await verifySession(token, SECRET, NOW), null, 'and a browser id is not a session');
+});
+
+/* ------------------------------------------------------------------ */
+/* Small talk (src/lib/smallTalk.ts) — the widget's fixed replies      */
+/* ------------------------------------------------------------------ */
+
+test('small talk: pleasantries get a fixed reply, in any combination', () => {
+  for (const s of [
+    'Hii how are you', 'hey, how r u?', 'Hello! How are you doing today?', "What's up", 'wassup',
+    'hi kaise ho', 'kya haal hai', 'Hi there', 'good morning team', 'hellooo', 'hlo', 'namaste ji',
+    "I'm good, and you?", 'im fine', 'fine thanks', 'main theek hoon', 'not bad',
+    'are you a bot?', 'Am I talking to a real person?', 'who are you', 'what can you do', 'help',
+    'thank you so much', 'thanks!!', 'ok thanks bye', 'shukriya', 'nice website', 'love your work',
+    "you're very helpful", 'ok', 'got it', 'bye', 'have a nice day', 'good night', '👋', '👍',
+    'नमस्ते', 'नमस्ते जी', 'नमस्ते, आप कैसे हैं?', 'कैसे हो', 'मैं ठीक हूँ', 'मैं ठीक हूं', 'बढ़िया', 'धन्यवाद', 'शुक्रिया', 'अलविदा',
+  ]) {
+    assert.ok(smallTalk(s), `should be small talk: ${s}`);
+  }
+});
+
+/* The side that fails silently: a studio question swallowed by a canned reply
+   never reaches the model. Add to this list whenever the phrases grow. */
+test('small talk: anything with a real question in it still goes to the model', () => {
+  for (const s of [
+    'hi how are your rates', 'how are you different from other studios', 'hi what services do you offer',
+    'what do you do', 'yes', 'no', 'sure', 'good morning, I need a quote', 'help me with a brief',
+    'thanks, what about pricing?', 'are you hiring', 'who are your clients', 'hi, are you hiring animators?',
+    'what are your rates', 'ok so how long does a project take', 'how do I book a call', 'what is your process',
+    'नमस्ते, आपकी सेवाएं क्या हैं?', 'are you a studio in mumbai', '',
+  ]) {
+    assert.equal(smallTalk(s), null, `should go to the model: ${s}`);
+  }
+});
+
+test('small talk: a hello is answered with one, in kind', () => {
+  assert.match(smallTalk('Hii how are you')!, /^Hi! I'm doing well/);
+  assert.match(smallTalk('Good evening, how are you?')!, /^Good evening! I'm doing well/);
+  assert.match(smallTalk('namaste ji kaise ho')!, /^Namaste! I'm doing well/);
+  assert.match(smallTalk('नमस्ते, आप कैसे हैं?')!, /^Namaste! I'm doing well/);
+  assert.match(smallTalk('hey who are you')!, /^Hi! I'm Aniwala Studios' automated assistant/);
+  assert.match(smallTalk('how are you')!, /^I'm doing well/, 'no hello, no greeting');
+  assert.match(smallTalk('hi thanks')!, /^You are welcome/, 'a thanks ends a conversation; no greeting');
+  assert.match(smallTalk('ok thanks bye')!, /^Thanks for stopping by/, 'the bye wins');
+  assert.doesNotMatch(smallTalk('👍')!, /^(Hi|Hello)/, 'an emoji may come mid-conversation');
 });
