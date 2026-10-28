@@ -46,9 +46,11 @@ export const LIMITS = {
   visitorTtl: 30 * 24 * 60 * 60,
 } as const;
 
-/** The one refusal. Fixed text, never model output. */
+/** The one refusal. Fixed text, never model output. It is also what a
+    pleasantry the model misjudges gets, so it is worded for someone who was
+    being friendly: an apology, then what the bot CAN do, then the way out. */
 export const REFUSAL =
-  'I can only help with questions about Aniwala Studios — for anything else, get in touch here.';
+  "Sorry — that's outside what I can help with. I can answer questions about Aniwala Studios' services, work, process and open roles. For anything else, get in touch here.";
 
 /* ------------------------------------------------------------------ */
 /* Crypto                                                              */
