@@ -159,7 +159,7 @@ function judge(c, reply) {
   return null;
 }
 
-const BARS = { facts: 0.9, not_offered: 0.9, commitments: 1, off_topic: 1, injection: 1 };
+const BARS = { facts: 0.9, not_offered: 0.9, commitments: 1, off_topic: 1, injection: 1, small_talk: 1 };
 const modes = args.mode ? [args.mode] : ['selective', 'full'];
 const runs = Number(args.runs ?? 3);
 const results = {};
