@@ -119,6 +119,26 @@ if (!sa || !vertex.project || !vertex.model) {
 const MONEY =
   /([₹$€£]\s?\d)|(\b(rs\.?|inr|usd|eur|gbp)\s?\d)|(\d[\d,.]*\s?(lakh|lac|crore|k\b|per day|a day|an hour|per hour|\/hr|\/day))/i;
 
+/**
+ * Vertex saying "busy" (429 RESOURCE_EXHAUSTED, 503) is the eval account's
+ * quota, not the bot's behaviour, so it is waited out rather than scored: one
+ * shared-quota blip on run 2026-10-28 failed a 400-call eval at 29/30. Any
+ * other error still fails the case. The function itself does NOT retry — a
+ * visitor gets the hand-off instead of a long wait.
+ */
+async function busyRetry(fn) {
+  for (const wait of [5, 15, 45]) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (!/\bvertex (429|503)\b/.test(String(err?.message ?? err))) throw err;
+      console.log(`  (vertex busy — retrying in ${wait}s)`);
+      await new Promise((r) => setTimeout(r, wait * 1000));
+    }
+  }
+  return fn();
+}
+
 /** The function's flow for one message, including the one `need` retry. */
 async function ask(question, history, mode) {
   const token = await accessToken(sa);
@@ -129,7 +149,7 @@ async function ask(question, history, mode) {
       ? { ids: [...index.ids].sort(), fallback: true }
       : selectConcepts(index, { question: q, previous: last?.q, loaded: last?.ids });
   let ids = sel.ids;
-  const call = async (use) => parseReply((await generate(vertex, token, buildRequest(index, use, history, q))).text, index);
+  const call = async (use) => parseReply((await busyRetry(() => generate(vertex, token, buildRequest(index, use, history, q)))).text, index);
   let reply = await call(ids);
   if (reply?.onTopic && reply.need.length && mode === 'selective') {
     const extra = reply.need.filter((id) => !ids.includes(id));
